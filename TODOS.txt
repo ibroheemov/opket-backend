@@ -1,0 +1,10 @@
+1. Set currentRideId of the driver to null after completion of the ride
+2. Do not editMessage if receive same coordinates
+
+MVP
+1. Driver arrival
+2. Ride start
+3. Fare calculation
+4. End Ride
+5. Driver balance
+6. Driver fill balance (Manual or Paynet, Payme)

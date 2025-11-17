@@ -1,0 +1,65 @@
+// src/controllers/auth.controller.ts
+import { Request, Response } from "express";
+import authService from "../services/auth.service";
+import { AuthRequest } from "../middlewares/auth";
+
+class AuthController {
+
+    async checkDriver(req: Request, res: Response) {
+        try {
+            const { phone } = req.body;
+
+            if (!phone) return res.status(400).json({ message: "Phone is required" });
+
+            const exists = await authService.checkDriver(phone);
+
+            if (!exists)
+                return res.status(404).json({ message: "Driver not found" });
+
+            return res.json({ exists: true });
+        } catch (err) {
+            console.error("checkDriver error:", err);
+            return res.status(500).json({ message: "Server error" });
+        }
+    }
+
+    async login(req: Request, res: Response) {
+        try {
+            const { firebaseToken } = req.body;
+
+            if (!firebaseToken)
+                return res.status(400).json({ message: "Missing Firebase token" });
+
+            const phone = await authService.verifyFirebaseToken(firebaseToken);
+
+            const login = await authService.login(phone);
+
+            return res.json(login);
+        } catch (err) {
+            console.error("login error:", err);
+            return res.status(500).json({ message: "Login failed" });
+        }
+    }
+
+    async register(req: AuthRequest, res: Response) {
+        try {
+            // 1. Firebase token validation
+            // await authService.verifyFirebaseToken(req.headers.authorization);
+
+            // 2. Register driver
+            const result = await authService.registerDriver(req.body, req.files);
+
+            return res.status(200).json({
+                message: "Driver registered",
+                ...result,
+            });
+        } catch (err: any) {
+            console.error("register driver error:", err);
+            return res.status(400).json({
+                message: err.message || "Internal server error",
+            });
+        }
+    }
+}
+
+export default new AuthController();
