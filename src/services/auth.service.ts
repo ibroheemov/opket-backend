@@ -1,5 +1,4 @@
 // src/services/auth.service.ts
-import admin from "../firebaseAdmin";
 import { DriverModel } from "../models/DriverModel";
 import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt";
 import fileUploadService from "./fileUpload.service";
@@ -15,15 +14,15 @@ class AuthService {
 
     /** Step 2 — Verify Firebase OTP ID token */
     async verifyFirebaseToken(firebaseToken: string) {
-        const decoded = await admin.auth().verifyIdToken(firebaseToken);
+        // const decoded = await admin.auth().verifyIdToken(firebaseToken);
 
-        if (!decoded.phone_number) {
-            throw new Error("Firebase token missing phone number");
-        }
+        // if (!decoded.phone_number) {
+        //     throw new Error("Firebase token missing phone number");
+        // }
 
-        const cleanPhone = decoded.phone_number.replace("+998", "").trim();
+        // const cleanPhone = decoded.phone_number.replace("+998", "").trim();
 
-        return cleanPhone;
+        // return cleanPhone;
     }
 
     async ensurePhoneNotRegistered(phone: string) {

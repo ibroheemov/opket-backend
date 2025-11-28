@@ -10,7 +10,6 @@ import userRoutes from "./routes/user";
 import driverRoutes from "./routes/driver";
 import cors from "cors";
 import admin from 'firebase-admin';
-import serviceAccount from './serviceAccountKey.json';
 dotenv.config();
 
 const app = express();
@@ -19,8 +18,13 @@ app.use(cors());
 
 async function startServer() {
     if (!admin.apps.length) {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_SA!);
+
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+            credential: admin.credential.cert({
+                ...serviceAccount,
+                private_key: serviceAccount.private_key.replace(/\\n/g, '\n')
+            }),
         });
     }
     await connectDB();
