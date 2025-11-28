@@ -33,9 +33,9 @@ async function startServer() {
 
     const driverRepo = new MongoDriverRepo();
 
-    app.use("/user", userRoutes);
-    app.use("/driver", driverRoutes);
-    app.use("/driver", makeDriverAuthController(driverRepo));
+    app.use("/api/user", userRoutes);
+    app.use("/api/driver", driverRoutes);
+    app.use("/api/driver", makeDriverAuthController(driverRepo));
 
     // simple health check
     app.get("/health", (req, res) => res.send("ok"));
