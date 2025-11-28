@@ -19,7 +19,7 @@ export const initSocketServer = (server: http.Server) => {
             return;
         }
 
-        if (auth.driverId) registerDriverHandlers(socket, auth.driverId);
+        if (auth.driverId && auth.fcmToken) registerDriverHandlers({ socket, driverId: auth.driverId, fcmToken: auth.fcmToken });
         else if (auth.userChatId) registerUserHandlers(socket, auth.userChatId);
     });
 

@@ -8,7 +8,7 @@ import haversine from "haversine-distance";
 import { uploadBufferToCloudinary } from "../utils/uploadToCloudinary";
 import jwt from "jsonwebtoken";
 import { socketIo } from "../gateway/socket.maps";
-import { signJwt } from "../utils/jwt";
+import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt";
 
 export const updateLocation = async (req: AuthRequest, res: Response) => {
     const { lat, lon } = req.body;
@@ -176,7 +176,7 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
         // Prevent duplicate phone registrations
         const existing = await DriverModel.findOne({ phone });
         if (existing) {
-            return res.status(400).json({ message: "Driver with this phone already exists" });
+            return res.status(400).json({ message: "Bu telefon raqamli haydovchi ro'yxatdan o'tgan" });
         }
 
         // Build base driver fields
@@ -233,11 +233,15 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
         (newDriver as any).passport = passportUrl;
 
         await newDriver.save();
-        const token = signJwt({ id: newDriver._id });
 
+        const accessToken = generateAccessToken({ id: newDriver._id });
+        const refreshToken = generateRefreshToken({ id: newDriver._id });
 
         // Return created driver (or a DTO excluding secrets if needed)
-        return res.status(200).json({ message: "Driver registered", driver: newDriver, token });
+        return res.status(200).json({
+            message: "Driver registered", driver: newDriver, accessToken,
+            refreshToken,
+        });
     } catch (err: any) {
         console.error("register driver error:", err);
         return res.status(500).json({ message: "Internal server error", error: err.message });

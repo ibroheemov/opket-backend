@@ -15,6 +15,7 @@ export interface IRide extends Document {
     createdAt?: Date;
     startedAt?: Date;
     endedAt?: Date;
+    luggage: boolean;
     distanceTraveled: number,
     candidateDrivers: { driverId: string, distKm: number }[],
     offeredTo?: string;
@@ -28,7 +29,8 @@ export interface IRide extends Document {
 const rideSchema = new Schema<IRide>({
     userId: String,
     userChatId: Number,
-    driverId: String,
+    driverId: { type: String },
+    luggage: { type: Boolean, default: false },
     pickup: {
         lat: Number,
         lon: Number,

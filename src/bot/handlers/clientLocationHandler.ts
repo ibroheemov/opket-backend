@@ -33,7 +33,17 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
         if (ride.drivers == 0) {
             stopAnimation();
             deleteMessages(chatId);
-            await userBot.sendMessage(chatId, "❌ Haydovchi topilmadi, birozdan so'ng urinib ko‘ring.");
+            const sent = await userBot.sendMessage(
+                chatId,
+                "❌ Haydovchi topilmadi, birozdan so'ng urinib ko‘ring.",
+                {
+                    reply_markup: {
+                        keyboard: [[{ text: "📍 Lokatsiya yuborish", request_location: true }]],
+                        resize_keyboard: true,
+                    },
+                }
+            );
+            addToMessagesToDelete(chatId, sent.message_id);
         }
         // deleteMessages()
     } catch (err) {

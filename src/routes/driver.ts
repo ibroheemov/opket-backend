@@ -6,18 +6,27 @@ import { registerFcm } from "../controllers/driver/registerFcm";
 import { getWeeklyStats } from "../controllers/driver/getWeeklyStats";
 import { getProfile } from "../controllers/driver/getProfile";
 import authController from "../controllers/ auth.controller";
+import { payChange } from "../controllers/driver/payChange";
+import { heartbeat } from "../controllers/driver/heartbeat";
+import { refreshToken } from "../controllers/driver/refreshToken";
+import { fetchFareConfig } from "../controllers/fare.controller";
 
 const router = express.Router();
 
+router.post("/send-otpr", authController.sendOtp);
 router.post("/check-driver", authController.checkDriver);
 router.post("/login", authController.login);
 router.get("/get-driver", getDriver);
+router.get("/fare", fetchFareConfig);
 router.get("/:id/profile", getProfile);
 router.get("/:id/stats/weekly", getWeeklyStats);
+router.post("/refresh-token", refreshToken);
+router.post("/heartbeat", authenticateDriver, heartbeat);
 router.post("/register-fcm", authenticateDriver, registerFcm);
 router.post("/update-location", authenticateDriver, updateLocation);
 router.post("/status", authenticateDriver, updateStatus);
 router.get("/:id/balance", authenticateDriver, getDriverBalance);
+router.post("/pay-change", authenticateDriver, payChange);
 router.post("/dashboard", driverDashboard);
 router.post(
     "/register",

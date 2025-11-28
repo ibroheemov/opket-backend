@@ -33,7 +33,7 @@ export async function handleRideAssigned(
     }
 
     // Send live location
-    const { lat, lon } = driver.location;
+    const { lat, lon } = location;
     const locationMsg = await bot.sendLocation(chatId, lat, lon, { live_period: 900 });
     session.messageId = locationMsg.message_id;
 
@@ -47,9 +47,7 @@ export async function handleRideAssigned(
 
     const infoMsg = await bot.sendMessage(
         chatId,
-        `Haydovchi yo'lda ☝️\n\n👨‍✈️Haydovchi: ${driver.name}\n🚗 Mashina: ${driver.vehicle}\n🔢 Raqam: ${driver.carNumber}\n📍 Uzoqlik: ${distance.toFixed(
-            2
-        )} km\n☎️ +${driver.phone}`,
+        `Haydovchi yo'lda ☝️\n\n👨‍✈️Haydovchi: ${driver.name}\n🚗 Mashina: ${driver.carModel}, ${driver.carColor}\n🔢 Raqam: ${driver.carNumber}\n☎️ +998${driver.phone}`,
         {
             reply_markup: {
                 inline_keyboard: [

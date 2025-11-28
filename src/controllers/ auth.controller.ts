@@ -5,6 +5,19 @@ import { AuthRequest } from "../middlewares/auth";
 
 class AuthController {
 
+    async sendOtp(req: Request, res: Response) {
+        try {
+            const { phone } = req.body;
+
+            if (!phone) return res.status(400).json({ message: "Phone is required" });
+            // TODO: request Telegram's [sendVerificationMessage] endpoint
+            return res.json({ exists: true });
+        } catch (err) {
+            console.error("SEND OTP error:", err);
+            return res.status(500).json({ message: "Server error" });
+        }
+    }
+
     async checkDriver(req: Request, res: Response) {
         try {
             const { phone } = req.body;
@@ -25,12 +38,7 @@ class AuthController {
 
     async login(req: Request, res: Response) {
         try {
-            const { firebaseToken } = req.body;
-
-            if (!firebaseToken)
-                return res.status(400).json({ message: "Missing Firebase token" });
-
-            const phone = await authService.verifyFirebaseToken(firebaseToken);
+            const { phone } = req.body;
 
             const login = await authService.login(phone);
 

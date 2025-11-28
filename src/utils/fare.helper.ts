@@ -43,5 +43,5 @@ export const handleRideCommission = async (
     //     });
     // }
 
-    return { commission, fare, balance: driver.balance };
+    return { commission, balance: driver.balance };
 };

@@ -1,7 +1,7 @@
 // src/services/auth.service.ts
 import admin from "../firebaseAdmin";
 import { DriverModel } from "../models/DriverModel";
-import { signJwt } from "../utils/jwt";
+import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt";
 import fileUploadService from "./fileUpload.service";
 import jwt from "jsonwebtoken";
 
@@ -59,10 +59,12 @@ class AuthService {
             throw new Error("Driver not found");
         }
 
-        const jwt = signJwt({ id: driver._id });
+        const accessToken = generateAccessToken({ id: driver._id });
+        const refreshToken = generateRefreshToken({ id: driver._id });
 
         return {
-            token: jwt,
+            accessToken,
+            refreshToken,
             driverId: driver._id,
             driver,
         };

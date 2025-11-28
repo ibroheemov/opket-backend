@@ -13,12 +13,14 @@ export const DriverRepository = {
             .map((driver) => {
                 if (!driver.location) return null;
 
-                const dist = haversineDistanceKm(
+                let dist = haversineDistanceKm(
                     pickupLat,
                     pickupLon,
                     driver.location.lat,
                     driver.location.lon
                 );
+
+                dist = 3;
 
                 if (dist > maxKm) return null;
 

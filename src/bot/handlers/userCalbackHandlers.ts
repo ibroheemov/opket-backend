@@ -19,6 +19,14 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
             const sent = await sendLocationToToRequestRide(chatId);
             await deleteMessages(chatId);
             await addToMessagesToDelete(chatId, sent.message_id);
+        } else if (action.startsWith("add_luggage_no")) {
+            if (session?.rideId) {
+                await axios.post(`${config.backendUrl}/user/decline-luggage`, { rideId: session?.rideId });
+            }
+        } else if (action.startsWith("add_luggage_yes")) {
+            if (session?.rideId) {
+                await axios.post(`${config.backendUrl}/user/confirm-luggage`, { rideId: session?.rideId });
+            }
         }
     });
 }

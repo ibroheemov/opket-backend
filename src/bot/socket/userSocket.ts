@@ -13,8 +13,14 @@ import {
     DriverLocationUpdatePayload,
     RideStatusPayload,
     RideProgressPayload,
+    RideCompletedPayload,
+    RidePayChangePayload,
+    RideStartedPayload,
 } from "./types";
 import { handleRideNoDrivers } from "./handlers/rideNoDrivers";
+import { handleAddLuggage } from "./handlers/rideAddLuggage";
+import { PassengerModel } from "../../models/PassengerModel";
+import { handleRidePayChange } from "./handlers/ridePayChange";
 
 export function initUserSocket(bot: TelegramBot, chatId: number): Socket {
     const socket = io(process.env.BACKEND_URL!, {
@@ -41,11 +47,22 @@ export function initUserSocket(bot: TelegramBot, chatId: number): Socket {
         handleRideStatusUpdate(bot, chatId, data)
     );
 
-    socket.on("ride_started", () => handleRideStarted(bot, chatId));
+    socket.on("add_luggage", () =>
+        handleAddLuggage(bot, chatId)
+    );
+
+    socket.on("ride_started", (data: RideStartedPayload) => handleRideStarted(chatId, data));
+
     socket.on("ride_progress", (data: RideProgressPayload) =>
         handleRideProgress(bot, chatId, data)
     );
-    socket.on("ride_completed", () => handleRideCompleted(bot, chatId));
+
+    socket.on("pay_change", async (data: RidePayChangePayload) => {
+        handleRidePayChange(bot, chatId, data)
+    }
+    );
+
+    socket.on("ride_completed", (data: RideCompletedPayload) => handleRideCompleted(bot, chatId, data));
 
     socket.on("connect", () => console.log("✅ User socket connected"));
     socket.on("connect_error", (err) =>
