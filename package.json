@@ -4,9 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "bot": "ts-node src/bot/PassengerBot.ts",
-    "driver_bot": "ts-node src/bot/DriverBot.ts",
     "dev": "node dist/server.js",
     "build": "tsc",
     "start": "node dist/server.js"
