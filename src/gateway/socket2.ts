@@ -8,7 +8,13 @@ import { setSocketServer } from "./socket.maps";
 export let socketIo: Server;
 
 export const initSocketServer = (server: http.Server) => {
-    socketIo = new Server(server, { cors: { origin: "*" } });
+    // Initialize Socket.IO with path /socket.io
+    const socketIo = new Server(server, {
+        cors: { origin: "*" },
+        path: "/socket.io",
+    });
+
+    // Save reference globally
     setSocketServer(socketIo);
 
     socketIo.on("connection", (socket) => {
@@ -19,10 +25,13 @@ export const initSocketServer = (server: http.Server) => {
             return;
         }
 
-        if (auth.driverId && auth.fcmToken) registerDriverHandlers({ socket, driverId: auth.driverId, fcmToken: auth.fcmToken });
-        else if (auth.userChatId) registerUserHandlers(socket, auth.userChatId);
+        if (auth.driverId && auth.fcmToken) {
+            registerDriverHandlers({ socket, driverId: auth.driverId, fcmToken: auth.fcmToken });
+        } else if (auth.userChatId) {
+            registerUserHandlers(socket, auth.userChatId);
+        }
     });
 
-    console.log("✅ WebSocket gateway initialized");
+    console.log("✅ WebSocket gateway initialized on path /socket.io");
     return socketIo;
 };

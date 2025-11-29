@@ -24,7 +24,8 @@ import { handleRidePayChange } from "./handlers/ridePayChange";
 import { config } from "../config/env";
 
 export function initUserSocket(bot: TelegramBot, chatId: number): Socket {
-    const socket = io(config.backendUrl, {
+    const socket = io(config.webhookDomain, {
+        path: "/socket.io",
         transports: ["websocket"],
         auth: { userChatId: chatId || "unknown" },
     });
