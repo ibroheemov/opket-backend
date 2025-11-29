@@ -10,6 +10,7 @@ import driverRoutes from "./routes/driver";
 import cors from "cors";
 import admin from 'firebase-admin';
 import { config } from "./bot/config/env";
+import { userBot } from "./bot/PassengerBot";
 
 const app = express();
 app.use(bodyParser.json());
@@ -35,6 +36,16 @@ async function startServer() {
     app.use("/user", userRoutes);
     app.use("/driver", driverRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
+
+    // -------------------------------
+    // Telegram webhook route
+    if (config.env === "production") {
+        app.post(`/bot${config.token}`, (req, res) => {
+            userBot.processUpdate(req.body); // forward update to your TelegramBot instance
+            res.sendStatus(200);
+        });
+    }
+    // -------------------------------
 
     // simple health check
     app.get("/health", (req, res) => res.send("ok"));
