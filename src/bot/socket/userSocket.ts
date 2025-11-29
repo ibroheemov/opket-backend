@@ -26,7 +26,7 @@ import { config } from "../config/env";
 export function initUserSocket(bot: TelegramBot, chatId: number): Socket {
     console.log(config.webhookDomain);
 
-    const socket = io(config.webhookDomain, {
+    const socket = io("http://backend:3000", {
         path: "/socket.io",
         transports: ["websocket"],
         auth: { userChatId: chatId || "unknown" },
