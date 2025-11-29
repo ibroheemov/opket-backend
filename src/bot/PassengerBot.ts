@@ -7,6 +7,7 @@ import { setupUserCallbackHandlers } from "./handlers/userCalbackHandlers";
 export const userBot = new TelegramBot(config.token, {
     polling: config.env === "development"
 });
+console.log(config.env);
 
 (async () => {
     if (config.env === "production") {
