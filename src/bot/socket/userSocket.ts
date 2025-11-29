@@ -24,6 +24,8 @@ import { handleRidePayChange } from "./handlers/ridePayChange";
 import { config } from "../config/env";
 
 export function initUserSocket(bot: TelegramBot, chatId: number): Socket {
+    console.log(config.webhookDomain);
+
     const socket = io(config.webhookDomain, {
         path: "/socket.io",
         transports: ["websocket"],
@@ -68,7 +70,7 @@ export function initUserSocket(bot: TelegramBot, chatId: number): Socket {
 
     socket.on("connect", () => console.log("✅ User socket connected"));
     socket.on("connect_error", (err) =>
-        console.error("🚨 Connection error:", err.message)
+        console.error("🚨 Connection error:", err)
     );
     socket.on("disconnect", () => console.log("❌ User socket disconnected"));
 
