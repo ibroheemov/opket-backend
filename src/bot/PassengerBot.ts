@@ -11,17 +11,19 @@ console.log(config.env);
 
 (async () => {
     if (config.env === "production") {
-        try {
-            const webhookInfo = await userBot.getWebHookInfo();
-            if (!webhookInfo.url || webhookInfo.url === "") {
-                await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
-                console.log("Webhook set for production");
-            } else {
-                console.log("Webhook already set, skipping setWebHook");
-            }
-        } catch (err) {
-            console.error("Error checking/setting webhook:", err);
-        }
+        await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
+
+        // try {
+        //     const webhookInfo = await userBot.getWebHookInfo();
+        //     if (!webhookInfo.url || webhookInfo.url === "") {
+        //         await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
+        //         console.log("Webhook set for production");
+        //     } else {
+        //         console.log("Webhook already set, skipping setWebHook");
+        //     }
+        // } catch (err) {
+        //     console.error("Error checking/setting webhook:", err);
+        // }
     }
 })();
 
