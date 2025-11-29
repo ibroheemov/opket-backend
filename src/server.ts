@@ -44,6 +44,21 @@ async function startServer() {
             userBot.processUpdate(req.body); // forward update to your TelegramBot instance
             res.sendStatus(200);
         });
+
+        // Set webhook if not already set
+        (async () => {
+            try {
+                const webhookInfo = await userBot.getWebHookInfo();
+                if (!webhookInfo.url || webhookInfo.url === "") {
+                    await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
+                    console.log("Webhook set for production");
+                } else {
+                    console.log("Webhook already set, skipping setWebHook");
+                }
+            } catch (err) {
+                console.error("Error checking/setting webhook:", err);
+            }
+        })();
     }
     // -------------------------------
 
