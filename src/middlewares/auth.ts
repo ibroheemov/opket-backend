@@ -1,6 +1,7 @@
 // src/interfaces/http/middleware/auth.ts
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { config } from "../bot/config/env";
 
 export interface AuthRequest extends Request {
     driverId?: string;
@@ -13,7 +14,7 @@ export const authenticateDriver = (req: AuthRequest, res: Response, next: NextFu
 
     const token = authHeader.split(" ")[1];
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
+        const decoded = jwt.verify(token, config.jwtSecret) as { id: string };
         req.driverId = decoded.id;
         next();
     } catch (err) {

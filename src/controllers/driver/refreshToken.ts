@@ -2,6 +2,7 @@ import { AuthRequest } from "../../middlewares/auth";
 import { Response } from "express";
 import jwt, { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
 import { generateAccessToken, generateRefreshToken } from "../../utils/jwt";
+import { config } from "../../bot/config/env";
 
 export const refreshToken = async (req: AuthRequest, res: Response) => {
     const { refreshToken } = req.body;
@@ -12,7 +13,7 @@ export const refreshToken = async (req: AuthRequest, res: Response) => {
 
     try {
         // Verify refresh token
-        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as { id: string };
+        const decoded = jwt.verify(refreshToken, config.jwtSecret) as { id: string };
 
         // Optional: Ensure the token belongs to the same driver
         if (!decoded.id) {

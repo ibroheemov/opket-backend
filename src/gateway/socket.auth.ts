@@ -1,13 +1,14 @@
 import jwt from "jsonwebtoken";
 import { Socket } from "socket.io";
 import { SocketAuthPayload } from "../types/socket.types";
+import { config } from "../bot/config/env";
 
 export const authenticateSocket = (socket: Socket): { driverId?: string; fcmToken?: string; userChatId?: number } | null => {
     const { token, fcmToken, userChatId } = socket.handshake.auth || {};
 
     if (token && fcmToken) {
         try {
-            const decoded = jwt.verify(token, process.env.JWT_SECRET!) as SocketAuthPayload;
+            const decoded = jwt.verify(token, config.jwtSecret) as SocketAuthPayload;
             return { driverId: decoded.id, fcmToken };
         } catch {
             console.warn("❌ Invalid driver token");

@@ -21,9 +21,10 @@ import { handleRideNoDrivers } from "./handlers/rideNoDrivers";
 import { handleAddLuggage } from "./handlers/rideAddLuggage";
 import { PassengerModel } from "../../models/PassengerModel";
 import { handleRidePayChange } from "./handlers/ridePayChange";
+import { config } from "../config/env";
 
 export function initUserSocket(bot: TelegramBot, chatId: number): Socket {
-    const socket = io(process.env.BACKEND_URL!, {
+    const socket = io(config.backendUrl, {
         transports: ["websocket"],
         auth: { userChatId: chatId || "unknown" },
     });

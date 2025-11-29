@@ -1,4 +1,5 @@
 // src/services/auth.service.ts
+import { config } from "../bot/config/env";
 import { DriverModel } from "../models/DriverModel";
 import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt";
 import fileUploadService from "./fileUpload.service";
@@ -88,7 +89,7 @@ class AuthService {
 
         const token = jwt.sign(
             { id: newDriver._id, phone: newDriver.phone },
-            process.env.JWT_SECRET!,
+            config.jwtSecret,
             { expiresIn: "7d" }
         );
 

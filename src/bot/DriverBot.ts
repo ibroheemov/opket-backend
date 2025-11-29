@@ -4,6 +4,7 @@ import { setupAuthHandlers } from "./handlers/authHandler";
 import { setupMenuHandlers } from "./handlers/menuHandler";
 import { setupRideHandlers } from "./handlers/rideHandler";
 import { setupLocationHandler } from "./handlers/locationHandler";
+import { config } from "./config/env";
 
 declare module "node-telegram-bot-api" {
     interface Location {
@@ -12,8 +13,8 @@ declare module "node-telegram-bot-api" {
 }
 
 
-export const driverBot = new TelegramBot(process.env.DRIVER_BOT_TOKEN!, { polling: true });
-const BACKEND_URL = process.env.BACKEND_URL!;
+export const driverBot = new TelegramBot(config.driverBotToken, { polling: true });
+const BACKEND_URL = config.backendUrl;
 
 // register handlers
 setupAuthHandlers(driverBot, BACKEND_URL);

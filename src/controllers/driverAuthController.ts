@@ -53,7 +53,7 @@ export function makeDriverAuthController(driverRepo: MongoDriverRepo) {
         if (!driver || driver.otp !== otp || new Date(driver.otpExpiresAt!) < new Date())
             return res.status(401).json({ error: "Invalid or expired OTP" });
 
-        const token = jwt.sign({ id: driver.id, phone: driver.phone }, process.env.JWT_SECRET!, {
+        const token = jwt.sign({ id: driver.id, phone: driver.phone }, config.jwtSecret, {
             expiresIn: "7d",
         });
 
@@ -93,7 +93,7 @@ export function makeDriverAuthController(driverRepo: MongoDriverRepo) {
 }
 
 async function sendOtpViaTelegram(chatId: number | string, otp: string) {
-    const token = process.env.DRIVER_BOT_TOKEN;
+    const token = config.driverBotToken;
     if (!token) {
         console.error("❌ TELEGRAM_TOKEN missing in env");
         throw new Error("Telegram token missing");

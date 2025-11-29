@@ -2,10 +2,11 @@
 import mongoose from "mongoose";
 import { DriverModel } from "../models/DriverModel";
 import dotenv from "dotenv";
+import { config } from "../bot/config/env";
 
 
 async function seed() {
-    await mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/taxi");
+    await mongoose.connect(config.MONGO_URI || "mongodb://localhost:27017/taxi");
 
     const testDriver = {
         id: "fner8347y8347r3487rh",

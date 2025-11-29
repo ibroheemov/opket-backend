@@ -5,11 +5,11 @@ import bodyParser from "body-parser";
 import { makeDriverAuthController } from "./controllers/driverAuthController";
 import { MongoDriverRepo } from "./infra/repos/MongoDriverRepo";
 import { connectDB } from "./utils/db";
-import dotenv from "dotenv";
 import userRoutes from "./routes/user";
 import driverRoutes from "./routes/driver";
 import cors from "cors";
 import admin from 'firebase-admin';
+import { config } from "./bot/config/env";
 
 const app = express();
 app.use(bodyParser.json());
@@ -17,7 +17,7 @@ app.use(cors());
 
 async function startServer() {
     if (!admin.apps.length) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_SA!);
+        const serviceAccount = JSON.parse(config.FIREBASE_ADMIN_SA);
 
         admin.initializeApp({
             credential: admin.credential.cert({
@@ -39,7 +39,7 @@ async function startServer() {
     // simple health check
     app.get("/health", (req, res) => res.send("ok"));
 
-    const PORT = process.env.PORT ?? 3000;
+    const PORT = config.PORT ?? 3000;
     server.listen(PORT, () => console.log(`listening on ${PORT}`));
 
 }
