@@ -11,7 +11,6 @@ declare module "node-telegram-bot-api" {
     }
 }
 
-dotenv.config();
 
 export const driverBot = new TelegramBot(process.env.DRIVER_BOT_TOKEN!, { polling: true });
 const BACKEND_URL = process.env.BACKEND_URL!;

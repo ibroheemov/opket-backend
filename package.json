@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "bot": "node dist/bot/PassengerBot.js",
+    "bot-dev": "NODE_ENV=development node dist/bot/PassengerBot.js",
+    "bot": "NODE_ENV=production node dist/bot/PassengerBot.js",
     "dev": "node dist/server.js",
     "build": "tsc",
     "start": "node dist/server.js"

@@ -1,28 +1,30 @@
 import { Message } from "node-telegram-bot-api";
-import { userBot } from "../PassengerBot";
-import { addToMessagesToDelete, safeDeleteMessage } from "../utils/message_deletions";
 import { config } from "../config/env";
 import axios from "axios";
+import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
+import { deleteMessageSafely, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 
 export const handleStart = async (msg: Message) => {
     const chatId = msg.chat.id;
-    const sent = await sendLocationToToRequestRide(chatId);
-    await axios.post(`${config.backendUrl}/user/create`, { chatId });
 
-    addToMessagesToDelete(chatId, sent.message_id)
-    // Delete the /start command message
-    safeDeleteMessage(chatId, msg.message_id);
-};
+    try {
+        const sent = await sendLocationRequestPrompt(chatId).catch(err => {
+            console.error("Failed to send location request prompt:", err);
+            return null;
+        });
 
-export async function sendLocationToToRequestRide(chatId: number): Promise<Message> {
-    return userBot.sendMessage(
-        chatId,
-        "Taxi chaqirish uchun lokatsiyangizni yuboring👇",
-        {
-            reply_markup: {
-                keyboard: [[{ text: "📍 Lokatsiya yuborish", request_location: true }]],
-                resize_keyboard: true,
-            },
+        if (sent?.message_id) {
+            queueMessageForDeletion(chatId, sent.message_id);
         }
-    );
-}
+
+        await deleteMessageSafely(chatId, msg.message_id);
+
+        await axios.post(`${config.backendUrl}/user/create`, { chatId })
+            .catch(err => {
+                console.error("User creation failed:", err);
+            });
+
+    } catch (err) {
+        console.error("Unexpected error in handleStart:", err);
+    }
+};

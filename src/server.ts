@@ -10,7 +10,6 @@ import userRoutes from "./routes/user";
 import driverRoutes from "./routes/driver";
 import cors from "cors";
 import admin from 'firebase-admin';
-dotenv.config();
 
 const app = express();
 app.use(bodyParser.json());
