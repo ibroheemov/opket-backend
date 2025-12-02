@@ -9,7 +9,7 @@ export let socketIo: Server;
 
 export const initSocketServer = (server: http.Server) => {
     // Initialize Socket.IO with path /socket.io
-    const socketIo = new Server(server, {
+    socketIo = new Server(server, {
         cors: { origin: "*" },
         path: "/socket.io",
     });

@@ -111,6 +111,7 @@ export async function sendOfferToNextDriverSafe(rideId: string) {
             const offerSent = await sendRideOffer({
                 id: claimed._id,
                 pickup: claimed.pickup,
+                userPhoneNumber: claimed.userPhoneNumber,
                 userChatId: claimed.userChatId,
                 travelDistance: distKm?.toFixed?.(2) ?? String(distKm),
                 travelTime,

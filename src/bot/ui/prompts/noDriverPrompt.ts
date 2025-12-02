@@ -1,11 +1,11 @@
 import { userBot } from "../../PassengerBot";
 import { locationRequestKeyboard } from "../keyboards/locationKeyboard";
-import { location_request_message } from "../messages";
+import { no_driver_message } from "../messages";
 
-export function sendLocationRequestPrompt(chatId: number) {
+export function sendNoDriverPrompt(chatId: number) {
     return userBot.sendMessage(
         chatId,
-        location_request_message,
+        no_driver_message,
         {
             reply_markup: locationRequestKeyboard,
         }

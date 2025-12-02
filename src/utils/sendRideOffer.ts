@@ -19,6 +19,7 @@ export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
         data: {
             type: 'ride_request',
             ride_id: rideOffer.id.toString(),
+            phone: rideOffer.userPhoneNumber ?? '',
             pickup: JSON.stringify(rideOffer.pickup),
             travelTime: rideOffer.travelTime.toString(),
             chatId: rideOffer.userChatId.toString(),

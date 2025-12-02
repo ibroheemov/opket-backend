@@ -45,13 +45,20 @@ export const cancelRide = async (req: Request, res: Response) => {
             await DriverModel.findOneAndUpdate({ _id: ride.driverId }, { currentRideId: null });
             const driverSession = driverStore.get(ride.driverId);
             driverStore.upsert(ride.driverId, { currentRideId: null });
+            console.log(driverSession);
+            console.log(driverSession?.socketId);
             socketIo.to(driverSession?.socketId!).emit("cancel_ride", { rideId });
         }
 
         return res.json({ rideId, message: "Buyurtma bekor qilindi" });
-    } catch (err: any) {
-        console.error("requestRide error:", err);
-        return res.status(500).json({ error: "Internal error" });
+    } catch (err: unknown) {
+        if (err instanceof Error) {
+            // console.error("cancelRide error:", err.message, err.stack);
+            return res.status(500).json({ error: "Internal server error", details: err.message });
+        } else {
+            // console.error("cancelRide unknown error:");
+            return res.status(500).json({ error: "Internal server error" });
+        }
     }
 };
 

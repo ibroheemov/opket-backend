@@ -21,6 +21,11 @@ import { updateRideStatus } from "../gateway/ride.socket";
 import { handleRideCommission } from "../utils/fare.helper";
 import { PassengerModel } from "../models/PassengerModel";
 
+type SearchResult = {
+    drivers: any[] | 0; // replace `any` with your actual driver type
+    message: string;
+};
+
 export interface RideRequestInput {
     chatId: string;
     location: { lat: number; lon: number };
@@ -31,6 +36,7 @@ export interface RideRequestInput {
 export interface RideOfferPaylod {
     id: string;
     pickup: DriverLocation;
+    userPhoneNumber?: string;
     userChatId: number;
     travelDistance: string;
     travelTime: number;
@@ -40,10 +46,73 @@ export interface RideOfferPaylod {
 
 
 export const RideService = {
+    async searchForDriversFor3Minutes(
+        rideId: string,
+        pickup: { lat: number; lon: number }
+    ): Promise<SearchResult> { // <- explicitly type the promise
+        const MAX_DURATION = 3 * 60 * 1000; // 3 minutes
+        const INTERVAL = 5000; // 5 seconds
+        const start = Date.now();
+
+        return new Promise<SearchResult>(async (resolve) => {
+            let stopped = false;
+
+            const checkDrivers = async () => {
+                if (stopped) return;
+
+                const elapsed = Date.now() - start;
+
+                // 1) Stop if timeout
+                if (elapsed >= MAX_DURATION) {
+                    stopped = true;
+                    await RideRepository.updateRide(rideId, { status: "cancelled" });
+                    return resolve({ drivers: 0, message: "No drivers found after 3 minutes" });
+                }
+
+                // 2) Check for drivers
+                const drivers = await DriverRepository.findAvailableDrivers(pickup.lat, pickup.lon);
+
+                if (drivers.length > 0) {
+                    stopped = true;
+
+                    const nearest = drivers[0];
+
+                    await RideRepository.updateRide(rideId, {
+                        candidateDrivers: drivers.map(d => ({
+                            driverId: d.driver.driverId,
+                            distKm: d.distKm
+                        })),
+                        driverId: nearest.driver.driverId
+                    });
+
+                    sendOfferToNextDriverSafe(rideId);
+
+                    return resolve({
+                        drivers,
+                        message: "Driver found!",
+                    });
+                }
+            };
+
+            // First immediate check
+            await checkDrivers();
+
+            // Then interval checks every 5 seconds
+            const interval = setInterval(async () => {
+                if (stopped) {
+                    clearInterval(interval);
+                    return;
+                }
+                await checkDrivers();
+            }, INTERVAL);
+        });
+    },
+
+
     async requestRide(input: RideRequestInput) {
         const { chatId, location, dropoff, address } = input;
 
-        // 1) Create the ride
+        // 1) Create initial ride
         const ride = await RideRepository.createRide({
             userChatId: chatId,
             pickup: { lat: location.lat, lon: location.lon, address },
@@ -51,29 +120,51 @@ export const RideService = {
                 ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
                 : undefined,
             status: "pending",
-        })
-        // 2) Get drivers sorted by distances
-        const drivers = await DriverRepository.findAvailableDrivers(location.lat, location.lon);
-        if (!drivers.length) {
-            await RideRepository.updateRide(ride._id, {
-                status: "cancelled",
-            });
-            return { message: "Yaqin atrofda haydovchilar topilmadi", drivers: 0, rideId: ride._id };
-        }
-        const nearest = drivers[0];
-
-        // 3) Attach the list of candidates to the ride
-        const candidateDrivers = drivers.map((d) => {
-            return { driverId: d.driver.driverId, distKm: d.distKm }
         });
-        await RideRepository.updateRide(ride._id, { candidateDrivers });
 
-        await RideRepository.updateRide(ride._id, { driverId: nearest.driver.driverId });
-        // 4) Start offering process
-        sendOfferToNextDriverSafe(ride._id);
+        // 2) Begin search loop for up to 3 minutes
+        this.searchForDriversFor3Minutes(ride._id, location)
+            .catch(err => console.error("Background search failed:", err));
 
-        return { message: "Ride created, offering drivers...", drivers: drivers, rideId: ride._id };
+        return {
+            rideId: ride._id
+        };
     },
+
+    // async requestRide(input: RideRequestInput) {
+    //     const { chatId, location, dropoff, address } = input;
+
+    //     // 1) Create the ride
+    //     const ride = await RideRepository.createRide({
+    //         userChatId: chatId,
+    //         pickup: { lat: location.lat, lon: location.lon, address },
+    //         dropoff: dropoff
+    //             ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
+    //             : undefined,
+    //         status: "pending",
+    //     })
+    //     // 2) Get drivers sorted by distances
+    //     const drivers = await DriverRepository.findAvailableDrivers(location.lat, location.lon);
+    //     if (!drivers.length) {
+    //         await RideRepository.updateRide(ride._id, {
+    //             status: "cancelled",
+    //         });
+    //         return { message: "Yaqin atrofda haydovchilar topilmadi", drivers: 0, rideId: ride._id };
+    //     }
+    //     const nearest = drivers[0];
+
+    //     // 3) Attach the list of candidates to the ride
+    //     const candidateDrivers = drivers.map((d) => {
+    //         return { driverId: d.driver.driverId, distKm: d.distKm }
+    //     });
+    //     await RideRepository.updateRide(ride._id, { candidateDrivers });
+
+    //     await RideRepository.updateRide(ride._id, { driverId: nearest.driver.driverId });
+    //     // 4) Start offering process
+    //     sendOfferToNextDriverSafe(ride._id);
+
+    //     return { message: "Ride created, offering drivers...", drivers: drivers, rideId: ride._id };
+    // },
 
     async acceptRide(
         rideId: string,

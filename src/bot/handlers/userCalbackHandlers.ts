@@ -1,9 +1,10 @@
 import TelegramBot from "node-telegram-bot-api";
-import { addToMessagesToDelete, deleteMessages } from "../utils/message_deletions";
 import { getSession } from "../services/sessionManager";
 import { config } from "../config/env";
 import axios from "axios";
 import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
+import { flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
+import { deleteMessages } from "../utils/message_deletions";
 
 export function setupUserCallbackHandlers(bot: TelegramBot) {
     bot.on("callback_query", async (query) => {
@@ -12,13 +13,17 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
         const session = getSession(chatId);
 
         if (action.startsWith("cancel_ride")) {
+            await deleteMessages(chatId);
+
             if (session?.rideId) {
                 await axios.post(`${config.backendUrl}/user/cancel-ride`, { rideId: session?.rideId });
             }
             session?.searchingMessage?.stopAnimation()
             const sent = await sendLocationRequestPrompt(chatId);
-            await deleteMessages(chatId);
-            await addToMessagesToDelete(chatId, sent.message_id);
+            // await deleteMessages(chatId);
+            await flushDeletionQueue(chatId);
+            // await addToMessagesToDelete(chatId, sent.message_id);
+            queueMessageForDeletion(chatId, sent.message_id)
         } else if (action.startsWith("add_luggage_no")) {
             if (session?.rideId) {
                 await axios.post(`${config.backendUrl}/user/decline-luggage`, { rideId: session?.rideId });

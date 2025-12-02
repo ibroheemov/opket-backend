@@ -4,6 +4,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IRide extends Document {
     _id: string;
     userId?: string;
+    userPhoneNumber?: string;
     userChatId: number;                // Telegram chat id for the user
     driverId?: string | null;
     pickup: { lat: number; lon: number; address?: string };
@@ -29,6 +30,7 @@ export interface IRide extends Document {
 const rideSchema = new Schema<IRide>({
     userId: String,
     userChatId: Number,
+    userPhoneNumber: String,
     driverId: { type: String },
     luggage: { type: Boolean, default: false },
     pickup: {

@@ -3,51 +3,173 @@ import { getSession } from "../services/sessionManager";
 import { initUserSocket } from "../socket/userSocket";
 import { requestRide } from "../services/rideService";
 import { startLoadingAnimation } from "../services/animationService";
-import { safeDeleteMessage, logError, deleteMessages, addToMessagesToDelete } from "../utils/message_deletions";
+import { logError, deleteMessages } from "../utils/message_deletions";
 import TelegramBot from "node-telegram-bot-api";
+import { sendSearchingDriverPrompt } from "../ui/prompts/searchingDriverPrompt";
+import { flushAllDeletionQueues, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
+import { sendNoDriverPrompt } from "../ui/prompts/noDriverPrompt";
+
+// export const handleLocation = async (msg: TelegramBot.Message) => {
+//     const chatId = msg.chat.id;
+//     const { latitude, longitude } = msg.location!;
+//     const session = getSession(chatId);
+
+//     session.location = { lat: latitude, lon: longitude };
+//     initUserSocket(userBot, chatId);
+//     await deleteMessages(chatId)
+
+//     const sent = await sendSearchingDriverPrompt(chatId).catch(err => {
+//         console.error("Failed to send location request prompt:", err);
+//         return null;
+//     });
+
+
+//     if (!sent?.message_id) return;
+
+//     queueMessageForDeletion(chatId, msg.message_id);
+//     queueMessageForDeletion(chatId, sent.message_id);
+
+//     const stopAnimation = startLoadingAnimation(userBot, chatId, sent.message_id);
+//     session.searchingMessage = { messageId: sent.message_id, stopAnimation };
+
+//     try {
+//         const ride = await requestRide(chatId, { lat: latitude, lon: longitude });
+//         session.rideId = ride.rideId;
+
+//         if (ride.drivers == 0) {
+//             stopAnimation();
+//             await flushDeletionQueue(chatId);
+//             const sent = await sendNoDriverPrompt(chatId).catch(err => {
+//                 console.error("Failed to send location request prompt:", err);
+//                 return null;
+//             });
+
+//             if (sent) queueMessageForDeletion(chatId, sent.message_id);
+//         }
+//         // deleteMessages()
+//     } catch (err) {
+//         logError("requestRide", err);
+//         await userBot.sendMessage(chatId, "❌ Buyurtma berishda xatolik yuz berdi");
+//     }
+// };
+
+
+// Utility: wrap a promise with a timeout
+async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void): Promise<T | null> {
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => {
+            if (onTimeout) onTimeout();
+            resolve(null);
+        }, ms);
+    });
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+}
 
 export const handleLocation = async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id;
     const { latitude, longitude } = msg.location!;
     const session = getSession(chatId);
+    console.log(session);
 
+    // Step 0: Update session & initialize socket (non-blocking)
     session.location = { lat: latitude, lon: longitude };
-    initUserSocket(userBot, chatId);
-    await deleteMessages(chatId)
 
-    const sent = await userBot.sendMessage(chatId, "Sizga yaqin haydovchilarni qidiryapmiz ░░░░░ 🚕", {
-        reply_markup: {
-            inline_keyboard: [[{ text: "❌ Buyurtmani bekor qilish", callback_data: "cancel_ride" }]],
-        },
-    });
-    addToMessagesToDelete(chatId, msg.message_id);
-    addToMessagesToDelete(chatId, sent.message_id);
+    // Step 1: Run deletion & searching prompt concurrently
+    const sent = await sendSearchingDriverPrompt(chatId)
 
+
+    // if (deleteRes.status === 'rejected') console.error("Failed to delete messages:", deleteRes.reason);
+
+    // if (promptRes.status !== 'fulfilled' || !promptRes.value?.message_id) return;
+    // const sentPrompt = sent.value;
+
+    // Step 2: Queue deletions immediately
+    queueMessageForDeletion(chatId, msg.message_id);
+    queueMessageForDeletion(chatId, sent.message_id);
+
+    // Step 3: Start animation (non-blocking)
     const stopAnimation = startLoadingAnimation(userBot, chatId, sent.message_id);
     session.searchingMessage = { messageId: sent.message_id, stopAnimation };
+    schedulePhoneNumberRequest(chatId);
 
+    // Step 4: Request ride with timeout (concurrent with animation)
+    const ride = await requestRide(chatId, { lat: latitude, lon: longitude });
+
+    // if (!ride) {
+    //     stopAnimation();
+    //     await safeSendMessage(chatId, "❌ Buyurtma berishda xatolik yuz berdi (timeout)");
+    //     return;
+    // }
+
+    session.rideId = ride.rideId;
+
+    // Step 5: Handle no drivers concurrently
+    // if (ride.drivers === 0) {
+    //     stopAnimation();
+
+    //     const [flushRes, noDriverRes] = await Promise.allSettled([
+    //         flushDeletionQueue(chatId),
+    //         safeSendPrompt(chatId, sendNoDriverPrompt)
+    //     ]);
+
+    //     if (flushRes.status === 'rejected') console.error("Failed to flush deletion queue:", flushRes.reason);
+    //     if (noDriverRes.status === 'fulfilled' && noDriverRes.value?.message_id) {
+    //         queueMessageForDeletion(chatId, noDriverRes.value.message_id);
+    //     }
+    // }
+};
+
+// ------------------ Helpers ------------------
+
+async function safeSendPrompt(chatId: number, promptFn: (id: number) => Promise<any>) {
     try {
-        const ride = await requestRide(chatId, { lat: latitude, lon: longitude });
-        session.rideId = ride.rideId;
+        return await promptFn(chatId);
+    } catch (err) {
+        console.error("Failed to send prompt:", err);
+        return null;
+    }
+}
 
-        if (ride.drivers == 0) {
-            stopAnimation();
-            deleteMessages(chatId);
+async function safeSendMessage(chatId: number, text: string) {
+    try {
+        await userBot.sendMessage(chatId, text);
+    } catch (err) {
+        console.error("Failed to send message:", err);
+    }
+}
+
+export function schedulePhoneNumberRequest(chatId: number) {
+    const DELAY = 5_000; // 30 seconds
+
+    setTimeout(async () => {
+        const session = getSession(chatId);
+
+        // Do not ask if:
+        if (session.searchFinished) return;     // ride already resolved
+        if (session.phone) return;              // user already shared phone number
+
+        try {
             const sent = await userBot.sendMessage(
                 chatId,
-                "❌ Haydovchi topilmadi, birozdan so'ng urinib ko‘ring.",
+                "☎️ Haydovchi siz bilan bog‘lanishi uchun telefon raqamingizni ulashing.",
                 {
                     reply_markup: {
-                        keyboard: [[{ text: "📍 Lokatsiya yuborish", request_location: true }]],
+                        keyboard: [
+                            [{ text: "☎️ Telefon raqamni ulashish", request_contact: true }]
+                        ],
                         resize_keyboard: true,
-                    },
+                        one_time_keyboard: true
+                    }
                 }
             );
-            addToMessagesToDelete(chatId, sent.message_id);
+            session.currentMsgId = sent.message_id;
+            queueMessageForDeletion(chatId, sent.message_id);
+        } catch (err) {
+            console.error("Failed to send phone request:", err);
         }
-        // deleteMessages()
-    } catch (err) {
-        logError("requestRide", err);
-        await userBot.sendMessage(chatId, "❌ Buyurtma berishda xatolik yuz berdi");
-    }
-};
+
+    }, DELAY);
+}
