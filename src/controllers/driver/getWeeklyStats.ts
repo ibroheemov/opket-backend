@@ -26,9 +26,6 @@ export const getWeeklyStats = async (req: AuthRequest, res: Response) => {
             }
         }).lean();
 
-        console.log("RIDES", rides);
-
-
         // Initialize stats for Mon → Sun (index 0–6)
         const stats = Array.from({ length: 7 }, () => ({
             rideCount: 0,

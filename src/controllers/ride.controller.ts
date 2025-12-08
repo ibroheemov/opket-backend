@@ -4,6 +4,8 @@ import { logger } from "../utils/logger";
 import { IRide, RideModel } from "../models/Ride";
 import { DriverModel, IDriverDocument } from "../models/DriverModel";
 import { TransactionModel } from "../models/TransactionModel";
+import { AuthRequest } from "../middlewares/auth";
+import { socketIo } from "../gateway/socket.maps";
 
 export const requestRide = async (req: Request, res: Response) => {
     logger.info("🚗 Ride request received");
@@ -25,6 +27,34 @@ export const requestRide = async (req: Request, res: Response) => {
     } catch (err) {
         logger.error("requestRide error:", err);
         return res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+
+export const acceptRide = async (req: AuthRequest, res: Response) => {
+    console.log("ACCEPT RIDE");
+
+    try {
+        const { id } = req.params;
+        const driverId = req.driverId;
+
+        if (!driverId) {
+            return res.status(400).json({ message: "driverId is required" });
+        }
+
+        await RideService.acceptRide(id, driverId);
+        const ride = await RideModel.findById(id).lean();
+
+        if (!ride) {
+            return res.status(404).json({ message: "Ride not found" });
+        }
+
+        return res.status(200).json({ message: "Driver accepted the ride" });
+    } catch (err) {
+        console.error('Error fetching current ride:', err);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 };
 

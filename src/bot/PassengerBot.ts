@@ -43,11 +43,7 @@ function attachHandlers(bot: TelegramBot) {
         console.log(ride?.driverId);
 
         if (ride && ride.driverId) {
-            const driverSession = driverStore.get(ride.driverId);
-            console.log("DRIVER SESSION");
-            console.log(driverSession);
-            driverStore.upsert(ride.driverId, { currentRideId: null });
-            socketIo.to(driverSession?.socketId!).emit("user_contact", { phone });
+            socketIo.emit("user_contact", { phone });
         }
     });
 

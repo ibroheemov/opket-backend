@@ -161,12 +161,6 @@ export const driverDashboard = async (req: AuthRequest, res: Response) => {
 
 export const registerDriver = async (req: AuthRequest, res: Response) => {
     try {
-        const idToken = req.headers.authorization?.split("Bearer ")[1];
-        if (!idToken) return res.status(401).json({ error: "No token provided" });
-
-        const decoded = await admin.auth().verifyIdToken(idToken);
-        const uid = decoded.uid;
-
         const { firstname, lastname, phone, carNumber, carModel, carColor } = req.body;
 
         if (!firstname || !lastname || !phone) {

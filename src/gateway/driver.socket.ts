@@ -4,7 +4,6 @@ import { RideModel } from "../models/Ride";
 import { updateRideStatus, emitToUser } from "./ride.socket";
 import { driverStore } from "../store/driverStore";
 import { DriverSocketConnectionPayload, RideCompletedPayload, RideProgressPayload, RideStartedPayload } from "../bot/socket/types";
-import { handleRideCommission } from "../utils/fare.helper";
 import { handleSocketError } from "../utils/socketError";
 import { RideService } from "../services/ride.service";
 
@@ -55,7 +54,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
     socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
         console.log(`📩 Driver ${driverId} accepting ride ${rideId}`);
         try {
-            await RideService.acceptRide(rideId, driverId, socket, socketIo);
+            await RideService.acceptRide(rideId, driverId);
         } catch (err) {
             handleSocketError(socket, (err as Error).message, err as Error);
         }
@@ -110,7 +109,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
 
 
     socket.on("disconnect", () => {
-        driverSockets.delete(driverId);
+        // driverSockets.delete(driverId);
         console.log(`❌ Driver disconnected: ${driverId}`);
     });
 };

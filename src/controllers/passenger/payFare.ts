@@ -69,8 +69,7 @@ export const payfare = async (req: AuthRequest, res: Response) => {
         const transactions = await TransactionModel.find({ rideId: passenger.currentRideId })
             .sort({ createdAt: 1 });
 
-        const driverSession = driverStore.get(driverId);
-        socketIo.to(driverSession?.socketId!).emit("pay_fare", { transactions });
+        socketIo.emit("pay_fare", { transactions });
 
         return res.json({
             success: true,

@@ -21,3 +21,12 @@ export const emitToUser = (chatId: number, event: string, data: any) => {
     }
     return false;
 };
+
+export const emitToDriver = (chatId: number, event: string, data: any) => {
+    const socketId = userSockets.get(chatId);
+    if (socketId) {
+        socketIo.to(socketId).emit(event, data);
+        return true;
+    }
+    return false;
+};

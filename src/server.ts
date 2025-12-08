@@ -6,11 +6,13 @@ import { makeDriverAuthController } from "./controllers/driverAuthController";
 import { MongoDriverRepo } from "./infra/repos/MongoDriverRepo";
 import { connectDB } from "./utils/db";
 import userRoutes from "./routes/user";
+import paynetRoutes from "./routes/paynet";
 import driverRoutes from "./routes/driver";
 import cors from "cors";
 import admin from 'firebase-admin';
 import { config } from "./bot/config/env";
 import { userBot } from "./bot/PassengerBot";
+import { PaynetCallbackController } from "./controllers/paynet.controller";
 
 const app = express();
 app.use(bodyParser.json());
@@ -33,6 +35,7 @@ async function startServer() {
 
     const driverRepo = new MongoDriverRepo();
 
+    app.use("/paynet", paynetRoutes);
     app.use("/user", userRoutes);
     app.use("/driver", driverRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));

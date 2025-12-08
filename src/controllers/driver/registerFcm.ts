@@ -4,7 +4,9 @@ import { Response } from "express";
 
 export const registerFcm = async (req: AuthRequest, res: Response) => {
 
-    const { driverId, fcmToken } = req.body;
+    const { fcmToken } = req.body;
+    const driverId = req.driverId;
+
     console.log(driverId, fcmToken);
     if (!driverId || !fcmToken) return res.sendStatus(400);
 

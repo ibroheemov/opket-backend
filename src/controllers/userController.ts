@@ -8,7 +8,6 @@ import { PassengerModel } from "../models/PassengerModel";
 
 
 export const createPassenger = async (req: Request, res: Response) => {
-    console.log(`LUGGAGE CONFIRMED}`)
     try {
         const { chatId } = req.body;
         if (!chatId) {
@@ -63,7 +62,6 @@ export const cancelRide = async (req: Request, res: Response) => {
 };
 
 export const confirmLuggage = async (req: Request, res: Response) => {
-    console.log(`LUGGAGE CONFIRMED}`)
     try {
         const { rideId } = req.body;
         if (!rideId) {

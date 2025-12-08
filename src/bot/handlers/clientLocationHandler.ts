@@ -9,50 +9,6 @@ import { sendSearchingDriverPrompt } from "../ui/prompts/searchingDriverPrompt";
 import { flushAllDeletionQueues, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { sendNoDriverPrompt } from "../ui/prompts/noDriverPrompt";
 
-// export const handleLocation = async (msg: TelegramBot.Message) => {
-//     const chatId = msg.chat.id;
-//     const { latitude, longitude } = msg.location!;
-//     const session = getSession(chatId);
-
-//     session.location = { lat: latitude, lon: longitude };
-//     initUserSocket(userBot, chatId);
-//     await deleteMessages(chatId)
-
-//     const sent = await sendSearchingDriverPrompt(chatId).catch(err => {
-//         console.error("Failed to send location request prompt:", err);
-//         return null;
-//     });
-
-
-//     if (!sent?.message_id) return;
-
-//     queueMessageForDeletion(chatId, msg.message_id);
-//     queueMessageForDeletion(chatId, sent.message_id);
-
-//     const stopAnimation = startLoadingAnimation(userBot, chatId, sent.message_id);
-//     session.searchingMessage = { messageId: sent.message_id, stopAnimation };
-
-//     try {
-//         const ride = await requestRide(chatId, { lat: latitude, lon: longitude });
-//         session.rideId = ride.rideId;
-
-//         if (ride.drivers == 0) {
-//             stopAnimation();
-//             await flushDeletionQueue(chatId);
-//             const sent = await sendNoDriverPrompt(chatId).catch(err => {
-//                 console.error("Failed to send location request prompt:", err);
-//                 return null;
-//             });
-
-//             if (sent) queueMessageForDeletion(chatId, sent.message_id);
-//         }
-//         // deleteMessages()
-//     } catch (err) {
-//         logError("requestRide", err);
-//         await userBot.sendMessage(chatId, "❌ Buyurtma berishda xatolik yuz berdi");
-//     }
-// };
-
 
 // Utility: wrap a promise with a timeout
 async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void): Promise<T | null> {
@@ -79,12 +35,6 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
 
     // Step 1: Run deletion & searching prompt concurrently
     const sent = await sendSearchingDriverPrompt(chatId)
-
-
-    // if (deleteRes.status === 'rejected') console.error("Failed to delete messages:", deleteRes.reason);
-
-    // if (promptRes.status !== 'fulfilled' || !promptRes.value?.message_id) return;
-    // const sentPrompt = sent.value;
 
     // Step 2: Queue deletions immediately
     queueMessageForDeletion(chatId, msg.message_id);
@@ -123,24 +73,6 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
 };
 
 // ------------------ Helpers ------------------
-
-async function safeSendPrompt(chatId: number, promptFn: (id: number) => Promise<any>) {
-    try {
-        return await promptFn(chatId);
-    } catch (err) {
-        console.error("Failed to send prompt:", err);
-        return null;
-    }
-}
-
-async function safeSendMessage(chatId: number, text: string) {
-    try {
-        await userBot.sendMessage(chatId, text);
-    } catch (err) {
-        console.error("Failed to send message:", err);
-    }
-}
-
 export function schedulePhoneNumberRequest(chatId: number) {
     const DELAY = 5_000; // 30 seconds
 
