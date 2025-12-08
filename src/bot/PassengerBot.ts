@@ -63,5 +63,5 @@ if (config.env === "development") {
 } else {
     // Production: webhook is set in server.ts
     attachHandlers(userBot);
-    console.log("🚀 User bot running in production mode with webhook...");
+    console.log("🚀🚀 User bot running in production mode with webhook...");
 }
