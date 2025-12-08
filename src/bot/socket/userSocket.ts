@@ -25,9 +25,9 @@ import { config } from "../config/env";
 import { userBot } from "../PassengerBot";
 
 export function initUserSocket(chatId: number): Socket {
-    console.log(config.backendUrl);
+    const backendUrl = config.backendUrl.replace("/api", "");
 
-    const socket = io(config.backendUrl, {
+    const socket = io(backendUrl, {
         path: "/socket.io",
         transports: ["websocket"],
         auth: { userChatId: chatId || "unknown" },
