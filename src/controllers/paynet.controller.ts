@@ -271,7 +271,7 @@ export class PaynetCallbackController {
             jsonrpc: "2.0",
             id: rpcId,
             result: {
-                status: 0,
+                status: "0",
                 timestamp: formatGmtPlus5(new Date()),
                 fields: account,
             },
