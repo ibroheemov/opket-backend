@@ -179,7 +179,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 providerTrnId: transaction.id,
-                timestamp: transaction.createdAt.toISOString().replace("T", " ").slice(0, 19),
+                timestamp: transaction.createdAt.toLocaleString().replace("T", " ").slice(0, 19),
                 fields: {
                     [settings.PAYNET_ACCOUNT_FIELD]: transaction.phone,
                 },
@@ -202,7 +202,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 transactionState: statusToCode(tx.status),
-                timestamp: isoToTimestamp(tx.updatedAt.toISOString()),
+                timestamp: tx.updatedAt.toLocaleString().replace("T", " ").slice(0, 19),
                 providerTrnId: tx.id,
             },
         });
@@ -228,7 +228,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 providerTrnId: tx.id,
-                timestamp: isoToTimestamp(tx.updatedAt.toISOString()),
+                timestamp: tx.updatedAt.toLocaleString().replace("T", " ").slice(0, 19),
                 transactionState: statusToCode("CANCELLED"),
             },
         });
@@ -250,7 +250,7 @@ export class PaynetCallbackController {
             amount: tx.amount,
             providerTrnId: tx.id,
             transactionId: tx.transactionId,
-            timestamp: tx.createdAt.toISOString().replace("T", " ").slice(0, 19),
+            timestamp: tx.createdAt.toLocaleString().replace("T", " ").slice(0, 19),
         }));
 
         return res.json({
@@ -270,7 +270,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 status: statusToCode("CREATED"),
-                timestamp: Date.now(),
+                timestamp: Date.now().toLocaleString().replace("T", " ").slice(0, 19),
                 fields: account,
             },
         });
