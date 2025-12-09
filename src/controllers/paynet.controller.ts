@@ -261,7 +261,7 @@ export class PaynetCallbackController {
 
     private async getInformation(params: any, rpcId: number, res: Response) {
         const accountId = params.fields[settings.PAYNET_ACCOUNT_FIELD];
-        const account = await DriverModel.findOne({ phone: accountId }).lean();
+        const account = await DriverModel.findOne({ phone: accountId }).select('firstname lastname name phone carModel carNumber carColor vehicle').lean();
         if (!account) throw new ClientNotFound(rpcId);
 
         return res.json({
