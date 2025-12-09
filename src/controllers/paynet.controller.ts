@@ -55,9 +55,9 @@ export class PaynetCallbackController {
             }
 
             // Service enabled check
-            // if (!this.isServiceEnabled(params.serviceId)) {
-            //     throw new ServiceTemporarilyUnavailable(rpcId);
-            // }
+            if (!this.isServiceEnabled(params.serviceId)) {
+                throw new ServiceTemporarilyUnavailable(rpcId);
+            }
 
             // Route the method
             return await this.routeMethod(method, params, rpcId, res);
