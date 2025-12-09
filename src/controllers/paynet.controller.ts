@@ -29,6 +29,7 @@ import { ZodError } from "zod";
 import { statusToCode } from "../utils/paynet_status_code";
 import { socketIo } from "../gateway/socket2";
 import { driverStore } from "../store/driverStore";
+import { isoToTimestamp } from "../utils/isoTpTimestamp";
 
 export class PaynetCallbackController {
     private allowedServices = ['11111111111111'];
@@ -201,7 +202,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 transactionState: statusToCode(tx.status),
-                timestamp: tx.updatedAt.toISOString().replace("T", " ").slice(0, 19),
+                timestamp: isoToTimestamp(tx.updatedAt.toISOString()),
                 providerTrnId: tx.id,
             },
         });
@@ -227,7 +228,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 providerTrnId: tx.id,
-                timestamp: tx.updatedAt.toISOString().replace("T", " ").slice(0, 19),
+                timestamp: isoToTimestamp(tx.updatedAt.toISOString()),
                 transactionState: statusToCode("CANCELLED"),
             },
         });
@@ -268,8 +269,8 @@ export class PaynetCallbackController {
             jsonrpc: "2.0",
             id: rpcId,
             result: {
-                status: "CREATED",
-                timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+                status: statusToCode("CREATED"),
+                timestamp: Date.now(),
                 fields: account,
             },
         });
