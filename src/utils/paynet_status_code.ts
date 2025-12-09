@@ -1,8 +1,8 @@
 import { TransactionStatus } from "../models/transaction.model";
 
 export const StatusCodes = {
-    CREATED: 1,
-    CANCELLED: 2,
+    CREATED: 0,
+    CANCELLED: 1,
 } as const;
 
 export function statusToCode(status: TransactionStatus): number {
