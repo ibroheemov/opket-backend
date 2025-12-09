@@ -64,9 +64,15 @@ export class PaynetCallbackController {
             return await this.routeMethod(method, params, rpcId, res);
 
         } catch (err: any) {
+            const httpStatus = err.httpStatus ?? err.code ?? 200;
+
+            if (err instanceof JSONRPCException) {
+                return res.status(httpStatus).json(err.response());
+            }
+
             // 1️⃣ Known JSON-RPC exceptions
             if (err instanceof JSONRPCException || err?.rpcError) {
-                return res.status(200).json(err.response());
+                return res.status(httpStatus).json(err.response());
             }
 
             if (err instanceof ZodError || err?.name === "ZodError") {
