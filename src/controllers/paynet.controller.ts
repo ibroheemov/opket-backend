@@ -203,7 +203,7 @@ export class PaynetCallbackController {
             jsonrpc: "2.0",
             id: rpcId,
             result: {
-                transactionState: statusToCode(tx.status),
+                transactionState: Number(statusToCode(tx.status)),
                 timestamp: formatGmtPlus5(tx.updatedAt),
                 providerTrnId: tx.id,
             },
@@ -231,7 +231,7 @@ export class PaynetCallbackController {
             result: {
                 providerTrnId: tx.id,
                 timestamp: formatGmtPlus5(tx.updatedAt),
-                transactionState: statusToCode("CANCELLED"),
+                transactionState: Number(statusToCode("CANCELLED")),
             },
         });
     }
