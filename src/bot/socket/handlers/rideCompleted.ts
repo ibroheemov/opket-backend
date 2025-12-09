@@ -1,16 +1,15 @@
 import TelegramBot from "node-telegram-bot-api";
 import { RideCompletedPayload } from "../types";
-import { deleteMessages } from "../../utils/message_deletions";
+import { flushDeletionQueue, queueMessageForDeletion } from "../../utils/message_cleanup_manager";
+import { sendLocationRequestPrompt } from "../../ui/prompts/locationRequestPrompt";
+import { getSession } from "../../services/sessionManager";
 
 export async function handleRideCompleted(
     bot: TelegramBot,
     chatId: number,
     { distance, fare }: RideCompletedPayload
 ) {
-    await bot.sendMessage(chatId, `
-🏁 Safar yakunlandi, bizni tanlaganingiz uchun rahmat!\n
-💵 Haydovchidan qaytimni Opket Hamyoniga tashlashini so'rang\n
-    `,
+    const sent = await bot.sendMessage(chatId, `🏁 Safar yakunlandi, bizni tanlaganingiz uchun rahmat!\n💵 Haydovchidan qaytimni Opket Hamyoniga tashlashini so'rang\n`,
         {
             reply_markup: {
                 inline_keyboard: [
@@ -18,17 +17,22 @@ export async function handleRideCompleted(
                         { text: `📍 ${distance} KM`, callback_data: "no_action" },
                         { text: `💵 ${fare} UZS`, callback_data: "no_action" },
                     ],
-                    // [
-                    //     { text: '1⭐', callback_data: "no_action" },
-                    //     { text: '2⭐', callback_data: "no_action" },
-                    //     { text: '3⭐', callback_data: "no_action" },
-                    //     { text: '4⭐', callback_data: "no_action" },
-                    //     { text: '5⭐', callback_data: "no_action" },
-                    // ],
+                    [
+                        {
+                            text: `💳 Balans dan to'lash`,
+                            web_app: { url: "https://opketme.uz/" }
+                        },
+                    ],
                 ],
             },
         }
     );
 
-    deleteMessages(chatId);
+    const session = getSession(chatId);
+    session.currentMsgId = sent.message_id;
+
+    await flushDeletionQueue(chatId);
+    const sent2 = await sendLocationRequestPrompt(chatId);
+    queueMessageForDeletion(chatId, sent.message_id);
+    queueMessageForDeletion(chatId, sent2.message_id);
 }

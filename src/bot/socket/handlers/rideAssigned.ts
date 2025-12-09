@@ -7,6 +7,8 @@ import { getDistanceFromLatLonInKm, sleep } from "../../utils/helpers";
 import { RideAssignedPayload } from "../types";
 import { getSession } from "../../services/sessionManager";
 import { driverStore } from "../../../store/driverStore";
+import { flushAllDeletionQueues, queueMessageForDeletion } from "../../utils/message_cleanup_manager";
+import { scheduleContactRequest } from "../../utils/schedule_contact_request";
 
 export async function handleRideAssigned(
     bot: TelegramBot,
@@ -38,13 +40,6 @@ export async function handleRideAssigned(
     session.messageId = locationMsg.message_id;
 
     // Send driver info
-    const distance = getDistanceFromLatLonInKm(
-        lat,
-        lon,
-        session.location!.lat,
-        session.location!.lon
-    );
-
     const infoMsg = await bot.sendMessage(
         chatId,
         `Haydovchi yo'lda ☝️\n\n👨‍✈️Haydovchi: ${driver.name}\n🚗 Mashina: ${driver.carModel}, ${driver.carColor}\n🔢 Raqam: ${driver.carNumber}\n☎️ +998${driver.phone}`,
@@ -59,10 +54,11 @@ export async function handleRideAssigned(
 
     session.driverInfoMessageId = infoMsg.message_id;
 
-    await sleep(3000);
-    deleteMessages(chatId);
-
-    addToMessagesToDelete(chatId, infoMsg.message_id);
-    addToMessagesToDelete(chatId, locationMsg.message_id);
+    // await sleep(3000);
+    await flushAllDeletionQueues()
+    queueMessageForDeletion(chatId, infoMsg.message_id);
+    queueMessageForDeletion(chatId, locationMsg.message_id);
     delete session.searchingMessage;
+
+    scheduleContactRequest(chatId);
 }

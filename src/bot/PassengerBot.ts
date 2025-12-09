@@ -24,14 +24,10 @@ function attachHandlers(bot: TelegramBot) {
     userBot.on("location", handleLocation);
 
     userBot.on("contact", async (msg) => {
-        console.log("CONTAATC");
-
+        console.log("📲 CONTACT SHARED");
         const chatId = msg.chat.id;
-
         const session = getSession(chatId);
-
         const phone = msg?.contact?.phone_number;
-        console.log(phone);
 
         session.phone = phone;
         queueMessageForDeletion(chatId, msg.message_id);
@@ -40,9 +36,9 @@ function attachHandlers(bot: TelegramBot) {
         if (session.currentMsgId) deleteMessageSafely(chatId, session.currentMsgId);
         queueMessageForDeletion(chatId, sent.message_id);
         const ride = await RideModel.findByIdAndUpdate(session.rideId, { userPhoneNumber: phone });
-        console.log(ride?.driverId);
 
         if (ride && ride.driverId) {
+            console.log("📲 CONTACT SHARED SENT TO DRIVER");
             socketIo.emit("user_contact", { phone });
         }
     });

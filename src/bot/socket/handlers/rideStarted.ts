@@ -1,7 +1,6 @@
-import { getSession } from "../../services/sessionManager";
-import { addToMessagesToDelete, safeDeleteMessage } from "../../utils/message_deletions";
 import { RideStartedPayload } from "../types";
 import { userBot } from "../../PassengerBot";
+import { flushDeletionQueue, queueMessageForDeletion } from "../../utils/message_cleanup_manager";
 
 export async function handleRideStarted(chatId: number, { fare }: RideStartedPayload) {
     const message = await userBot.sendMessage(
@@ -19,11 +18,6 @@ export async function handleRideStarted(chatId: number, { fare }: RideStartedPay
         }
     );
 
-    const session = getSession(chatId);
-    session.fareMessageId = message.message_id;
-
-    for (const msgId of session.messagesToDelete || []) {
-        await safeDeleteMessage(chatId, msgId);
-    }
-    addToMessagesToDelete(chatId, message.message_id);
+    await flushDeletionQueue(chatId)
+    queueMessageForDeletion(chatId, message.message_id)
 }

@@ -9,14 +9,29 @@ import { RideService } from "../services/ride.service";
 
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: DriverSocketConnectionPayload) => {
+    const driverSession = driverStore.get(driverId);
+
+    // if (driverSession?.currentRideId) {
+    //     const ride = await RideModel.findById(driverSession?.currentRideId);
+    //     socketIo.emit("continue_ride", { "ride": ride })
+    // }
+
     driverSockets.set(driverId, socket.id);
     console.log(`🚗 Driver connected: DriverID: ${driverId}; FcmToken: ${fcmToken}`);
     // 1️⃣ Mark as online
-    driverStore.upsert(driverId, { socketId: socket.id, status: "online", fcmToken, location: { lat: 37.42534332278696, lon: -122.07541496109042 } });
+    driverStore.upsert(
+        driverId,
+        {
+            socketId: socket.id,
+            status: "online",
+            fcmToken,
+            location: { lat: 37.42534332278696, lon: -122.07541496109042 }
+        }
+    );
+
 
     // 2️⃣ Handle location updates
     socket.on("driver_location", async ({ lat, lon }) => {
-
         if (!lat || !lon) return;
 
         // update driver's current location in DB
@@ -63,6 +78,10 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
 
     socket.on("fcm_token_update", async (token) => {
         driverStore.upsert(driverId, { fcmToken: token });
+    });
+
+    socket.on("ride_closed", async ({ chatId }: { chatId: number }) => {
+        const sSent = emitToUser(Number(chatId), 'ride_closed', {});
     });
 
     socket.on("ride_progress", async (data: RideProgressPayload) => {

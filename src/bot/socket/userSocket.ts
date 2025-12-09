@@ -23,6 +23,7 @@ import { PassengerModel } from "../../models/PassengerModel";
 import { handleRidePayChange } from "./handlers/ridePayChange";
 import { config } from "../config/env";
 import { userBot } from "../PassengerBot";
+import { handleRideClosed } from "./handlers/rideClosed";
 
 export function initUserSocket(chatId: number): Socket {
     const backendUrl = config.backendUrl.replace("/api", "");
@@ -64,8 +65,13 @@ export function initUserSocket(chatId: number): Socket {
 
     socket.on("pay_change", async (data: RidePayChangePayload) => {
         handleRidePayChange(userBot, chatId, data)
-    }
-    );
+    });
+
+    socket.on("ride_closed", async () => {
+        console.log("RIDE CLOSED");
+
+        handleRideClosed(userBot, chatId)
+    });
 
     socket.on("ride_completed", (data: RideCompletedPayload) => handleRideCompleted(userBot, chatId, data));
 
