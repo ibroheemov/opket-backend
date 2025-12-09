@@ -197,7 +197,7 @@ export class RequiredParametersMissing extends JSONRPCException {
 }
 
 export class InvalidLoginOrPassword extends JSONRPCException {
-    code = 412;
+    code = 401;
     defaultDetail = "Invalid login or password.";
     constructor(rpcId?: number) { super({ code: 412, rpcId }); }
 }

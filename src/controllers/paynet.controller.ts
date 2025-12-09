@@ -12,6 +12,7 @@ import {
     InternalSystemError,
     ClientNotFound,
     JSONRPCException,
+    ServiceNotFound,
 } from "./paynet.exceptions";
 import admin from 'firebase-admin';
 import {
@@ -33,7 +34,7 @@ import { isoToTimestamp } from "../utils/isoTpTimestamp";
 import { formatGmtPlus5 } from "../utils/formatPlusGmt";
 
 export class PaynetCallbackController {
-    private allowedServices = ['11111111111111'];
+    private allowedServices = ['1'];
 
     async handle(req: Request, res: Response) {
         const data = req.body;
@@ -56,7 +57,7 @@ export class PaynetCallbackController {
 
             // Service enabled check
             if (!this.isServiceEnabled(params.serviceId)) {
-                throw new ServiceTemporarilyUnavailable(rpcId);
+                throw new ServiceNotFound(rpcId);
             }
 
             // Route the method
