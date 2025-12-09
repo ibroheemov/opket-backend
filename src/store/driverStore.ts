@@ -8,6 +8,7 @@ export interface DriverSession {
     location?: DriverLocation;
     lastUpdated: number;
     fcmToken?: string;
+    canReceiveOffers: boolean;
 }
 
 class DriverStore {
@@ -39,7 +40,11 @@ class DriverStore {
     getOnlineDrivers(): DriverSession[] {
         console.log(this.drivers);
 
-        return [...this.drivers.values()].filter((d) => d.status === "online" && !d.currentRideId);
+        return [...this.drivers.values()].filter(d =>
+            d.status === "online" &&
+            d.canReceiveOffers &&
+            !d.currentRideId
+        );
     }
 
     // Update live location

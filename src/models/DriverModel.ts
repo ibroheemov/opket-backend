@@ -21,6 +21,7 @@ export interface IDriverDocument extends Document {
     driver_license?: string;
     passport?: string;
     balance: number;
+    canReceiveOffers: boolean;
 }
 
 const DriverSchema = new Schema<IDriverDocument>(
@@ -51,6 +52,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         selfie: { type: String },
         driver_license: { type: String },
         passport: { type: String },
+        canReceiveOffers: { type: Boolean },
 
     },
     { timestamps: true }

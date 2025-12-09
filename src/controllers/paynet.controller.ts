@@ -297,12 +297,12 @@ export class PaynetCallbackController {
         // 1. UPDATE DRIVER BALANCE
         const updatedDriver = await DriverModel.findByIdAndUpdate(
             driver._id,
-            { $inc: { balance: params.amount / 100 } }, // <-- subtract commission
+            { $inc: { balance: params.amount / 100 } },
             { new: true }
         );
 
         // 2. UPDATE DRIVER BALANCE IN APP VIA SOCKET        
-        socketIo.emit("balance_updated", { amount: params.amount });
+        socketIo.emit("balance_updated", { balance: updatedDriver?.balance });
 
         // 3. NOTIFY DRIVER VIA FCM
         const fcmToken = driver.fcmToken;
@@ -337,11 +337,15 @@ export class PaynetCallbackController {
         // 1. UPDATE DRIVER BALANCE
         console.log(transaction.amount);
 
+
         const amount = transaction.amount / 100;
         const updatedDriver = await DriverModel.findOneAndUpdate(
             { phone: transaction.phone },
             { $inc: { balance: -amount } },
             { new: true }
         );
+
+        // 2. UPDATE DRIVER BALANCE IN APP VIA SOCKET        
+        socketIo.emit("balance_updated", { balance: updatedDriver?.balance });
     }
 }

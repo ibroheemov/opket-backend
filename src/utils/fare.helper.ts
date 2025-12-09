@@ -1,6 +1,7 @@
 import { driverSockets, socketIo } from "../gateway/socket.maps";
 import { DriverModel } from "../models/DriverModel";
 import { RideModel } from "../models/Ride";
+import { driverStore } from "../store/driverStore";
 
 /**
  * Deducts commission from driver’s balance when a ride completes.
@@ -28,20 +29,38 @@ export const handleRideCommission = async (
 
     if (!driver) throw new Error("Driver not found");
 
+    // Determine if driver should still receive offers
+    const canReceiveOffers = driver.balance > 0;
+
+    // If DB field exists, update it as well
+    if (driver.canReceiveOffers !== canReceiveOffers) {
+        await DriverModel.findByIdAndUpdate(driverId, {
+            canReceiveOffers,
+        });
+    }
+
     console.log(
         `💸 Driver ${driverId} charged ${commission.toFixed(
             0
         )} UZS commission (balance now ${driver.balance})} UZS)`
     );
 
-    // Optional: notify driver via socket
-    // const socketId = driverSockets.get(driverId);
-    // if (socketId) {
-    //     socketIo.to(socketId).emit("balance_update", {
-    //         balance: driver.balance,
-    //         commission,
-    //     });
-    // }
+    // 🔄 Update driverStore if driver is online
+    const session = driverStore.get(driverId);
+    if (session) {
+        driverStore.upsert(driverId, { canReceiveOffers });
+
+        // Notify driver if they lost access
+        if (!canReceiveOffers) {
+            const socketId = driverSockets.get(driverId);
+            if (socketId) {
+                socketIo.to(socketId).emit("no_balance", {
+                    balance: driver.balance,
+                });
+            }
+        }
+    }
+
 
     return { commission, balance: driver.balance };
 };

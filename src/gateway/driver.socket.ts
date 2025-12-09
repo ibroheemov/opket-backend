@@ -10,11 +10,15 @@ import { RideService } from "../services/ride.service";
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: DriverSocketConnectionPayload) => {
     const driverSession = driverStore.get(driverId);
+    const driver = await DriverModel.findById(driverId);
 
-    // if (driverSession?.currentRideId) {
-    //     const ride = await RideModel.findById(driverSession?.currentRideId);
-    //     socketIo.emit("continue_ride", { "ride": ride })
-    // }
+    if (!driver) {
+        console.error("❌ Driver not found in DB:", driverId);
+        socket.emit("error", { message: "Driver not found" });
+        return; // stop socket setup
+    }
+
+    const canReceiveOffers = driver.balance > 0;
 
     driverSockets.set(driverId, socket.id);
     console.log(`🚗 Driver connected: DriverID: ${driverId}; FcmToken: ${fcmToken}`);
@@ -28,6 +32,10 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
             location: { lat: 37.42534332278696, lon: -122.07541496109042 }
         }
     );
+
+    if (!canReceiveOffers) {
+        socket.emit("no_balance", { balance: driver.balance });
+    }
 
 
     // 2️⃣ Handle location updates
