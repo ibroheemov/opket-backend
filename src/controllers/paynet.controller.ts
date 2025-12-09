@@ -30,6 +30,7 @@ import { statusToCode } from "../utils/paynet_status_code";
 import { socketIo } from "../gateway/socket2";
 import { driverStore } from "../store/driverStore";
 import { isoToTimestamp } from "../utils/isoTpTimestamp";
+import { formatGmtPlus5 } from "../utils/formatPlusGmt";
 
 export class PaynetCallbackController {
     private allowedServices = ['11111111111111'];
@@ -179,7 +180,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 providerTrnId: transaction.id,
-                timestamp: transaction.createdAt.toLocaleString().replace("T", " ").slice(0, 19),
+                timestamp: formatGmtPlus5(transaction.createdAt),
                 fields: {
                     [settings.PAYNET_ACCOUNT_FIELD]: transaction.phone,
                 },
@@ -202,7 +203,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 transactionState: statusToCode(tx.status),
-                timestamp: tx.updatedAt.toLocaleString().replace("T", " ").slice(0, 19),
+                timestamp: formatGmtPlus5(tx.updatedAt),
                 providerTrnId: tx.id,
             },
         });
@@ -228,7 +229,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 providerTrnId: tx.id,
-                timestamp: tx.updatedAt.toLocaleString().replace("T", " ").slice(0, 19),
+                timestamp: formatGmtPlus5(tx.updatedAt),
                 transactionState: statusToCode("CANCELLED"),
             },
         });
@@ -250,7 +251,7 @@ export class PaynetCallbackController {
             amount: tx.amount,
             providerTrnId: tx.id,
             transactionId: tx.transactionId,
-            timestamp: tx.createdAt.toLocaleString().replace("T", " ").slice(0, 19),
+            timestamp: formatGmtPlus5(tx.createdAt),
         }));
 
         return res.json({
@@ -270,7 +271,7 @@ export class PaynetCallbackController {
             id: rpcId,
             result: {
                 status: statusToCode("CREATED"),
-                timestamp: Date.now().toLocaleString().replace("T", " ").slice(0, 19),
+                timestamp: formatGmtPlus5(new Date()),
                 fields: account,
             },
         });
