@@ -6,7 +6,7 @@ import { settings } from "../config/settings";
 export const PerformTransactionSchema = z.object({
     amount: z.number().refine(val => val >= 0, { message: "Amount must be positive" }),
     serviceId: z.number(),
-    transactionId: z.string(),
+    transactionId: z.number(),
     fields: z.object({
         [settings.PAYNET_ACCOUNT_FIELD]: z.string()
     })
@@ -15,13 +15,13 @@ export const PerformTransactionSchema = z.object({
 // CheckTransactionValidator
 export const CheckTransactionSchema = z.object({
     serviceId: z.number(),
-    transactionId: z.string(),
+    transactionId: z.number(),
 });
 
 // CancelTransactionValidator
 export const CancelTransactionSchema = z.object({
     serviceId: z.number(),
-    transactionId: z.string(),
+    transactionId: z.number(),
 });
 
 // GetStatementValidator

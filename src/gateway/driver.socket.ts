@@ -92,6 +92,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
         const sSent = emitToUser(Number(chatId), 'ride_closed', {});
     });
 
+
+    // socket.on("balance_updated", async ({ balance }: { balance: number }) => {
+    //     console.log("balance_updated", balance);
+    //     socket.emit("balance_updated", { balance });
+    // });
+
     socket.on("ride_progress", async (data: RideProgressPayload) => {
         console.log("RIDE PROGRESS", data);
         const driverSession = driverStore.get(driverId);

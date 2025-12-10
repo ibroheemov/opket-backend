@@ -180,6 +180,9 @@ export class PaynetCallbackController {
             status: "CREATED",
         });
 
+        console.log(transaction);
+
+
         await this.successfullyPayment(transaction, driver);
 
         return res.json({
@@ -301,8 +304,11 @@ export class PaynetCallbackController {
             { new: true }
         );
 
+        console.log("successfullyPayment");
+
         // 2. UPDATE DRIVER BALANCE IN APP VIA SOCKET        
-        socketIo.emit("balance_updated", { balance: updatedDriver?.balance });
+        const emitted = socketIo.emit("balance_updated", { balance: updatedDriver?.balance });
+        console.log(emitted);
 
         // 3. NOTIFY DRIVER VIA FCM
         const fcmToken = driver.fcmToken;
