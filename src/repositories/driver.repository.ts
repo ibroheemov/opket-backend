@@ -20,7 +20,7 @@ export const DriverRepository = {
                     driver.location.lon
                 );
 
-                dist = 3;
+                // dist = 3;
 
                 if (dist > maxKm) return null;
 
