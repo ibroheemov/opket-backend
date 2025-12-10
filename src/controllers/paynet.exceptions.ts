@@ -60,42 +60,36 @@ export abstract class JSONRPCException extends Error {
 
 export class MethodNotPOST extends JSONRPCException {
     code = -32300;
-    httpStatus = 400;
     defaultDetail = "Request method must be POST.";
     constructor(rpcId?: number) { super({ code: -32300, rpcId }); }
 }
 
 export class JSONParsingError extends JSONRPCException {
     code = -32700;
-    httpStatus = 400;
     defaultDetail = "Error parsing JSON.";
     constructor(rpcId?: number) { super({ code: -32700, rpcId }); }
 }
 
 export class InvalidRPCRequest extends JSONRPCException {
     code = -32600;
-    httpStatus = 400;
     defaultDetail = "Required fields are missing or have invalid types in the RPC request.";
     constructor(rpcId?: number) { super({ code: -32600, rpcId }); }
 }
 
 export class MethodNotFound extends JSONRPCException {
     code = -32601;
-    httpStatus = 400;
     static defaultDetail = "Requested method not found.";
     constructor(rpcId?: number, detail?: string) { super({ code: -32601, rpcId, detail: detail ?? MethodNotFound.defaultDetail }); }
 }
 
 export class MissingRPCParameters extends JSONRPCException {
     code = -32602;
-    httpStatus = 400;
     static defaultDetail = "Missing required fields in parameters.";
     constructor(rpcId?: number, detail?: string) { super({ code: -32602, rpcId, detail: detail ?? MissingRPCParameters.defaultDetail }); }
 }
 
 export class InternalSystemError extends JSONRPCException {
     code = -32603;
-    httpStatus = 400;
     static defaultDetail = "System error due to internal failure.";
     constructor(rpcId?: number, detail?: string) { super({ code: -32603, rpcId, detail: detail ?? InternalSystemError.defaultDetail }); }
 }
@@ -204,6 +198,7 @@ export class RequiredParametersMissing extends JSONRPCException {
 
 export class InvalidLoginOrPassword extends JSONRPCException {
     code = 401;
+    httpStatus = 401;
     defaultDetail = "Invalid login or password.";
     constructor(rpcId?: number) { super({ code: 412, rpcId }); }
 }

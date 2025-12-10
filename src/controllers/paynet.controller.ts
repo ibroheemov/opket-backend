@@ -64,7 +64,7 @@ export class PaynetCallbackController {
             return await this.routeMethod(method, params, rpcId, res);
 
         } catch (err: any) {
-            const httpStatus = err.httpStatus ?? err.code ?? 200;
+            const httpStatus = err.httpStatus ?? 200;
 
             if (err instanceof JSONRPCException) {
                 return res.status(httpStatus).json(err.response());
