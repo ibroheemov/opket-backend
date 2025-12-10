@@ -1,5 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { addToMessagesToDelete, deleteMessages } from "../../utils/message_deletions";
+import { getSession } from "../../services/sessionManager";
 
 export async function handleAddLuggage(bot: TelegramBot, chatId: number) {
     const message = await bot.sendMessage(chatId, "🛄 Haydovchi bagaj qo'shmoqchi, tasdiqlaysizmi ?", {
@@ -12,6 +13,8 @@ export async function handleAddLuggage(bot: TelegramBot, chatId: number) {
             ],
         },
     });
+    const session = getSession(chatId);
+    session.currentMsgId = message.message_id;
     deleteMessages(chatId);
     addToMessagesToDelete(chatId, message.message_id);
 }

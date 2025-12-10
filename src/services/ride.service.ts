@@ -292,14 +292,14 @@ export const RideService = {
         const { balance, commission } = commissionResult!;
 
         // 5. Notify driver
-        socketIo.emit("balance_updated", {
-            newBalance: balance,
-            fare,
-            commission,
-            message: `💰 Ride completed! You earned ${balance.toFixed(
-                0
-            )} UZS after 12% commission.`,
-        });
+        // socketIo.emit("balance_updated", {
+        //     newBalance: balance,
+        //     fare,
+        //     commission,
+        //     message: `💰 Ride completed! You earned ${balance.toFixed(
+        //         0
+        //     )} UZS after 12% commission.`,
+        // });
 
         // 6. Notify user (if online)
         const userSocketId = userSockets.get(ride.userChatId);

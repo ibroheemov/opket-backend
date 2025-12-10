@@ -3,7 +3,7 @@ import { getSession } from "../services/sessionManager";
 import { config } from "../config/env";
 import axios from "axios";
 import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
-import { flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
+import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { deleteMessages } from "../utils/message_deletions";
 
 export function setupUserCallbackHandlers(bot: TelegramBot) {
@@ -27,11 +27,14 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
         } else if (action.startsWith("add_luggage_no")) {
             if (session?.rideId) {
                 await axios.post(`${config.backendUrl}/user/decline-luggage`, { rideId: session?.rideId });
+                if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
             }
         } else if (action.startsWith("add_luggage_yes")) {
             if (session?.rideId) {
                 await axios.post(`${config.backendUrl}/user/confirm-luggage`, { rideId: session?.rideId });
+                if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
             }
+
         }
     });
 }
