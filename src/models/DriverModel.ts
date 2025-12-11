@@ -9,6 +9,7 @@ export interface IDriverDocument extends Document {
     carModel?: string;
     carColor?: string;
     carNumber?: string;
+    regionCode?: string;
     vehicle: string; // derived string like "Toyota - ABC123"
     status: "offline" | "available" | "on_trip";
     location?: { lat: number; lon: number };
@@ -33,6 +34,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         balance: { type: Number, default: 500_000 },
         carModel: { type: String },
         carNumber: { type: String },
+        regionCode: { type: String },
         carColor: { type: String },
         vehicle: { type: String },
         status: {

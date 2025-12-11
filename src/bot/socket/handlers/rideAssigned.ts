@@ -60,5 +60,5 @@ export async function handleRideAssigned(
     queueMessageForDeletion(chatId, locationMsg.message_id);
     delete session.searchingMessage;
 
-    scheduleContactRequest(chatId);
+    // scheduleContactRequest(chatId);
 }

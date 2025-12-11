@@ -19,6 +19,10 @@ export interface UserSession {
 export const userSessions: Record<number, UserSession> = {};
 
 export function getSession(chatId: number): UserSession {
+    if (!userSessions[chatId]) {
+        userSessions[chatId] = { messagesToDelete: [] };
+        initUserSocket(chatId);   // If needed
+    }
     return userSessions[chatId];
 }
 

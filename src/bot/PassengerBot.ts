@@ -1,4 +1,4 @@
-import TelegramBot from "node-telegram-bot-api";
+import TelegramBot, { Message } from "node-telegram-bot-api";
 import { config } from "./config/env";
 import { handleStart } from "./handlers/startHandler";
 import { handleLocation } from "./handlers/clientLocationHandler";
@@ -9,6 +9,7 @@ import { RideModel } from "../models/Ride";
 import { emit } from "process";
 import { socketIo } from "../gateway/socket2";
 import { driverStore } from "../store/driverStore";
+import { handleMessage } from "./handlers/handleMessage";
 
 export const userBot = new TelegramBot(
     config.token, {
@@ -22,6 +23,8 @@ function attachHandlers(bot: TelegramBot) {
 
     // Location handler
     userBot.on("location", handleLocation);
+
+    bot.on("message", handleMessage);
 
     userBot.on("contact", async (msg) => {
         console.log("📲 CONTACT SHARED");

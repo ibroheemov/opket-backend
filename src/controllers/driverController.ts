@@ -161,7 +161,7 @@ export const driverDashboard = async (req: AuthRequest, res: Response) => {
 
 export const registerDriver = async (req: AuthRequest, res: Response) => {
     try {
-        const { firstname, lastname, phone, carNumber, carModel, carColor } = req.body;
+        const { firstname, lastname, phone, carNumber, carModel, carColor, regionCode } = req.body;
 
         if (!firstname || !lastname || !phone) {
             return res.status(400).json({ message: "firstname, lastname and phone are required" });
@@ -214,6 +214,7 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
             lastname,
             phone,
             vehicle,
+            regionCode,
             carColor,
             carModel,
             carNumber,

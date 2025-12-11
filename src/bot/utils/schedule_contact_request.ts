@@ -14,6 +14,7 @@ export function scheduleContactRequest(chatId: number) {
 
         try {
             const sent = await contactRequestPrompt(chatId);
+            if (!sent) return;
             session.currentMsgId = sent.message_id;
             queueMessageForDeletion(chatId, sent.message_id);
         } catch (err) {
