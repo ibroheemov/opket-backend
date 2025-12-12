@@ -1,19 +1,10 @@
 import { RideRepository } from "../repositories/ride.repository";
 import { DriverRepository } from "../repositories/driver.repository";
-import { haversineDistanceKm } from "../utils/haversine";
-import { calculateEstimate } from "../utils/fare";
-import { MAX_DRIVER_DISTANCE_KM } from "../config/constants";
-import { logger } from "../utils/logger";
-import { DriverModel, IDriverDocument } from "../models/DriverModel";
-import { calculateApproxTime } from "../utils/calculateApproxTime";
+import { DriverModel } from "../models/DriverModel";
 import { DriverLocation } from "../types/location";
-import { DriverSession } from "../store/driverStore";
-import admin from 'firebase-admin';
-import { sendRideOffer } from "../utils/sendRideOffer";
 import { sendOfferToNextDriverSafe } from "../utils/sendOfferToNextDriver";
 import { safeAsync } from "../utils/asyncHelper";
 import { RideModel } from "../models/Ride";
-import { Socket } from "socket.io";
 import { driverStore } from "../store/driverStore";
 import { socketIo, userSockets } from "../gateway/socket.maps";
 import { RideCompletedPayload } from "../bot/socket/types";
@@ -63,6 +54,13 @@ export const RideService = {
                 if (stopped) return;
 
                 const elapsed = Date.now() - start;
+
+                const ride = await RideModel.findById(rideId);
+
+                if (ride?.status.includes('cancelled')) {
+                    stopped = true;
+                    return;
+                }
 
                 // 1) Stop if timeout
                 if (elapsed >= MAX_DURATION) {
@@ -116,8 +114,6 @@ export const RideService = {
     async requestRide(input: RideRequestInput) {
         const { chatId, location, dropoff, address } = input;
         const session = getSession(chatId);
-        console.log("USER PHONE: ", session.phone);
-
         // 1) Create initial ride
         const ride = await RideRepository.createRide({
             userChatId: chatId,

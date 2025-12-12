@@ -5,6 +5,8 @@ import { DriverModel } from "../models/DriverModel";
 import { driverStore } from "../store/driverStore";
 import { socketIo } from "../gateway/socket2";
 import { PassengerModel } from "../models/PassengerModel";
+import { RideSearchManager } from "../utils/rideSearchManager";
+import { rideSearchStore } from "../store/rideSearchStore";
 
 
 export const createPassenger = async (req: Request, res: Response) => {
@@ -37,15 +39,11 @@ export const cancelRide = async (req: Request, res: Response) => {
         }
 
         const ride = await RideModel.findOneAndUpdate({ _id: rideId }, { status: 'cancelled' });
-        console.log(ride);
-        console.log(ride?.driverId);
 
         if (ride && ride.driverId) {
             await DriverModel.findOneAndUpdate({ _id: ride.driverId }, { currentRideId: null });
             const driverSession = driverStore.get(ride.driverId);
             driverStore.upsert(ride.driverId, { currentRideId: null });
-            console.log(driverSession);
-            console.log(driverSession?.socketId);
             socketIo.to(driverSession?.socketId!).emit("cancel_ride", { rideId });
         }
 

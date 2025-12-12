@@ -13,16 +13,12 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
         const session = getSession(chatId);
 
         if (action.startsWith("cancel_ride")) {
-            await deleteMessages(chatId);
-
+            delete session.rideId;
             if (session?.rideId) {
                 await axios.post(`${config.backendUrl}/user/cancel-ride`, { rideId: session?.rideId });
             }
-            session?.searchingMessage?.stopAnimation()
             const sent = await sendLocationRequestPrompt(chatId);
-            // await deleteMessages(chatId);
             await flushDeletionQueue(chatId);
-            // await addToMessagesToDelete(chatId, sent.message_id);
             queueMessageForDeletion(chatId, sent.message_id)
         } else if (action.startsWith("add_luggage_no")) {
             if (session?.rideId) {

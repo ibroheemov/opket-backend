@@ -6,6 +6,8 @@ import { DriverModel, IDriverDocument } from "../models/DriverModel";
 import { TransactionModel } from "../models/TransactionModel";
 import { AuthRequest } from "../middlewares/auth";
 import { socketIo } from "../gateway/socket.maps";
+import { RideRepository } from "../repositories/ride.repository";
+import { sendOfferToNextDriverSafe } from "../utils/sendOfferToNextDriver";
 
 export const requestRide = async (req: Request, res: Response) => {
     logger.info("🚗 Ride request received");
@@ -30,7 +32,6 @@ export const requestRide = async (req: Request, res: Response) => {
     }
 };
 
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 
 export const acceptRide = async (req: AuthRequest, res: Response) => {
@@ -52,6 +53,37 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
         }
 
         return res.status(200).json({ message: "Driver accepted the ride" });
+    } catch (err) {
+        console.error('Error fetching current ride:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+
+export const declineRide = async (req: AuthRequest, res: Response) => {
+    console.log("ACCEPT RIDE");
+
+    try {
+        const { rideId } = req.body;
+        // Remove this driver from the candidate list
+        const driverId = req.driverId; // depends on your auth logic
+
+        if (!driverId) {
+            return res.status(400).json({ message: "driverId is required" });
+        }
+
+        await RideRepository.pullDriverCandidate(rideId, driverId);
+
+        // Clear if this driver is currently offeredTo
+        await RideModel.findOneAndUpdate(
+            { _id: rideId, offeredTo: driverId },
+            { $unset: { offeredTo: "" }, $set: { offerExpiresAt: null } }
+        );
+
+        // Now schedule next driver immediately
+        sendOfferToNextDriverSafe(rideId);
+
+        return res.send({ success: true });
     } catch (err) {
         console.error('Error fetching current ride:', err);
         return res.status(500).json({ error: 'Internal server error' });

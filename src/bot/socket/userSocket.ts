@@ -19,7 +19,6 @@ import {
 } from "./types";
 import { handleRideNoDrivers } from "./handlers/rideNoDrivers";
 import { handleAddLuggage } from "./handlers/rideAddLuggage";
-import { PassengerModel } from "../../models/PassengerModel";
 import { handleRidePayChange } from "./handlers/ridePayChange";
 import { config } from "../config/env";
 import { userBot } from "../PassengerBot";

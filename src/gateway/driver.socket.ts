@@ -28,7 +28,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
             socketId: socket.id,
             status: "online",
             fcmToken,
-            // location: { lat: 37.42534332278696, lon: -122.07541496109042 },
+            location: { lat: 37.42534332278696, lon: -122.07541496109042 },
             canReceiveOffers,
         }
     );

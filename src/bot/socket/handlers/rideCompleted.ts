@@ -29,6 +29,7 @@ export async function handleRideCompleted(
     );
 
     const session = getSession(chatId);
+    delete session.rideId;
     session.currentMsgId = sent.message_id;
 
     await flushDeletionQueue(chatId);

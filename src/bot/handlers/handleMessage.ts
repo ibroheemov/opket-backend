@@ -1,27 +1,26 @@
 import TelegramBot, { Message } from "node-telegram-bot-api";
-import { userBot } from "../PassengerBot";
+import axios from "axios";
+import { cancel_ride_message } from "../ui/messages";
+import { getSession } from "../services/sessionManager";
+import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
+import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
+import { config } from "../config/env";
 
-export function handleMessage(msg: Message) {
-    const text = msg.text || "";
-    const entities = msg.entities || [];
+export async function handleMessage(msg: Message) {
+    const chatId = msg.chat.id;
+    const text = msg.text;
+    queueMessageForDeletion(chatId, msg.message_id)
 
-    for (const entity of entities) {
-        if (entity.type === "custom_emoji" && entity.custom_emoji_id) {
-            const emojiId = entity.custom_emoji_id;
+    const session = getSession(chatId);
 
-            console.log("Custom emoji detected:", emojiId);
-
-            // Send the same custom emoji back to the user
-            userBot.sendMessage(msg.chat.id, text, {
-                entities: [
-                    {
-                        type: "custom_emoji",
-                        offset: 0,
-                        length: text.length,
-                        custom_emoji_id: emojiId,
-                    },
-                ],
-            });
+    if (text == cancel_ride_message) {
+        if (session?.rideId) {
+            await axios.post(`${config.backendUrl}/user/cancel-ride`, { rideId: session?.rideId });
         }
+        delete session.rideId;
+        const sent = await sendLocationRequestPrompt(chatId);
+        await flushDeletionQueue(chatId);
+        if (session?.currentMsgId) await deleteMessageSafely(chatId, session?.currentMsgId);
+        queueMessageForDeletion(chatId, sent.message_id)
     }
 }

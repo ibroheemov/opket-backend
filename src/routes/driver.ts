@@ -10,7 +10,7 @@ import { payChange } from "../controllers/driver/payChange";
 import { heartbeat } from "../controllers/driver/heartbeat";
 import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig } from "../controllers/fare.controller";
-import { acceptRide } from "../controllers/ride.controller";
+import { acceptRide, declineRide } from "../controllers/ride.controller";
 
 const router = express.Router();
 
@@ -29,6 +29,7 @@ router.post("/status", authenticateDriver, updateStatus);
 router.get("/:id/balance", authenticateDriver, getDriverBalance);
 router.post("/pay-change", authenticateDriver, payChange);
 router.post("/dashboard", driverDashboard);
+router.post("/decline-ride", declineRide);
 router.post(
     "/register",
     upload.fields([

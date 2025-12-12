@@ -43,13 +43,6 @@ export async function handleRideAssigned(
     const infoMsg = await bot.sendMessage(
         chatId,
         `Haydovchi yo'lda ☝️\n\n👨‍✈️Haydovchi: ${driver.name}\n🚗 Mashina: ${driver.carModel}, ${driver.carColor}\n🔢 Raqam: ${driver.carNumber}\n☎️ +998${driver.phone}`,
-        {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "❌ Buyurtmani bekor qilish", callback_data: "cancel_ride" }],
-                ],
-            },
-        }
     );
 
     session.driverInfoMessageId = infoMsg.message_id;

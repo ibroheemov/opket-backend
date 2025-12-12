@@ -27,7 +27,6 @@ function attachHandlers(bot: TelegramBot) {
     bot.on("message", handleMessage);
 
     userBot.on("contact", async (msg) => {
-        console.log("📲 CONTACT SHARED");
         const chatId = msg.chat.id;
         const session = getSession(chatId);
         const phone = msg?.contact?.phone_number;

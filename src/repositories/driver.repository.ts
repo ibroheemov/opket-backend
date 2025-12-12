@@ -1,9 +1,8 @@
-import { DriverModel, IDriverDocument } from "../models/DriverModel";
 import { DriverSession, driverStore } from "../store/driverStore";
 import { haversineDistanceKm } from "../utils/haversine";
 
 export const DriverRepository = {
-    async findAvailableDrivers(pickupLat: number, pickupLon: number, maxKm = 5) {
+    async findAvailableDrivers(pickupLat: number, pickupLon: number, maxKm = 2.5) {
         const onlineDrivers = driverStore.getOnlineDrivers();
 
         console.log(`Online drivers: ${onlineDrivers.length}`);
@@ -20,7 +19,7 @@ export const DriverRepository = {
                     driver.location.lon
                 );
 
-                // dist = 3;
+                dist = 2;
 
                 if (dist > maxKm) return null;
 
