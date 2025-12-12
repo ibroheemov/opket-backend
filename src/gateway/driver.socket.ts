@@ -28,7 +28,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
             socketId: socket.id,
             status: "online",
             fcmToken,
-            location: { lat: 37.42534332278696, lon: -122.07541496109042 },
+            // location: { lat: 37.42534332278696, lon: -122.07541496109042 },
             canReceiveOffers,
         }
     );
@@ -67,10 +67,14 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
 
     // 3️⃣ Handle driver availability
     socket.on("driver_online", () => {
+        console.log("driver_online");
+
         driverStore.upsert(driverId, { status: "online" });
     });
 
     socket.on("driver_offline", () => {
+        console.log("driver_offline");
+
         driverStore.upsert(driverId, { status: "offline" });
     });
 
