@@ -8,7 +8,6 @@ export function initDriverSocket(bot: TelegramBot, chatId: number, backendUrl: s
     driverSocket = io(backendUrl, { auth: { token } });
 
     driverSocket.on("connect", () => {
-        console.log(`✅ Driver ${chatId} connected via WebSocket`);
         // bot.sendVideo(chatId, 'src/bot/assets/livelocation.mp4', {
         //     caption: "👋 Assalomu Aleykum, Shohjahon Ibrohimov!\nBuyurtmalar qabul qilish uchun, yuqorida ko'rsatilganidek botga jonli lokatsiya yuboring",
         // });

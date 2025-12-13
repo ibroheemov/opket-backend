@@ -33,7 +33,6 @@ export function initUserSocket(chatId: number): Socket {
         auth: { userChatId: chatId || "unknown" },
     });
 
-    console.log("🔌 Initializing user socket...");
 
     // Register event handlers
     socket.on("ride_assigned", (data: RideAssignedPayload) =>
@@ -67,18 +66,16 @@ export function initUserSocket(chatId: number): Socket {
     });
 
     socket.on("ride_closed", async () => {
-        console.log("RIDE CLOSED");
-
         handleRideClosed(userBot, chatId)
     });
 
     socket.on("ride_completed", (data: RideCompletedPayload) => handleRideCompleted(userBot, chatId, data));
 
-    socket.on("connect", () => console.log("✅ User socket connected"));
+    socket.on("connect", () => console.log("🟢 #1[PASSENGER] connected"));
     socket.on("connect_error", (err) =>
-        console.error("🚨 Connection error:", err.message)
+        console.error("🟢❌ PASSENGER Connection error:", err.message)
     );
-    socket.on("disconnect", () => console.log("❌ User socket disconnected"));
+    socket.on("disconnect", () => console.log("🟢🔴 PASSENGER disconnected"));
 
     return socket;
 }

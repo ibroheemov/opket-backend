@@ -10,13 +10,10 @@ export function setupRideHandlers(bot: TelegramBot, backendUrl: string) {
         const chatId = query.message?.chat.id!;
         const action = query.data!;
         const token = driverSessions[chatId]?.token;
-        console.log(`token: ${token}`);
         if (!token) return;
 
         const session = driverSessions[chatId];
         const rideId = session.currentRideId;
-        console.log(`ACTION: ${action}`);
-
 
         if (action.startsWith("accept_")) {
             const rideId = action.split("_")[1];

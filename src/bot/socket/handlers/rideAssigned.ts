@@ -16,7 +16,6 @@ export async function handleRideAssigned(
     data: RideAssignedPayload
 ) {
     const { driver, location } = data;
-    console.log("DRIVER:", driver, "LOCATION:", location);
 
     const session = getSession(chatId);
     if (!driver || !session || !location) return;

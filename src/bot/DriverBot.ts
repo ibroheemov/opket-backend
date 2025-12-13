@@ -22,4 +22,3 @@ setupMenuHandlers(driverBot, BACKEND_URL);
 setupRideHandlers(driverBot, BACKEND_URL);
 setupLocationHandler(driverBot, BACKEND_URL);
 
-console.log("🚖 PayTube Driver Bot is running...");

@@ -39,12 +39,6 @@ export const handleRideCommission = async (
         });
     }
 
-    console.log(
-        `💸 Driver ${driverId} charged ${commission.toFixed(
-            0
-        )} UZS commission (balance now ${driver.balance})} UZS)`
-    );
-
     // 🔄 Update driverStore if driver is online
     const session = driverStore.get(driverId);
     if (session) {

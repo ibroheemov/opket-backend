@@ -86,9 +86,6 @@ export class PaynetCallbackController {
                     })
                     .join("; ");
 
-                console.log("MESSAGES", messages);
-                console.log("ISSUES", zodError.issues);
-
 
                 return res
                     .status(200)
@@ -127,8 +124,6 @@ export class PaynetCallbackController {
     }
 
     private isServiceEnabled(serviceId: number): boolean {
-        console.log("serviceId", serviceId);
-
         return this.allowedServices.includes(serviceId?.toString());
     }
 
@@ -179,9 +174,6 @@ export class PaynetCallbackController {
             amount: validated.amount,
             status: "CREATED",
         });
-
-        console.log(transaction);
-
 
         await this.successfullyPayment(transaction, driver);
 
@@ -304,17 +296,12 @@ export class PaynetCallbackController {
             { new: true }
         );
 
-        console.log("successfullyPayment");
-
         // 2. UPDATE DRIVER BALANCE IN APP VIA SOCKET        
         const emitted = socketIo.emit("balance_updated", { balance: updatedDriver?.balance });
-        console.log(emitted);
-
         // 3. NOTIFY DRIVER VIA FCM
         const fcmToken = driver.fcmToken;
 
         if (!fcmToken) {
-            console.log("❌ Error Top-up balance FCM: Driver doesn't have FCM token");
             return;
         }
 
@@ -341,8 +328,6 @@ export class PaynetCallbackController {
 
     private async cancelledPayment(transaction: TransactionDocument) {
         // 1. UPDATE DRIVER BALANCE
-        console.log(transaction.amount);
-
 
         const amount = transaction.amount / 100;
         const updatedDriver = await DriverModel.findOneAndUpdate(

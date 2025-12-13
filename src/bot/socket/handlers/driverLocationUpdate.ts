@@ -23,7 +23,6 @@ export async function handleDriverLocationUpdate(
         session.lastLocation = location;
     } catch (err: any) {
         if (err.response?.body?.description?.includes("message is not modified")) {
-            console.log("⏩ Skipped identical location update");
         } else {
             console.error("❌ Failed to update location:", err);
         }

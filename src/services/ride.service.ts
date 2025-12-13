@@ -2,7 +2,7 @@ import { RideRepository } from "../repositories/ride.repository";
 import { DriverRepository } from "../repositories/driver.repository";
 import { DriverModel } from "../models/DriverModel";
 import { DriverLocation } from "../types/location";
-import { sendOfferToNextDriverSafe } from "../utils/sendOfferToNextDriver";
+import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 import { safeAsync } from "../utils/asyncHelper";
 import { RideModel } from "../models/Ride";
 import { driverStore } from "../store/driverStore";
@@ -42,10 +42,12 @@ export const RideService = {
         rideId: string,
         pickup: { lat: number; lon: number },
         chatId: number,
-    ): Promise<SearchResult> { // <- explicitly type the promise
+    ): Promise<SearchResult> {
         const MAX_DURATION = 1 * 60 * 1000; // 3 minutes
         const INTERVAL = 5000; // 5 seconds
         const start = Date.now();
+
+        console.log(`🚀 Starting driver search for rideId: ${rideId}`);
 
         return new Promise<SearchResult>(async (resolve) => {
             let stopped = false;
@@ -54,24 +56,28 @@ export const RideService = {
                 if (stopped) return;
 
                 const elapsed = Date.now() - start;
+                console.log(`⏱️ Elapsed time: ${(elapsed / 1000).toFixed(1)}s`);
 
                 const ride = await RideModel.findById(rideId);
 
                 if (ride?.status.includes('cancelled')) {
                     stopped = true;
+                    console.log(`❌ Ride ${rideId} has been cancelled.`);
                     return;
                 }
 
-                // 1) Stop if timeout
+                // Stop if timeout
                 if (elapsed >= MAX_DURATION) {
                     stopped = true;
                     await RideRepository.updateRide(rideId, { status: "cancelled" });
                     emitToUser(chatId, "ride_no_drivers", null);
 
+                    console.log(`⏳ Timeout reached. No drivers found for ride ${rideId}.`);
                     return resolve({ drivers: 0, message: "No drivers found after 3 minutes" });
                 }
 
-                // 2) Check for drivers
+                // Check for drivers
+                console.log(`🔍 Searching for available drivers near (${pickup.lat}, ${pickup.lon})...`);
                 const drivers = await DriverRepository.findAvailableDrivers(pickup.lat, pickup.lon);
 
                 if (drivers.length > 0) {
@@ -87,22 +93,26 @@ export const RideService = {
                         driverId: nearest.driver.driverId
                     });
 
-                    sendOfferToNextDriverSafe(rideId);
+                    sendOfferToDrivers(rideId);
 
+                    console.log(`✅ Driver found: ${nearest.driver.driverId} (distance: ${nearest.distKm} km)`);
                     return resolve({
                         drivers,
                         message: "Driver found!",
                     });
+                } else {
+                    console.log(`🚫 No drivers available at this moment. Will retry in ${INTERVAL / 1000}s`);
                 }
             };
 
             // First immediate check
             await checkDrivers();
 
-            // Then interval checks every 5 seconds
+            // Interval checks every 5 seconds
             const interval = setInterval(async () => {
                 if (stopped) {
                     clearInterval(interval);
+                    console.log(`🛑 Stopping search for rideId: ${rideId}`);
                     return;
                 }
                 await checkDrivers();
@@ -185,6 +195,9 @@ export const RideService = {
                 currentRideId: acceptedRide._id.toString(),
             });
 
+            // Clear from being offer ride list
+            driverStore.clearOffer(driverId);
+
             return DriverModel.findByIdAndUpdate(
                 driverId,
                 { currentRideId: acceptedRide._id.toString() },
@@ -265,8 +278,6 @@ export const RideService = {
             );
 
         const rideUpdte = await RideModel.findOne({ _id: rideId });
-        console.log("🍫 RIDE COMPLETED", rideUpdte);
-
         // 3. Update driver in DB (clear currentRideId)
         const [updateDriverErr] = await safeAsync(() =>
             DriverModel.findOneAndUpdate({ _id: driverId }, { currentRideId: null })

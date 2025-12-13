@@ -30,8 +30,6 @@ export function setupAuthHandlers(bot: TelegramBot, backendUrl: string) {
     // /start command
     bot.onText(/\/start/, async (msg) => {
         const chatId = msg.chat.id;
-        console.log(chatId);
-
         driverSessions[chatId] = { messagesToDelete: [] };
         const session = driverSessions[chatId];
         driverBot.deleteMessage(chatId, msg.message_id);
@@ -54,7 +52,6 @@ export function setupAuthHandlers(bot: TelegramBot, backendUrl: string) {
 
 
 
-        console.log(`MESSAGES: ${session.messagesToDelete}`);
     });
 
     // handle contact
@@ -63,7 +60,6 @@ export function setupAuthHandlers(bot: TelegramBot, backendUrl: string) {
         // driverSessions[chatId] = { messagesToDelete: [] };
         const session = driverSessions[chatId];
         const phone = msg.contact?.phone_number;
-        console.log(`CONTAAAACT: ${session.messagesToDelete}`);
         driverSessions[chatId].messagesToDelete.push(msg.message_id);
 
         if (!phone) return;

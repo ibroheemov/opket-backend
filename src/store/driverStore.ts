@@ -1,4 +1,5 @@
 import { DriverLocation } from "../types/location";
+import { testDrivers } from "./testDrivers";
 
 export interface DriverSession {
     driverId: string;
@@ -13,6 +14,19 @@ export interface DriverSession {
 
 class DriverStore {
     private drivers: Map<string, DriverSession> = new Map();
+    private activeOffers = new Set<string>();
+
+    isAvailable(driverId: string): boolean {
+        return !this.activeOffers.has(driverId);
+    }
+
+    markAsOffered(driverId: string) {
+        this.activeOffers.add(driverId);
+    }
+
+    clearOffer(driverId: string) {
+        this.activeOffers.delete(driverId);
+    }
 
     // Add or update driver
     upsert(driverId: string, data: Partial<DriverSession>) {
@@ -38,12 +52,11 @@ class DriverStore {
 
     // Find all online drivers (optionally filter by distance later)
     getOnlineDrivers(): DriverSession[] {
-        console.log(this.drivers);
-
         return [...this.drivers.values()].filter(d =>
             d.status === "online" &&
             d.canReceiveOffers &&
             !d.currentRideId
+            && !this.activeOffers.has(d.driverId)
         );
     }
 
@@ -64,6 +77,15 @@ class DriverStore {
                 this.drivers.delete(id);
             }
         }
+    }
+
+
+    addTestDriversToStore(drivers: DriverSession[] = testDrivers) {
+        console.log(`🧪 Adding ${drivers.length} test driver(s) to driverStore`);
+        drivers.forEach(driver => {
+            driverStore.upsert(driver.driverId, driver);
+            console.log(`✅ Added test driver ${driver.driverId}`);
+        });
     }
 }
 

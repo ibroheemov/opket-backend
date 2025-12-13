@@ -7,6 +7,5 @@ export async function handleRideClosed(
     chatId: number,
 ) {
     const session = getSession(chatId);
-    console.log(`RIDE CLOSED MSG ID: ${session.currentMsgId}`);
     if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
 }

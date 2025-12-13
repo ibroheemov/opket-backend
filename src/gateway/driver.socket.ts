@@ -12,15 +12,14 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
     const driver = await DriverModel.findById(driverId);
 
     if (!driver) {
-        console.error("❌ Driver not found in DB:", driverId);
+        console.error("🟡❌ DRIVER => SOCKET CONNECTION - Driver not found in DB:", driverId);
         socket.emit("error", { message: "Driver not found" });
         return; // stop socket setup
     }
 
     const canReceiveOffers = driver.balance > 0;
-
     driverSockets.set(driverId, socket.id);
-    console.log(`🚗 Driver connected: DriverID: ${driverId}; FcmToken: ${fcmToken}`);
+
     // 1️⃣ Mark as online
     driverStore.upsert(
         driverId,
@@ -35,8 +34,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
 
     if (!canReceiveOffers) {
         socket.emit("no_balance", { balance: driver.balance });
+        console.error("🟡❌ DRIVER => NO BALANCE", driverId);
     }
-
 
     // 2️⃣ Handle location updates
     socket.on("driver_location", async ({ lat, lon }) => {
@@ -62,24 +61,19 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
                 }
             }
         }
-        console.log(`📍 Driver[FG] ${driverId} location updated: ${lat}, ${lon}`);
     });
 
     // 3️⃣ Handle driver availability
     socket.on("driver_online", () => {
-        console.log("driver_online");
-
         driverStore.upsert(driverId, { status: "online" });
     });
 
     socket.on("driver_offline", () => {
-        console.log("driver_offline");
-
         driverStore.upsert(driverId, { status: "offline" });
+        console.error("🟡🔕 DRIVER => OFFLINE", driverId);
     });
 
     socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
-        console.log(`📩 Driver ${driverId} accepting ride ${rideId}`);
         try {
             await RideService.acceptRide(rideId, driverId);
         } catch (err) {
@@ -97,21 +91,13 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
     });
 
 
-    // socket.on("balance_updated", async ({ balance }: { balance: number }) => {
-    //     console.log("balance_updated", balance);
-    //     socket.emit("balance_updated", { balance });
-    // });
-
     socket.on("ride_progress", async (data: RideProgressPayload) => {
-        console.log("RIDE PROGRESS", data);
         const driverSession = driverStore.get(driverId);
         if (!driverSession?.currentRideId) {
-            console.log("Ride not found");
             return;
         };
         const ride = await RideModel.findById(driverSession.currentRideId);
         if (!ride) {
-            console.log("Ride not found");
             socket.emit("error", { message: "Ride not found" });
             return;
         };
@@ -135,8 +121,6 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
     });
 
     socket.on("ride_completed", async (data: RideCompletedPayload) => {
-        console.log(`🏁 Driver ${driverId} completing ride ${data.rideId}`);
-
         try {
             await RideService.completeRide(driverId, data);
         } catch (err) {
@@ -145,8 +129,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
     });
 
 
-    socket.on("disconnect", () => {
-        // driverSockets.delete(driverId);
-        console.log(`❌ Driver disconnected: ${driverId}`);
-    });
+    socket.on("connect_error", (err) =>
+        console.error("🟡❌ DRIVER Connection error:", err.message)
+    );
+    socket.on("disconnect", () => console.log("🟡🔴 DRIVER disconnected"));
 };

@@ -31,7 +31,6 @@ export const createPassenger = async (req: Request, res: Response) => {
 };
 
 export const cancelRide = async (req: Request, res: Response) => {
-    console.log(`RIDE CANCELLED}`)
     try {
         const { rideId } = req.body;
         if (!rideId) {
@@ -81,7 +80,6 @@ export const confirmLuggage = async (req: Request, res: Response) => {
 };
 
 export const declineLuggage = async (req: Request, res: Response) => {
-    console.log(`LUGGAGE DECLINED}`)
     try {
         const { rideId } = req.body;
         if (!rideId) {

@@ -18,7 +18,6 @@ async function seed() {
 
     const existing = await DriverModel.findOne({ phone: testDriver.phone });
     if (existing) {
-        console.log("✅ Driver already exists:", existing.phone);
         return;
     }
 

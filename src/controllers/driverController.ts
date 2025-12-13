@@ -13,7 +13,6 @@ import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt
 export const updateLocation = async (req: AuthRequest, res: Response) => {
     const { lat, lon } = req.body;
     if (!lat || !lon) return res.status(400).json({ error: "lat/lon required" });
-    console.log(req.driverId);
     const driver = await DriverModel.findOneAndUpdate(
         { id: req.driverId },
         { location: { lat, lon } },
@@ -39,15 +38,11 @@ export const updateLocation = async (req: AuthRequest, res: Response) => {
         if (ride && ride.status === "started") {
 
             if (ride.lastLocation) {
-                console.log(`ride.lastLocation.lat: ${ride.lastLocation.lat}`);
-                console.log(`lat: ${lat}`);
                 const distanceMeters = haversine(
                     { lat: Number(ride.lastLocation.lat), lon: Number(ride.lastLocation.lon) },
                     { lat: Number(lat), lon: Number(lon) }
                 );
-                console.log(`distanceMeters: ${distanceMeters}`);
                 const distanceKm = distanceMeters / 1000;
-                console.log(`ride.distanceTraveled: ${ride.distanceTraveled}`);
                 ride.distanceTraveled += distanceKm;
 
                 const ratePerKm = 2000; // UZS/km
@@ -85,7 +80,6 @@ export const getDriver = async (req: AuthRequest, res: Response) => {
 
 export const updateStatus = async (req: AuthRequest, res: Response) => {
     const { status, driverId } = req.body;
-    console.log(status, driverId);
 
     if (!["online", "offline"].includes(status))
         return res.status(400).json({ error: "Invalid status" });
@@ -118,7 +112,6 @@ export const getDriverBalance = async (req: AuthRequest, res: Response) => {
 
 export const driverDashboard = async (req: AuthRequest, res: Response) => {
     try {
-        console.log(req.query);
         const chatId = Number(req.body.chatId);
         if (!chatId) {
             return res.status(400).json({ error: "chatId is required" });

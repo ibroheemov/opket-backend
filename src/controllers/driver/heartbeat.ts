@@ -1,5 +1,4 @@
 import { AuthRequest } from "../../middlewares/auth";
-import { DriverModel } from "../../models/DriverModel";
 import { Response } from "express";
 import { driverStore } from "../../store/driverStore";
 
@@ -17,7 +16,5 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
         location,
         lastUpdated: Date.now(),
     });
-
-    console.log(`🔆 Driver[BG] ${driverId} location updated: ${location.lat}, ${location.lon}`);
     return res.json({ ok: true });
 };

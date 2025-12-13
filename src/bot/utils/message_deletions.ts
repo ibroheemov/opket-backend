@@ -23,7 +23,6 @@ export async function deleteMessages(chatId: number) {
 export async function addToMessagesToDelete(chatId: number, messageId: number) {
     const session = getSession(chatId);
     session.messagesToDelete = [...session.messagesToDelete, messageId];
-    console.log("MESSAGES TO DELET:", session.messagesToDelete);
 }
 
 export function logError(context: string, err: any) {

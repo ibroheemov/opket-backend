@@ -22,8 +22,6 @@ export abstract class JSONRPCException extends Error {
      * @param params.rpcId The request ID (or null)
      */
     constructor(params: { detail?: string; code: number; rpcId?: number | null }) {
-        console.log("DETAIL", params.detail);
-
         super(params.detail ?? ""); // pass to Error base
         Object.setPrototypeOf(this, new.target.prototype);
 

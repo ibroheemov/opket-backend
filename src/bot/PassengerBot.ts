@@ -40,7 +40,6 @@ function attachHandlers(bot: TelegramBot) {
         const ride = await RideModel.findByIdAndUpdate(session.rideId, { userPhoneNumber: phone });
 
         if (ride && ride.driverId) {
-            console.log("📲 CONTACT SHARED SENT TO DRIVER");
             socketIo.emit("user_contact", { phone });
         }
     });
@@ -56,10 +55,8 @@ if (config.env === "development") {
     userBot.getUpdates({ offset: -1 }).then(() => {
         attachHandlers(userBot);
         userBot.startPolling(); // Only in dev
-        console.log("🚀 User bot running in development mode with polling...");
     });
 } else {
     // Production: webhook is set in server.ts
     attachHandlers(userBot);
-    console.log("🚀🚀 User bot running in production mode with webhook...");
 }

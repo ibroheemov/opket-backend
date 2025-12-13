@@ -4,6 +4,7 @@ import { authenticateSocket } from "./socket.auth";
 import { registerDriverHandlers } from "./driver.socket";
 import { registerUserHandlers } from "./user.socket";
 import { setSocketServer } from "./socket.maps";
+import { driverStore } from "../store/driverStore";
 
 export let socketIo: Server;
 
@@ -31,7 +32,5 @@ export const initSocketServer = (server: http.Server) => {
             registerUserHandlers(socket, auth.userChatId);
         }
     });
-
-    console.log("✅ WebSocket gateway initialized on path /socket.io");
     return socketIo;
 };

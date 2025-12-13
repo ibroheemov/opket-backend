@@ -1,0 +1,66 @@
+// import type { DriverSession } from "./driverStore";
+
+import { DriverSession } from "./driverStore";
+
+export const testDrivers: DriverSession[] = [
+    {
+        driverId: "693abb8e402815003ea8107a",
+        socketId: "socket-1",
+        status: "online",
+        currentRideId: null,
+        location: { lat: 41.02733142030315, lon: 71.83008788076023 },
+        lastUpdated: Date.now(),
+        canReceiveOffers: true,
+        fcmToken: "eoWZVPLmQdildy5Tp4mgaL:APA91bFRuFGQQebpqJ9Iej7czR-kZvhtV41PsDl1P79pqyd5-9fdUsdG0VAFHg6SqzIKub8Ql64dhui4Fdhu081gC33bd3xOCKh0jbT3F0IMyFJZlyHqNjY",
+    },
+    {
+        driverId: "693abb8e402815003ea8107b",
+        socketId: "socket-2",
+        status: "online",
+        currentRideId: null,
+        location: { lat: 41.018305374446484, lon: 71.83508894811908 },
+        lastUpdated: Date.now(),
+        canReceiveOffers: true,
+        fcmToken: "eoWZVPLmQdildy5Tp4mgaL:APA91bFRuFGQQebpqJ9Iej7czR-kZvhtV41PsDl1P79pqyd5-9fdUsdG0VAFHg6SqzIKub8Ql64dhui4Fdhu081gC33bd3xOCKh0jbT3F0IMyFJZlyHqNjY",
+    },
+    {
+        driverId: "693abb8e402815003ea8107d",
+        socketId: "socket-3",
+        status: "online",
+        currentRideId: null,
+        location: { lat: 41.020605354367596, lon: 71.83941387646072 },
+        lastUpdated: Date.now(),
+        canReceiveOffers: true,
+        fcmToken: "eoWZVPLmQdildy5Tp4mgaL:APA91bFRuFGQQebpqJ9Iej7czR-kZvhtV41PsDl1P79pqyd5-9fdUsdG0VAFHg6SqzIKub8Ql64dhui4Fdhu081gC33bd3xOCKh0jbT3F0IMyFJZlyHqNjY",
+    },
+    {
+        driverId: "693abb8e402815003ea8107r",
+        socketId: "socket-4",
+        status: "online",
+        currentRideId: null,
+        location: { lat: 41.022232992254814, lon: 71.79864138278437 },
+        lastUpdated: Date.now(),
+        canReceiveOffers: true,
+        fcmToken: "eoWZVPLmQdildy5Tp4mgaL:APA91bFRuFGQQebpqJ9Iej7czR-kZvhtV41PsDl1P79pqyd5-9fdUsdG0VAFHg6SqzIKub8Ql64dhui4Fdhu081gC33bd3xOCKh0jbT3F0IMyFJZlyHqNjY",
+    },
+    {
+        driverId: "693abb8e402815003ea8107y",
+        socketId: "socket-5",
+        status: "online",
+        currentRideId: null,
+        location: { lat: 41.02606620964853, lon: 71.79839651894395 },
+        lastUpdated: Date.now(),
+        canReceiveOffers: true,
+        fcmToken: "eoWZVPLmQdildy5Tp4mgaL:APA91bFRuFGQQebpqJ9Iej7czR-kZvhtV41PsDl1P79pqyd5-9fdUsdG0VAFHg6SqzIKub8Ql64dhui4Fdhu081gC33bd3xOCKh0jbT3F0IMyFJZlyHqNjY",
+    },
+    {
+        driverId: "693abb8e402815003ea8107u",
+        socketId: "socket-6",
+        status: "online",
+        currentRideId: null,
+        location: { lat: 41.02499518341307, lon: 71.79509910866221 },
+        lastUpdated: Date.now(),
+        canReceiveOffers: true,
+        fcmToken: "eoWZVPLmQdildy5Tp4mgaL:APA91bFRuFGQQebpqJ9Iej7czR-kZvhtV41PsDl1P79pqyd5-9fdUsdG0VAFHg6SqzIKub8Ql64dhui4Fdhu081gC33bd3xOCKh0jbT3F0IMyFJZlyHqNjY",
+    },
+];

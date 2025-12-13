@@ -67,7 +67,6 @@ export function makeDriverAuthController(driverRepo: MongoDriverRepo) {
     router.post("/auth/telegram", (req, res) => {
         const { initData } = req.body;
         const verified = verifyTelegramInitData(initData);
-        console.log(verified);
 
         if (!verified.ok || !verified.user) {
             return res.status(403).json({ authenticated: false });
@@ -188,8 +187,6 @@ export function verifyTelegramInitData(initData: string) {
         const calcHashBase64 = calcHashBuffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
         if (calcHashBase64 !== signature) {
-            console.log("calcHashBase64 !== signature", calcHashBase64);
-            console.log(" signature", signature);
             return { ok: false }
         };
 

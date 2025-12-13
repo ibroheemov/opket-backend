@@ -4,8 +4,6 @@ export const RideSearchManager = {
     intervals: new Map<string, NodeJS.Timeout>(),
 
     stopSearch(rideId: string) {
-        console.log("Stopping search for", rideId);
-
         this.stopFlags.set(rideId, true);
 
         const interval = this.intervals.get(rideId);

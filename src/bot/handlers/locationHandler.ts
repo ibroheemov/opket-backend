@@ -12,9 +12,7 @@ export function setupLocationHandler(bot: TelegramBot, backendUrl: string) {
 
         const { latitude, longitude, } = msg.location!;
         // ✅ Log every location event
-        console.log(
-            `📍 [Driver Live Location Update] chatId=${chatId}, lat=${latitude}, lon=${longitude}, live_period=${msg.location?.live_period}`
-        );
+
         try {
             await axios.post(`${backendUrl}/driver/update-location`, { lat: latitude, lon: longitude, chatId: chatId }, { headers: { Authorization: `Bearer ${token}` } });
             await axios.post(`${backendUrl}/driver/status`, { status: "online" }, { headers: { Authorization: `Bearer ${token}` } });
@@ -44,7 +42,6 @@ export function setupLocationHandler(bot: TelegramBot, backendUrl: string) {
             const { latitude, longitude } = msg.location;
             const token = driverSessions[chatId]?.token;
 
-            console.log("📡 Live location update:", latitude, longitude);
             const session = driverSessions[chatId];
 
             if (!token) return;

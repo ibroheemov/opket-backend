@@ -7,10 +7,9 @@ import { TransactionModel } from "../models/TransactionModel";
 import { AuthRequest } from "../middlewares/auth";
 import { socketIo } from "../gateway/socket.maps";
 import { RideRepository } from "../repositories/ride.repository";
-import { sendOfferToNextDriverSafe } from "../utils/sendOfferToNextDriver";
+import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 
 export const requestRide = async (req: Request, res: Response) => {
-    logger.info("🚗 Ride request received");
 
     try {
         const { chatId, location, dropoff, address } = req.body;
@@ -35,8 +34,6 @@ export const requestRide = async (req: Request, res: Response) => {
 
 
 export const acceptRide = async (req: AuthRequest, res: Response) => {
-    console.log("ACCEPT RIDE");
-
     try {
         const { id } = req.params;
         const driverId = req.driverId;
@@ -61,8 +58,6 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
 
 
 export const declineRide = async (req: AuthRequest, res: Response) => {
-    console.log("ACCEPT RIDE");
-
     try {
         const { rideId } = req.body;
         // Remove this driver from the candidate list
@@ -81,7 +76,7 @@ export const declineRide = async (req: AuthRequest, res: Response) => {
         );
 
         // Now schedule next driver immediately
-        sendOfferToNextDriverSafe(rideId);
+        sendOfferToDrivers(rideId);
 
         return res.send({ success: true });
     } catch (err) {

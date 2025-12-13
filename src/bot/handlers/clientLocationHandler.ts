@@ -3,6 +3,7 @@ import { requestRide } from "../services/rideService";
 import TelegramBot from "node-telegram-bot-api";
 import { deleteMessageSafely, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { contactRequestPrompt } from "../ui/prompts/contactRequestPrompt";
+import { logger } from "../../utils/logger";
 
 export const handleLocation = async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id;
@@ -25,8 +26,8 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
 
     // Step 4: Request ride with timeout (concurrent with animation)
     const ride = await requestRide(chatId, { lat: latitude, lon: longitude });
-
     session.rideId = ride.rideId;
+    logger.info("🟢📍 #2[PASSENGER] (requestRide) - SUCCESS", chatId);
 };
 
 
