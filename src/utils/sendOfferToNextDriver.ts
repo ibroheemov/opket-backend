@@ -8,6 +8,7 @@ import { sendRideOffer } from "./sendRideOffer";
 import { socketIo } from "../gateway/socket2";
 import { userSockets } from "../gateway/socket.maps";
 import { driverStore } from "../store/driverStore";
+import { emitToDriver } from "../gateway/ride.socket";
 
 
 // const OFFER_TIMEOUT_MS = 20_000;
@@ -475,7 +476,10 @@ export async function sendOfferToDriverSequentially(rideId: string, candidate: a
     const distKm = candidate.distKm;
     const travelTime = calculateApproxTime(distKm);
     console.log(`📩 Sending offer to driver ${nextDriverId} (dist: ${distKm} km, ETA: ${travelTime} min)`);
-
+    emitToDriver(nextDriverId, "ride_offered", {
+        'driverId': nextDriverId,
+        'rideId': rideId,
+    });
     const offerSent = await sendRideOffer({
         id: claimed._id,
         pickup: claimed.pickup,

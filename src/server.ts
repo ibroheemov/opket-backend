@@ -6,6 +6,7 @@ import { makeDriverAuthController } from "./controllers/driverAuthController";
 import { MongoDriverRepo } from "./infra/repos/MongoDriverRepo";
 import { connectDB } from "./utils/db";
 import userRoutes from "./routes/user";
+import adminRoutes from "./routes/admin";
 import paynetRoutes from "./routes/paynet";
 import driverRoutes from "./routes/driver";
 import cors from "cors";
@@ -37,6 +38,7 @@ async function startServer() {
 
     app.use("/paynet", paynetRoutes);
     app.use("/user", userRoutes);
+    app.use("/admin", userRoutes);
     app.use("/driver", driverRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
 

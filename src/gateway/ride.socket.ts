@@ -1,5 +1,5 @@
 import { RideModel } from "../models/Ride";
-import { socketIo, userSockets } from "./socket.maps";
+import { driverSockets, socketIo, userSockets } from "./socket.maps";
 
 export const updateRideStatus = async (rideId: string, status: string) => {
     const ride = await RideModel.findById(rideId);
@@ -22,8 +22,9 @@ export const emitToUser = (chatId: number, event: string, data: any) => {
     return false;
 };
 
-export const emitToDriver = (chatId: number, event: string, data: any) => {
-    const socketId = userSockets.get(chatId);
+export const emitToDriver = (driverId: string, event: string, data: any) => {
+    const socketId = driverSockets.get(driverId);
+
     if (socketId) {
         socketIo.to(socketId).emit(event, data);
         return true;

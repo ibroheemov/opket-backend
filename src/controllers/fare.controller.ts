@@ -1,6 +1,8 @@
 // src/controllers/fareController.ts
 import { Request, Response } from "express";
 import { getFareByCity } from "../services/fare.service";
+import { AuthRequest } from "../middlewares/auth";
+import { DriverModel } from "../models/DriverModel";
 
 export const fetchFareConfig = async (req: Request, res: Response) => {
     try {
@@ -19,3 +21,21 @@ export const fetchFareConfig = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const fetchWorkingAreas = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.params.id;
+        const driver = await DriverModel.findById(driverId)
+
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
+        }
+
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to fetch fare configuration",
+        });
+    }
+};
+
