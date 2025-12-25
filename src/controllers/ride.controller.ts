@@ -12,18 +12,23 @@ import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 export const requestRide = async (req: Request, res: Response) => {
 
     try {
-        const { chatId, location, dropoff, address } = req.body;
+        const { phone, chatId, location, dropoff, address } = req.body;
+
+        console.log(phone, location);
 
         if (
-            !chatId ||
             !location ||
             typeof location.lat !== "number" ||
             typeof location.lon !== "number"
         ) {
-            return res.status(400).json({ error: "Invalid request body" });
+            return res.status(400).json({ error: "[location] is required or invalid location coordinates" });
         }
 
-        const result = await RideService.requestRide({ chatId, location, dropoff, address });
+        if (!phone && !chatId) {
+            return res.status(400).json({ error: "[phone] or [chatId] is required" });
+        }
+
+        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address });
         return res.status(200).json(result);
     } catch (err) {
         logger.error("requestRide error:", err);

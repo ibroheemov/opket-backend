@@ -19,7 +19,8 @@ type SearchResult = {
 };
 
 export interface RideRequestInput {
-    chatId: number;
+    phone?: number;
+    chatId?: number;
     location: { lat: number; lon: number };
     dropoff?: { lat: number; lon: number; address?: string };
     address?: string;
@@ -28,7 +29,7 @@ export interface RideRequestInput {
 export interface RideOfferPaylod {
     id: string;
     pickup: DriverLocation;
-    userPhoneNumber?: string;
+    userPhoneNumber?: number;
     userChatId: number;
     travelDistance: string;
     travelTime: number;
@@ -122,12 +123,13 @@ export const RideService = {
 
 
     async requestRide(input: RideRequestInput) {
-        const { chatId, location, dropoff, address } = input;
-        const session = getSession(chatId);
+        const { phone, chatId, location, dropoff, address } = input;
+        if (!phone || chatId) return;
+
         // 1) Create initial ride
         const ride = await RideRepository.createRide({
             userChatId: chatId,
-            userPhoneNumber: session.phone,
+            userPhoneNumber: phone,
             pickup: { lat: location.lat, lon: location.lon, address },
             dropoff: dropoff
                 ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
@@ -136,11 +138,11 @@ export const RideService = {
         });
 
         // 2) Begin search loop for up to 3 minutes
-        this.searchForDriversFor3Minutes(ride._id, location, chatId)
+        this.searchForDriversFor3Minutes(ride._id, location, phone)
             .catch(err => console.error("Background search failed:", err));
 
         return {
-            rideId: ride._id
+            ride_id: ride._id
         };
     },
 
@@ -227,10 +229,15 @@ export const RideService = {
         }
 
         // 3) Notify driver
-        socketIo.emit("ride_status", {
-            status: "accepted",
-            rideId,
-        });
+        const ride_accepted_emitted = emitToUser(
+            acceptedRide.userPhoneNumber,
+            'ride_accepted',
+            {
+                driver: updatedDriver,
+                ride: acceptedRide
+            }
+        )
+        console.log('ride_accepted_emitted', ride_accepted_emitted, acceptedRide.userPhoneNumber);
 
         // 4) Notify user (if online)
         const userSocketId = userSockets.get(acceptedRide.userChatId);

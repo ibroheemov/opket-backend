@@ -1,29 +1,35 @@
-// src/controllers/userController.ts
 import { Request, Response } from "express";
 import { RideModel } from "../models/Ride";
 import { DriverModel } from "../models/DriverModel";
 import { driverStore } from "../store/driverStore";
 import { socketIo } from "../gateway/socket2";
-import { PassengerModel } from "../models/PassengerModel";
-import { RideSearchManager } from "../utils/rideSearchManager";
-import { rideSearchStore } from "../store/rideSearchStore";
-
+import { IPassengerDocument, PassengerModel } from "../models/PassengerModel";
 
 export const createPassenger = async (req: Request, res: Response) => {
     try {
-        const { chatId } = req.body;
-        if (!chatId) {
-            return res.status(400).json({ error: "userChatId required" });
+        const { chatId, phone } = req.body;
+        console.log(chatId, phone);
+
+        if (!chatId && !phone) {
+            return res.status(400).json({ error: "userChatId/phone is required" });
         }
+
+        let existing: IPassengerDocument | null = null;
         // Prevent duplicate phone registrations
-        const existing = await PassengerModel.findOne({ chatId });
-        if (existing) {
-            return res.json({ message: "User with this Chatid already exists" });
+        if (chatId) {
+            existing = await PassengerModel.findOne({ chatId });
+        }
+        if (phone) {
+            existing = await PassengerModel.findOne({ phone });
         }
 
-        const passenger = await PassengerModel.create({ chatId });
+        if (existing) {
+            return res.json({ message: "User with this Chatid/phone already exists" });
+        }
 
-        return res.json({ chatId, message: "Passenger created" });
+        const passenger = await PassengerModel.create({ chatId, phone });
+
+        return res.json({ chatId, phone, message: "Passenger created" });
     } catch (err: any) {
         console.error("createUser error:", err);
         return res.status(500).json({ error: "Internal error" });

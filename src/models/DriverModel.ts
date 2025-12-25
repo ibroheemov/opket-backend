@@ -12,7 +12,7 @@ export interface IDriverDocument extends Document {
     regionCode?: string;
     vehicle: string; // derived string like "Toyota - ABC123"
     status: "offline" | "available" | "on_trip";
-    location?: { lat: number; lon: number };
+    location?: { lat: number; lon: number, bearing?: number };
     otp?: string;
     fcmToken?: string;
     otpExpiresAt?: Date;
@@ -45,6 +45,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         location: {
             lat: Number,
             lon: Number,
+            bearing: Number,
         },
         fcmToken: { type: String },
         otp: String,

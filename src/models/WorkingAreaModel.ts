@@ -1,14 +1,29 @@
-import { Schema, model } from 'mongoose';
+import { Schema, model, Document } from 'mongoose';
 
-const CoordinateSchema = new Schema({
-    lat: { type: Number, required: true },
-    lng: { type: Number, required: true },
-});
+export interface WorkingAreaDocument extends Document {
+    name: string;
+    polygon: { lat: number; lng: number }[];
+    fareMultiplierOutside: number;
+}
 
-const WorkingAreaSchema = new Schema({
-    name: { type: String, required: true },
-    polygon: { type: [CoordinateSchema], required: true },
-    fareMultiplierOutside: { type: Number, default: 2 },
-});
+const PointSchema = new Schema(
+    {
+        lat: { type: Number, required: true },
+        lng: { type: Number, required: true },
+    },
+    { _id: false }
+);
 
-export const WorkingAreaModel = model('WorkingArea', WorkingAreaSchema);
+const WorkingAreaSchema = new Schema<WorkingAreaDocument>(
+    {
+        name: { type: String, required: true },
+        polygon: { type: [PointSchema], required: true },
+        fareMultiplierOutside: { type: Number, default: 2 },
+    },
+    { timestamps: true }
+);
+
+export const WorkingAreaModel = model<WorkingAreaDocument>(
+    'WorkingArea',
+    WorkingAreaSchema
+);

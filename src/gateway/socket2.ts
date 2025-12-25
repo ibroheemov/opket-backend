@@ -5,6 +5,7 @@ import { registerDriverHandlers } from "./driver.socket";
 import { registerUserHandlers } from "./user.socket";
 import { setSocketServer } from "./socket.maps";
 import { driverStore } from "../store/driverStore";
+import { registerPassengerHandlersMobile } from "./passenger.socket";
 
 export let socketIo: Server;
 
@@ -26,10 +27,18 @@ export const initSocketServer = (server: http.Server) => {
             return;
         }
 
-        if (auth.driverId && auth.fcmToken) {
-            registerDriverHandlers({ socket, driverId: auth.driverId, fcmToken: auth.fcmToken });
+        if (auth.driverId && auth.fcmToken && auth.location) {
+            registerDriverHandlers({
+                socket,
+                driverId: auth.driverId,
+                fcmToken: auth.fcmToken,
+                location: auth.location
+            });
         } else if (auth.userChatId) {
             registerUserHandlers(socket, auth.userChatId);
+        } else if (auth.phone) {
+            registerPassengerHandlersMobile({ socket, phone: auth.phone });
+            // socket.emit('ride_accepted', { test: true });
         }
     });
     return socketIo;

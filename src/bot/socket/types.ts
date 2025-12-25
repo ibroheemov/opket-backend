@@ -6,6 +6,13 @@ export interface DriverSocketConnectionPayload {
     socket: Socket;
     driverId: string;
     fcmToken: string;
+    location: DriverLocation;
+}
+
+export interface SocketAuthPayload {
+    socket: Socket;
+    driverId: string;
+    fcmToken: string;
 }
 
 export interface RideAssignedPayload {

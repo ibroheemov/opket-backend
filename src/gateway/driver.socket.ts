@@ -6,9 +6,10 @@ import { driverStore } from "../store/driverStore";
 import { DriverSocketConnectionPayload, RideCompletedPayload, RideProgressPayload, RideStartedPayload } from "../bot/socket/types";
 import { handleSocketError } from "../utils/socketError";
 import { RideService } from "../services/ride.service";
+import { fareConfigs } from "../data/fare.database";
 
 
-export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: DriverSocketConnectionPayload) => {
+export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
     const driver = await DriverModel.findById(driverId);
 
     if (!driver) {
@@ -16,6 +17,9 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
         socket.emit("error", { message: "Driver not found" });
         return; // stop socket setup
     }
+
+    console.log("🟡 DRIVER connected", location)
+
 
     const canReceiveOffers = driver.balance > 0;
     driverSockets.set(driverId, socket.id);
@@ -27,10 +31,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
             socketId: socket.id,
             status: "online",
             fcmToken,
-            // location: { lat: 37.42534332278696, lon: -122.07541496109042 },
+            location: location,
             canReceiveOffers,
         }
     );
+
+
 
     if (!canReceiveOffers) {
         socket.emit("no_balance", { balance: driver.balance });
@@ -38,7 +44,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
     }
 
     // 2️⃣ Handle location updates
-    socket.on("driver_location", async ({ lat, lon }) => {
+    socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
 
         // update driver's current location in DB
@@ -46,7 +52,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
             location: { lat, lon },
             lastUpdated: new Date(),
         });
-        driverStore.updateLocation(driverId, { lat, lon });
+        driverStore.updateLocation(driverId, { lat, lon, bearing });
         const driverSession = driverStore.get(driverId);
         if (driverSession?.currentRideId) {
             const ride = await RideModel.findById(driverSession?.currentRideId);
@@ -90,6 +96,14 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
         const sSent = emitToUser(Number(chatId), 'ride_closed', {});
     });
 
+    socket.on("balance_deduction_request", async ({ amount, phone }: { amount: number, phone: number }) => {
+        const driver = await DriverModel.findById(driverId);
+        if (!driver) return;
+        const sSent = emitToUser(Number(phone), 'balance_deduction_request', { amount, driverId, driverName: driver.name });
+
+        console.log(sSent, amount);
+
+    });
 
     socket.on("ride_progress", async (data: RideProgressPayload) => {
         const driverSession = driverStore.get(driverId);
@@ -111,13 +125,17 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken }: Dri
 
     socket.on("ride_started", async (data: RideStartedPayload) => {
         const ride = await updateRideStatus(data.rideId, "started");
-        if (ride) emitToUser(ride.userChatId, "ride_started", data);
+        if (ride) {
+            const sent = emitToUser(ride.userPhoneNumber, "ride_started", data);
+            console.log('ride_started', sent);
+        };
     });
 
-    socket.on("add_luggage", async ({ rideId }) => {
-        const ride = await RideModel.findById(rideId);
-        // const ride = await updateRideStatus(rideId, "started");
-        if (ride) emitToUser(ride.userChatId, "add_luggage", {});
+    socket.on("add_luggage", async ({ phone }) => {
+        const luggageCharge = fareConfigs['default'].luggageCharge;
+
+        const sent = await emitToUser(phone, "add_luggage", { luggageCharge, driverId });
+
     });
 
     socket.on("ride_completed", async (data: RideCompletedPayload) => {

@@ -2,17 +2,16 @@ import { AuthRequest } from "../../middlewares/auth";
 import { DriverModel } from "../../models/DriverModel";
 import { Response } from "express";
 import { PassengerModel } from "../../models/PassengerModel";
-import { emitToUser } from "../../gateway/ride.socket";
-import { driverStore } from "../../store/driverStore";
 import { socketIo } from "../../gateway/socket2";
 import { TransactionModel } from "../../models/TransactionModel";
+import admin from 'firebase-admin';
 
 export const payfare = async (req: AuthRequest, res: Response) => {
     try {
-        const chatId = req.params.id;
+        const phone = req.params.id;
         const { driverId, amount } = req.body;
 
-        if (!driverId || !chatId || !amount) {
+        if (!driverId || !phone || !amount) {
             return res.status(400).json({ message: "driverId, chatId and amount are required" });
         }
 
@@ -21,18 +20,18 @@ export const payfare = async (req: AuthRequest, res: Response) => {
         }
 
         // 1. Fetch passenger to verify sufficient balance
-        const passenger = await PassengerModel.findOneAndUpdate({ chatId }).lean();
+        const passenger = await PassengerModel.findOneAndUpdate({ phone }).lean();
         if (!passenger) {
             return res.status(404).json({ message: "Passenger not found" });
         }
 
         if ((passenger.balance ?? 0) < amount) {
-            return res.status(400).json({ message: "Passenger does not have enough balance" });
+            return res.status(400).json({ message: "Hamyoningizda mablag' yetarli emas!" });
         }
 
         // 2. Update passenger (- amount)
         const updatedPassenger = await PassengerModel.findOneAndUpdate(
-            { chatId },
+            { phone },
             { $inc: { balance: -amount } },
             { new: true }
         );
@@ -46,7 +45,7 @@ export const payfare = async (req: AuthRequest, res: Response) => {
 
         if (!updatedDriver) {
             // rollback passenger balance if passenger not found
-            await PassengerModel.findOneAndUpdate({ chatId }, {
+            await PassengerModel.findOneAndUpdate({ phone }, {
                 $inc: { balance: amount },
             });
 
@@ -70,6 +69,30 @@ export const payfare = async (req: AuthRequest, res: Response) => {
             .sort({ createdAt: 1 });
 
         socketIo.emit("pay_fare", { transactions });
+
+        const fcmToken = updatedDriver.fcmToken;
+
+        if (fcmToken) {
+            const message = {
+                token: fcmToken,
+                android: {
+                    priority: "high" as const,
+                },
+                data: {
+                    type: 'balance_updated',
+                    amount: amount.toString(),
+                    source: ""
+                },
+            };
+
+            try {
+                await admin.messaging().send(message);
+            } catch (error) {
+                console.error(`❌ Error sending FCM to driver ${updatedDriver.id}:`, error);
+            }
+
+        }
+
 
         return res.json({
             success: true,

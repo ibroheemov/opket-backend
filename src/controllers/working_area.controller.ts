@@ -14,6 +14,7 @@ export const createWorkingArea = async (req: Request, res: Response) => {
 
         res.status(201).json(area);
     } catch (err) {
+        console.log(err);
         res.status(500).json({ error: 'Server error' });
     }
 };

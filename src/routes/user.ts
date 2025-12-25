@@ -4,10 +4,12 @@ import { cancelRide, confirmLuggage, createPassenger, declineLuggage } from "../
 import { currentRide, requestRide } from "../controllers/ride.controller";
 import { getPassenger } from "../controllers/passenger/getPassenger";
 import { payfare } from "../controllers/passenger/payFare";
+import { getPassengerBalance } from "../controllers/passenger/getPassengerBalance";
 
 const router = express.Router();
 
 router.post("/:id/get-passenger", getPassenger);
+router.get("/:id/balance", getPassengerBalance);
 router.post("/:id/pay-fare", payfare);
 router.post("/request-ride", requestRide);
 router.post("/:id/current-ride", currentRide);

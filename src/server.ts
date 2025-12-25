@@ -38,7 +38,7 @@ async function startServer() {
 
     app.use("/paynet", paynetRoutes);
     app.use("/user", userRoutes);
-    app.use("/admin", userRoutes);
+    app.use("/admin", adminRoutes);
     app.use("/driver", driverRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
 

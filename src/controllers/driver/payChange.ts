@@ -10,10 +10,10 @@ import { socketIo } from "../../gateway/socket.maps";
 export const payChange = async (req: AuthRequest, res: Response) => {
     try {
         const driverId = req.driverId;
-        const { chatId, amount } = req.body;
+        const { phone, amount } = req.body;
 
-        if (!driverId || !chatId || !amount) {
-            return res.status(400).json({ message: "driverId, chatId and amount are required" });
+        if (!driverId || !phone || !amount) {
+            return res.status(400).json({ message: "driverId, phone and amount are required" });
         }
 
         if (amount <= 0) {
@@ -39,7 +39,7 @@ export const payChange = async (req: AuthRequest, res: Response) => {
 
         // 3. Update passenger (+ amount)
         const updatedPassenger = await PassengerModel.findOneAndUpdate(
-            { chatId },
+            { phone },
             { $inc: { balance: amount } },
             { new: true }
         );
@@ -69,7 +69,7 @@ export const payChange = async (req: AuthRequest, res: Response) => {
         const transactions = await TransactionModel.find({ rideId: updatedPassenger.currentRideId })
             .sort({ createdAt: 1 });
 
-        emitToUser(updatedPassenger.chatId, "pay_change", { amount, passengerBalance: updatedPassenger.balance, driverId });
+        emitToUser(updatedPassenger.phone, "balance_top_up", { amount, passengerBalance: updatedPassenger.balance, driverId });
         const driverSession = driverStore.get(driverId);
         socketIo.to(driverSession?.socketId!).emit("pay_change", { transactions });
 
