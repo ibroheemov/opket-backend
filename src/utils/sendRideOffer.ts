@@ -18,8 +18,11 @@ export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
     };
 
     try {
-        emitToDriver(rideOffer.driverId, 'ride_offer', data);
+        const sent = emitToDriver(rideOffer.driverId, 'ride_offer', data);
+        console.log(`SENT VIA SOCKET ${sent}`, rideOffer.driverId);
+
     } catch (error) {
+        console.log(error);
 
     }
 
