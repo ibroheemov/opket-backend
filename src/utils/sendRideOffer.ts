@@ -4,8 +4,25 @@ import { RideRepository } from "../repositories/ride.repository";
 import { RideOfferPaylod } from "../services/ride.service";
 import admin from 'firebase-admin';
 import { calculateApproxTime } from "./calculateApproxTime";
+import { emitToDriver } from "../gateway/ride.socket";
 
 export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
+    const data = {
+        type: 'ride_request',
+        ride_id: rideOffer.id.toString(),
+        phone: rideOffer.userPhoneNumber?.toString() ?? '',
+        pickup: JSON.stringify(rideOffer.pickup),
+        travelTime: rideOffer.travelTime.toString(),
+        chatId: rideOffer.userChatId?.toString() ?? '',
+        travelDistance: rideOffer.travelDistance.toString(),
+    };
+
+    try {
+        emitToDriver(rideOffer.driverId, 'ride_offer', data);
+    } catch (error) {
+
+    }
+
     if (!rideOffer.fcmToken) {
         console.log(`⚠️ No active socket or FCM token for driver ${rideOffer.driverId}`);
         return false;
@@ -16,15 +33,7 @@ export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
         android: {
             priority: "high" as const,
         },
-        data: {
-            type: 'ride_request',
-            ride_id: rideOffer.id.toString(),
-            phone: rideOffer.userPhoneNumber?.toString() ?? '',
-            pickup: JSON.stringify(rideOffer.pickup),
-            travelTime: rideOffer.travelTime.toString(),
-            chatId: rideOffer.userChatId?.toString() ?? '',
-            travelDistance: rideOffer.travelDistance.toString(),
-        },
+        data: data,
     };
 
     try {

@@ -5,6 +5,12 @@ export const getPassengerBalance = async (req: Request, res: Response) => {
     try {
         const phone = req.params.id;
 
+
+        // Validate phone
+        if (!phone || phone === "null" || isNaN(Number(phone))) {
+            return res.status(400).json({ message: "Invalid phone number" });
+        }
+
         const passenger = await PassengerModel.findOne({ phone }).select("balance");
         if (!passenger) {
             return res.status(404).json({ message: "Passenger not found" });
