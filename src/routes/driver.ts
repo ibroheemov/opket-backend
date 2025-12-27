@@ -11,6 +11,7 @@ import { heartbeat } from "../controllers/driver/heartbeat";
 import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchWorkingAreas } from "../controllers/fare.controller";
 import { acceptRide, declineRide } from "../controllers/ride.controller";
+import { getDirections } from "../controllers/driver/getDirections";
 
 const router = express.Router();
 
@@ -23,6 +24,7 @@ router.get("/:id/profile", getProfile);
 router.get("/:id/stats/weekly", getWeeklyStats);
 router.post("/refresh-token", refreshToken);
 router.post("/heartbeat", authenticateDriver, heartbeat);
+router.get("/directions", getDirections);
 router.post("/register-fcm", authenticateDriver, registerFcm);
 router.post("/update-location", authenticateDriver, updateLocation);
 router.post("/status", authenticateDriver, updateStatus);

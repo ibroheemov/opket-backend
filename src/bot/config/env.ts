@@ -11,6 +11,7 @@ export const config = {
     token: process.env.BOT_TOKEN!,
     driverBotToken: '',
     webhookDomain: process.env.WEBHOOK_DOMAIN!,
+    mapBoxToken: process.env.MAPBOX_ACCESS_TOKEN!,
     backendUrl: process.env.BACKEND_URL!,
     jwtSecret: process.env.JWT_SECRET!,
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
