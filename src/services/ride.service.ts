@@ -42,7 +42,7 @@ export const RideService = {
     async searchForDriversFor3Minutes(
         rideId: string,
         pickup: { lat: number; lon: number },
-        chatId: number,
+        phone: number,
     ): Promise<SearchResult> {
         const MAX_DURATION = 1 * 60 * 1000; // 3 minutes
         const INTERVAL = 5000; // 5 seconds
@@ -71,7 +71,7 @@ export const RideService = {
                 if (elapsed >= MAX_DURATION) {
                     stopped = true;
                     await RideRepository.updateRide(rideId, { status: "cancelled" });
-                    emitToUser(chatId, "ride_no_drivers", null);
+                    emitToUser(phone, "ride_no_drivers", null);
 
                     console.log(`⏳ Timeout reached. No drivers found for ride ${rideId}.`);
                     return resolve({ drivers: 0, message: "No drivers found after 3 minutes" });
@@ -191,7 +191,6 @@ export const RideService = {
 
         // 2) Update driver session + database
         const [driverErr, updatedDriver] = await safeAsync(async () => {
-            const driverSession = driverStore.get(driverId);
 
             driverStore.upsert(driverId, {
                 currentRideId: acceptedRide._id.toString(),
@@ -229,12 +228,15 @@ export const RideService = {
         }
 
         // 3) Notify driver
+        const driverSession = driverStore.get(driverId);
+
         const ride_accepted_emitted = emitToUser(
             acceptedRide.userPhoneNumber,
             'ride_accepted',
             {
                 driver: updatedDriver,
-                ride: acceptedRide
+                ride: acceptedRide,
+                location: driverSession?.location,
             }
         )
         console.log('ride_accepted_emitted', ride_accepted_emitted, acceptedRide.userPhoneNumber);

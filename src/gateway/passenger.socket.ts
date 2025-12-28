@@ -64,6 +64,20 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         );
     });
 
+    socket.on("ride_no_drivers_ack", async ({ eventId }) => {
+        await PassengerModel.updateOne(
+            { phone },
+            { $pull: { events: { event: eventId } } }
+        );
+    });
+
+    socket.on("driver_location_update_ack", async ({ eventId }) => {
+        await PassengerModel.updateOne(
+            { phone },
+            { $pull: { events: { event: eventId } } }
+        );
+    });
+
     socket.on("luggage_confirmed", async ({ driverId }) => {
         const sent = emitToDriver(driverId, 'luggage_confirmed', {});
     });

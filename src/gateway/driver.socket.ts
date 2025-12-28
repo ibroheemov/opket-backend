@@ -47,6 +47,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
 
+        console.log("🟡 LOCATION BEARING: ", bearing);
+
         // update driver's current location in DB
         await DriverModel.findByIdAndUpdate(driverId, {
             location: { lat, lon },
@@ -56,15 +58,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         const driverSession = driverStore.get(driverId);
         if (driverSession?.currentRideId) {
             const ride = await RideModel.findById(driverSession?.currentRideId);
-            if (ride && ride.userChatId) {
-                const userSocketId = userSockets.get(Number(ride.userChatId));
-                if (userSocketId) {
-                    socketIo.to(userSocketId).emit("driver_location_update", {
-                        driverId,
-                        location: { lat, lon },
-                        timestamp: Date.now(),
-                    });
-                }
+            if (ride && ride.userPhoneNumber) {
+                emitToUser(ride.userPhoneNumber, "driver_location_update", {
+                    driverId,
+                    location: { lat, lon, bearing },
+                    timestamp: Date.now(),
+                })
             }
         }
     });
