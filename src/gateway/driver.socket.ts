@@ -1,12 +1,13 @@
 import { driverSockets, userSockets, socketIo } from "./socket.maps";
 import { DriverModel } from "../models/DriverModel";
 import { RideModel } from "../models/Ride";
-import { updateRideStatus, emitToUser } from "./ride.socket";
+import { updateRideStatus, emitToUser, emitToDriver } from "./ride.socket";
 import { driverStore } from "../store/driverStore";
 import { DriverSocketConnectionPayload, RideCompletedPayload, RideProgressPayload, RideStartedPayload } from "../bot/socket/types";
 import { handleSocketError } from "../utils/socketError";
 import { RideService } from "../services/ride.service";
 import { fareConfigs } from "../data/fare.database";
+import { PassengerModel } from "../models/PassengerModel";
 
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
@@ -30,6 +31,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         {
             socketId: socket.id,
             status: "online",
+            socketStatus: "connected",
             fcmToken,
             location: location,
             canReceiveOffers,
@@ -47,14 +49,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
 
-        console.log("🟡 LOCATION BEARING: ", bearing);
-
         // update driver's current location in DB
         await DriverModel.findByIdAndUpdate(driverId, {
             location: { lat, lon },
             lastUpdated: new Date(),
         });
-        driverStore.updateLocation(driverId, { lat, lon, bearing });
+        driverStore.updateLocation(driverId, { lat, lon, bearing },);
         const driverSession = driverStore.get(driverId);
         if (driverSession?.currentRideId) {
             const ride = await RideModel.findById(driverSession?.currentRideId);
@@ -127,6 +127,11 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         if (ride) {
             const sent = emitToUser(ride.userPhoneNumber, "ride_started", data);
             console.log('ride_started', sent);
+
+            await PassengerModel.updateOne(
+                { phone: ride.userPhoneNumber },
+                { $pull: { events: { event: "driver_location_update_ack" } } }
+            );
         };
     });
 
@@ -145,9 +150,47 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         }
     });
 
+    // MISSED EVENTS
+    socket.on("ride_cancelled_ack", async ({ eventId }) => {
+        await DriverModel.findByIdAndUpdate(
+            driverId,
+            { $pull: { events: { event: eventId } } }
+        );
+    });
+
+    socket.on("luggage_confirmed_ack", async ({ eventId }) => {
+        await DriverModel.findByIdAndUpdate(
+            driverId,
+            { $pull: { events: { event: eventId } } }
+        );
+    });
+
+    socket.on("luggage_declined_ack", async ({ eventId }) => {
+        await DriverModel.findByIdAndUpdate(
+            driverId,
+            { $pull: { events: { event: eventId } } }
+        );
+    });
 
     socket.on("connect_error", (err) =>
         console.error("🟡❌ DRIVER Connection error:", err.message)
     );
-    socket.on("disconnect", () => console.log("🟡🔴 DRIVER disconnected"));
+    socket.on("disconnect", () => {
+        console.log("🟡🔴 DRIVER disconnected");
+        const driver = driverStore.get(driverId);
+        if (!driver) return;
+
+        driverStore.upsert(driverId, {
+            socketStatus: "disconnected",
+        })
+
+    });
+
+    const passenger_in_store = driverStore.get(driverId);
+
+    if (driver.events.length != 0 && passenger_in_store) {
+        for (const event of driver.events) {
+            await emitToDriver(driverId, event.event, event.data);
+        }
+    }
 };

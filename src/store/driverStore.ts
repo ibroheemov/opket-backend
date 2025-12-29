@@ -5,6 +5,7 @@ export interface DriverSession {
     driverId: string;
     socketId: string;
     status: "online" | "offline";
+    socketStatus?: "connected" | "disconnected";
     currentRideId?: string | null;
     location?: DriverLocation;
     lastUpdated: number;
@@ -15,6 +16,7 @@ export interface DriverSession {
 class DriverStore {
     private drivers: Map<string, DriverSession> = new Map();
     private activeOffers = new Set<string>();
+    private maxStaleMs = 2 * 60 * 1000; // 2 minutes
 
     isAvailable(driverId: string): boolean {
         return !this.activeOffers.has(driverId);
@@ -52,11 +54,13 @@ class DriverStore {
 
     // Find all online drivers (optionally filter by distance later)
     getOnlineDrivers(): DriverSession[] {
+        const now = Date.now();
         return [...this.drivers.values()].filter(d =>
             d.status === "online" &&
             d.canReceiveOffers &&
-            !d.currentRideId
-            && !this.activeOffers.has(d.driverId)
+            !d.currentRideId &&
+            !this.activeOffers.has(d.driverId) &&
+            d.lastUpdated + this.maxStaleMs >= now
         );
     }
 

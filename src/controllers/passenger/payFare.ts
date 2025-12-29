@@ -5,6 +5,7 @@ import { PassengerModel } from "../../models/PassengerModel";
 import { socketIo } from "../../gateway/socket2";
 import { TransactionModel } from "../../models/TransactionModel";
 import admin from 'firebase-admin';
+import { emitToDriver } from "../../gateway/ride.socket";
 
 export const payfare = async (req: AuthRequest, res: Response) => {
     try {
@@ -65,11 +66,6 @@ export const payfare = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        const transactions = await TransactionModel.find({ rideId: passenger.currentRideId })
-            .sort({ createdAt: 1 });
-
-        socketIo.emit("pay_fare", { transactions });
-
         const fcmToken = updatedDriver.fcmToken;
 
         if (fcmToken) {
@@ -93,6 +89,7 @@ export const payfare = async (req: AuthRequest, res: Response) => {
 
         }
 
+        emitToDriver(driverId, "ride_change_confirmed", {});
 
         return res.json({
             success: true,

@@ -20,6 +20,10 @@ export const payChange = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: "Amount must be greater than zero" });
         }
 
+        if (amount > 4000) {
+            return res.status(400).json({ message: "Yo'lovchiga 4,000 so'm gacha qaytarish mumkin" });
+        }
+
         // 1. Fetch driver to verify sufficient balance
         const driver = await DriverModel.findById(driverId).lean();
         if (!driver) {

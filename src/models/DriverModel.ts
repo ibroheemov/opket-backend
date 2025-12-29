@@ -23,6 +23,10 @@ export interface IDriverDocument extends Document {
     passport?: string;
     balance: number;
     canReceiveOffers: boolean;
+    events: {
+        event: string;
+        data: Record<string, any>;
+    }[];
 }
 
 const DriverSchema = new Schema<IDriverDocument>(
@@ -56,7 +60,15 @@ const DriverSchema = new Schema<IDriverDocument>(
         driver_license: { type: String },
         passport: { type: String },
         canReceiveOffers: { type: Boolean },
-
+        events: {
+            type: [
+                {
+                    event: { type: String, required: true },
+                    data: { type: Schema.Types.Mixed, required: true }
+                }
+            ],
+            default: []
+        }
     },
     { timestamps: true }
 );

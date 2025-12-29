@@ -4,6 +4,7 @@ import { DriverModel } from "../models/DriverModel";
 import { driverStore } from "../store/driverStore";
 import { socketIo } from "../gateway/socket2";
 import { IPassengerDocument, PassengerModel } from "../models/PassengerModel";
+import { emitToDriver } from "../gateway/ride.socket";
 
 export const createPassenger = async (req: Request, res: Response) => {
     try {
@@ -46,10 +47,17 @@ export const cancelRide = async (req: Request, res: Response) => {
         const ride = await RideModel.findOneAndUpdate({ _id: rideId }, { status: 'cancelled' });
 
         if (ride && ride.driverId) {
+            await PassengerModel.updateOne(
+                { phone: ride.userPhoneNumber },
+                { $pull: { events: { event: "driver_location_update_ack" } } }
+            );
+
             await DriverModel.findOneAndUpdate({ _id: ride.driverId }, { currentRideId: null });
             const driverSession = driverStore.get(ride.driverId);
             driverStore.upsert(ride.driverId, { currentRideId: null });
-            socketIo.to(driverSession?.socketId!).emit("cancel_ride", { rideId });
+
+
+            emitToDriver(ride.driverId, "ride_cancelled", { rideId });
         }
 
         return res.json({ rideId, message: "Buyurtma bekor qilindi" });

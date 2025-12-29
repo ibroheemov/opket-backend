@@ -1,7 +1,11 @@
+import { DriverModel } from "../models/DriverModel";
 import { PassengerModel } from "../models/PassengerModel";
 import { RideModel } from "../models/Ride";
+import { driverStore } from "../store/driverStore";
 import { passengerStore } from "../store/passengerStore";
 import { driverSockets, socketIo, userSockets } from "./socket.maps";
+
+const driver_missable_events = ["ride_cancelled", "luggage_confirmed", "luggage_declined"];
 
 export const updateRideStatus = async (rideId: string, status: string) => {
     const ride = await RideModel.findById(rideId);
@@ -41,7 +45,26 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
     return false;
 };
 
-export const emitToDriver = (driverId: string, event: string, data: any) => {
+export const emitToDriver = async (driverId: string, event: string, data: any) => {
+    const driver = driverStore.get(driverId);
+
+    console.log(`SOCKET STATUS: ${driver?.socketStatus} \nIS EVENT INCL: UDED${driver_missable_events.includes(event)} (${event})`);
+
+    if (driver?.socketStatus == "disconnected" && driver_missable_events.includes(event)) {
+        await DriverModel.findByIdAndUpdate(
+            driverId,
+            {
+                $push: {
+                    events: {
+                        event: event,
+                        data: data
+                    }
+                }
+            },
+            { new: true }
+        );
+    }
+
     const socketId = driverSockets.get(driverId);
 
     if (socketId) {

@@ -78,12 +78,24 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         );
     });
 
+
+    socket.on("ride_change_declined", async ({ driverId }) => {
+        const sent = emitToDriver(driverId, 'ride_change_declined', {});
+    });
+
     socket.on("luggage_confirmed", async ({ driverId }) => {
-        const sent = emitToDriver(driverId, 'luggage_confirmed', {});
+        console.log(`luggage_confirmed: ${driverId}`);
+
+        const sent = await emitToDriver(driverId, 'luggage_confirmed', {});
+
+        console.log(`luggage_confirmed: ${sent}`);
     });
 
     socket.on("luggage_declined", async ({ driverId }) => {
         const sent = emitToDriver(driverId, 'luggage_declined', {});
+
+        console.log(`luggage_declined: ${sent}`);
+
     });
 
     socket.on("connect_error", (err) =>
@@ -96,6 +108,7 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
     });
 
     const passenger_in_store = passengerStore.get(phone);
+
     if (passenger.events.length != 0 && passenger_in_store) {
         for (const event of passenger.events) {
             await emitToUser(phone, event.event, event.data);
