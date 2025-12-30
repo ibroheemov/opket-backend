@@ -6,6 +6,15 @@ import { passengerStore } from "../store/passengerStore";
 import { driverSockets, socketIo, userSockets } from "./socket.maps";
 
 const driver_missable_events = ["ride_cancelled", "luggage_confirmed", "luggage_declined", "ride_change_declined", "ride_change_confirmed"];
+const passenger_missable_events = [
+    "ride_started",
+    "ride_accepted",
+    "balance_deduction_request",
+    "balance_top_up",
+    "add_luggage",
+    "ride_no_drivers",
+    "driver_location_update",
+];
 
 export const updateRideStatus = async (rideId: string, status: string) => {
     const ride = await RideModel.findById(rideId);
@@ -22,7 +31,7 @@ export const updateRideStatus = async (rideId: string, status: string) => {
 export const emitToUser = async (id: number | undefined, event: string, data: any) => {
     if (!id) return;
     const passenger = passengerStore.get(id);
-    if (!passenger) {
+    if (!passenger && passenger_missable_events.includes(event)) {
         await PassengerModel.findOneAndUpdate(
             { phone: id },
             {

@@ -71,14 +71,6 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         );
     });
 
-    socket.on("driver_location_update_ack", async ({ eventId }) => {
-        await PassengerModel.updateOne(
-            { phone },
-            { $pull: { events: { event: eventId } } }
-        );
-    });
-
-
     socket.on("ride_change_declined", async ({ driverId }) => {
         const sent = emitToDriver(driverId, 'ride_change_declined', {});
     });
