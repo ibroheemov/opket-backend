@@ -3,9 +3,11 @@ import { Response } from "express";
 import { driverStore } from "../../store/driverStore";
 
 export const heartbeat = async (req: AuthRequest, res: Response) => {
-
     const { location } = req.body;
     const driverId = req.driverId;
+
+    console.error("🟡📍♻️ DRIVER => LOCATION UPDATE [BACKGROUND}", driverId);
+
 
     if (!driverId) {
         return res.status(400).json({ error: "driverId required" });

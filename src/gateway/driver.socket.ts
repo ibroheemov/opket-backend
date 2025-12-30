@@ -48,6 +48,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     // 2️⃣ Handle location updates
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
+        console.error("🟡📍 DRIVER => LOCATION UPDATE", driverId);
 
         // update driver's current location in DB
         await DriverModel.findByIdAndUpdate(driverId, {

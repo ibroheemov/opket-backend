@@ -5,7 +5,7 @@ import { driverStore } from "../store/driverStore";
 import { passengerStore } from "../store/passengerStore";
 import { driverSockets, socketIo, userSockets } from "./socket.maps";
 
-const driver_missable_events = ["ride_cancelled", "luggage_confirmed", "luggage_declined"];
+const driver_missable_events = ["ride_cancelled", "luggage_confirmed", "luggage_declined", "ride_change_declined", "ride_change_confirmed"];
 
 export const updateRideStatus = async (rideId: string, status: string) => {
     const ride = await RideModel.findById(rideId);
