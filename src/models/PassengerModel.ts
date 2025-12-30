@@ -16,7 +16,7 @@ const PassengerSchema = new Schema<IPassengerDocument>(
     {
         chatId: { type: Number },
         phone: { type: Number },
-        balance: { type: Number, default: 0 },
+        balance: { type: Number, default: 25_000 },
         currentRideId: { type: String },
         events: {
             type: [
