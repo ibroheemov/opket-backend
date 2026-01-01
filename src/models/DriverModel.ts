@@ -35,7 +35,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         lastname: { type: String, required: true },
         name: { type: String, required: true },
         phone: { type: String, required: true, unique: true },
-        balance: { type: Number, default: 500_000 },
+        balance: { type: Number, default: 50_000 },
         carModel: { type: String },
         carNumber: { type: String },
         regionCode: { type: String },

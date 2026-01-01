@@ -55,7 +55,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
             location: { lat, lon },
             lastUpdated: new Date(),
         });
-        driverStore.updateLocation(driverId, { lat, lon, bearing },);
+        driverStore.updateLocation(driverId, { lat, lon, bearing });
         const driverSession = driverStore.get(driverId);
         if (driverSession?.currentRideId) {
             const ride = await RideModel.findById(driverSession?.currentRideId);
