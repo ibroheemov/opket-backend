@@ -9,6 +9,7 @@ import { socketIo } from "../gateway/socket2";
 import { userSockets } from "../gateway/socket.maps";
 import { driverStore } from "../store/driverStore";
 import { emitToDriver } from "../gateway/ride.socket";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 const OFFER_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 1000; // poll DB every second
@@ -51,7 +52,7 @@ export async function sendOfferToDriverSequentially(rideId: string, candidate: a
         return false;
     }
 
-    const driverSession = driverStore.get(nextDriverId);
+    const driverSession = await driverStoreRedis.get(nextDriverId);
     if (!driverSession?.fcmToken) {
         console.log(`⚠️ Driver ${nextDriverId} has no FCM token, removing candidate`);
         await RideRepository.pullDriverCandidate(rideId, nextDriverId);
@@ -91,7 +92,7 @@ export async function sendOfferToDriverSequentially(rideId: string, candidate: a
     }
 
     // Mark driver as being offered
-    driverStore.markAsOffered(nextDriverId);
+    driverStoreRedis.markAsOffered(nextDriverId);
 
     console.log(`⏳ Waiting for driver ${nextDriverId} to accept the offer...`);
     const waitUntil = Date.now() + OFFER_TIMEOUT_MS;
@@ -116,7 +117,7 @@ export async function sendOfferToDriverSequentially(rideId: string, candidate: a
     }
 
     console.log(`⏰ Offer to driver ${nextDriverId} expired, cleaning up`);
-    driverStore.clearOffer(nextDriverId);
+    driverStoreRedis.clearOffer(nextDriverId);
     const finalCheck = await RideModel.findById(rideId).lean();
     if (finalCheck?.offeredTo?.toString() === nextDriverId) {
         await RideRepository.pullDriverCandidate(rideId, nextDriverId);
@@ -163,7 +164,7 @@ async function sendOfferToDriverParallel(rideId: string, candidate: any, cancelS
         return;
     }
 
-    const driverSession = driverStore.get(nextDriverId);
+    const driverSession = await driverStoreRedis.get(nextDriverId);
     if (!driverSession?.fcmToken) {
         console.log(`⚠️ Driver ${nextDriverId} has no FCM token, removing candidate`);
         await RideRepository.pullDriverCandidate(rideId, nextDriverId);

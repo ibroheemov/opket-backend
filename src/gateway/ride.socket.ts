@@ -2,6 +2,7 @@ import { DriverModel } from "../models/DriverModel";
 import { PassengerModel } from "../models/PassengerModel";
 import { RideModel } from "../models/Ride";
 import { driverStore } from "../store/driverStore";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 import { passengerStore } from "../store/passengerStore";
 import { driverSockets, socketIo, userSockets } from "./socket.maps";
 
@@ -14,6 +15,7 @@ const passenger_missable_events = [
     "add_luggage",
     "ride_no_drivers",
     "driver_location_update",
+    "driver_arrived"
 ];
 
 export const updateRideStatus = async (rideId: string, status: string) => {
@@ -55,7 +57,7 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
 };
 
 export const emitToDriver = async (driverId: string, event: string, data: any) => {
-    const driver = driverStore.get(driverId);
+    const driver = await driverStoreRedis.get(driverId);
 
     console.log(`SOCKET STATUS: ${driver?.socketStatus} \nIS EVENT INCL: UDED${driver_missable_events.includes(event)} (${event})`);
 

@@ -1,9 +1,10 @@
 import { DriverSession, driverStore } from "../store/driverStore";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 import { haversineDistanceKm } from "../utils/haversine";
 
 export const DriverRepository = {
     async findAvailableDrivers(pickupLat: number, pickupLon: number, maxKm = 2) {
-        const onlineDrivers = driverStore.getOnlineDrivers();
+        const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
 
         const driversWithDistance = onlineDrivers
             .map((driver) => {

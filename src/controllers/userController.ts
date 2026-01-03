@@ -5,6 +5,7 @@ import { driverStore } from "../store/driverStore";
 import { socketIo } from "../gateway/socket2";
 import { IPassengerDocument, PassengerModel } from "../models/PassengerModel";
 import { emitToDriver } from "../gateway/ride.socket";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 export const createPassenger = async (req: Request, res: Response) => {
     try {
@@ -53,8 +54,8 @@ export const cancelRide = async (req: Request, res: Response) => {
             );
 
             await DriverModel.findOneAndUpdate({ _id: ride.driverId }, { currentRideId: null });
-            const driverSession = driverStore.get(ride.driverId);
-            driverStore.upsert(ride.driverId, { currentRideId: null });
+            // const driverSession = driverStoreRedis.get(ride.driverId);
+            driverStoreRedis.upsert(ride.driverId, { currentRideId: null });
 
 
             emitToDriver(ride.driverId, "ride_cancelled", { rideId });
@@ -82,7 +83,7 @@ export const confirmLuggage = async (req: Request, res: Response) => {
         const ride = await RideModel.findOneAndUpdate({ _id: rideId }, { luggage: true });
 
         if (ride && ride.driverId) {
-            const driverSession = driverStore.get(ride.driverId);
+            const driverSession = await driverStoreRedis.get(ride.driverId);
             socketIo.to(driverSession?.socketId!).emit("luggage_confirmed", { rideId });
         }
 
@@ -103,7 +104,7 @@ export const declineLuggage = async (req: Request, res: Response) => {
         const ride = await RideModel.findById(rideId);
 
         if (ride && ride.driverId) {
-            const driverSession = driverStore.get(ride.driverId);
+            const driverSession = await driverStoreRedis.get(ride.driverId);
             socketIo.to(driverSession?.socketId!).emit("luggage_declined", { rideId });
         }
 

@@ -1,4 +1,5 @@
 import { DriverLocation } from "../types/location";
+import { driverStoreRedis } from "./driverStoreRedis";
 import { testDrivers } from "./testDrivers";
 
 export interface DriverSession {
@@ -87,7 +88,7 @@ class DriverStore {
     addTestDriversToStore(drivers: DriverSession[] = testDrivers) {
         console.log(`🧪 Adding ${drivers.length} test driver(s) to driverStore`);
         drivers.forEach(driver => {
-            driverStore.upsert(driver.driverId, driver);
+            driverStoreRedis.upsert(driver.driverId, driver);
             console.log(`✅ Added test driver ${driver.driverId}`);
         });
     }

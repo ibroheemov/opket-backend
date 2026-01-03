@@ -1,16 +1,21 @@
-import { createClient } from "redis";
+// redisClient.ts
+import { createClient } from 'redis';
 
-export const redisClient = createClient({
-    url: "redis://localhost:6379", // docker service name
-});
-
-redisClient.on("error", (err) => {
-    console.error("❌ Redis Client Error", err);
-});
-
-export async function connectRedis() {
-    if (!redisClient.isOpen) {
-        await redisClient.connect();
-        console.log("✅ Connected to Redis");
+const redis = createClient({
+    username: 'default',
+    password: process.env.REDIS_PASSWORD,
+    socket: {
+        host: process.env.REDIS_ENDPOINT,
+        port: 16049
     }
+});
+
+
+redis.on('error', (err) => console.error('Redis Client Error', err));
+
+async function connectRedis() {
+    await redis.connect();
+    console.log('Connected to Redis');
 }
+
+export { redis, connectRedis };

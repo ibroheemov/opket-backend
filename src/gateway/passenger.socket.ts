@@ -36,6 +36,21 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         );
     });
 
+    socket.on("ride_started_ack", async ({ eventId }) => {
+        await PassengerModel.updateOne(
+            { phone },
+            { $pull: { events: { event: eventId } } }
+        );
+    });
+
+
+    socket.on("driver_arrived_ack", async ({ eventId }) => {
+        await PassengerModel.updateOne(
+            { phone },
+            { $pull: { events: { event: eventId } } }
+        );
+    });
+
     socket.on("ride_accepted_ack", async ({ eventId }) => {
         await PassengerModel.updateOne(
             { phone },

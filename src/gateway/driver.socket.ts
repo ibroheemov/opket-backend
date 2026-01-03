@@ -8,6 +8,7 @@ import { handleSocketError } from "../utils/socketError";
 import { RideService } from "../services/ride.service";
 import { fareConfigs } from "../data/fare.database";
 import { PassengerModel } from "../models/PassengerModel";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
@@ -26,7 +27,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     driverSockets.set(driverId, socket.id);
 
     // 1️⃣ Mark as online
-    driverStore.upsert(
+    driverStoreRedis.upsert(
         driverId,
         {
             socketId: socket.id,
@@ -36,7 +37,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
             location: location,
             canReceiveOffers,
         }
-    );
+    )
 
 
 
@@ -51,9 +52,9 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
         console.error("🟡📍 DRIVER => LOCATION UPDATE", driverId);
+        driverStoreRedis.updateLocation(driverId, { lat, lon, bearing });
 
-        driverStore.updateLocation(driverId, { lat, lon, bearing });
-        const driverSession = driverStore.get(driverId);
+        const driverSession = await driverStoreRedis.get(driverId);
         if (driverSession?.currentRideId) {
             const ride = await RideModel.findById(driverSession?.currentRideId);
             if (ride && ride.userPhoneNumber) {
@@ -68,11 +69,11 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
     // 3️⃣ Handle driver availability
     socket.on("driver_online", () => {
-        driverStore.upsert(driverId, { status: "online" });
+        driverStoreRedis.upsert(driverId, { status: "online" });
     });
 
     socket.on("driver_offline", () => {
-        driverStore.upsert(driverId, { status: "offline" });
+        driverStoreRedis.upsert(driverId, { status: "offline" });
         console.error("🟡🔕 DRIVER => OFFLINE", driverId);
     });
 
@@ -86,7 +87,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
 
     socket.on("fcm_token_update", async (token) => {
-        driverStore.upsert(driverId, { fcmToken: token });
+        driverStoreRedis.upsert(driverId, { fcmToken: token });
     });
 
     socket.on("ride_closed", async ({ chatId }: { chatId: number }) => {
@@ -103,7 +104,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("ride_progress", async (data: RideProgressPayload) => {
-        const driverSession = driverStore.get(driverId);
+        const driverSession = await driverStoreRedis.get(driverId);
         if (!driverSession?.currentRideId) {
             return;
         };
@@ -175,16 +176,16 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     );
     socket.on("disconnect", () => {
         console.log("🟡🔴 DRIVER disconnected");
-        const driver = driverStore.get(driverId);
+        const driver = driverStoreRedis.get(driverId);
         if (!driver) return;
 
-        driverStore.upsert(driverId, {
+        driverStoreRedis.upsert(driverId, {
             socketStatus: "disconnected",
         })
 
     });
 
-    const passenger_in_store = driverStore.get(driverId);
+    const passenger_in_store = await driverStoreRedis.get(driverId);
 
     if (driver.events.length != 0 && passenger_in_store) {
         for (const event of driver.events) {

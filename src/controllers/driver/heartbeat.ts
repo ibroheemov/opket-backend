@@ -3,6 +3,7 @@ import { Response } from "express";
 import { driverStore } from "../../store/driverStore";
 import { RideModel } from "../../models/Ride";
 import { emitToUser } from "../../gateway/ride.socket";
+import { driverStoreRedis } from "../../store/driverStoreRedis";
 
 export const heartbeat = async (req: AuthRequest, res: Response) => {
     const { location } = req.body;
@@ -16,8 +17,8 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
         return res.status(400).json({ error: "driverId required" });
     }
 
-    driverStore.updateLocation(driverId, { lat, lon, bearing });
-    const driverSession = driverStore.get(driverId);
+    driverStoreRedis.updateLocation(driverId, { lat, lon, bearing });
+    const driverSession = await driverStoreRedis.get(driverId);
     if (driverSession?.currentRideId) {
         const ride = await RideModel.findById(driverSession?.currentRideId);
         if (ride && ride.userPhoneNumber) {

@@ -6,6 +6,7 @@ import { emitToUser } from "../../gateway/ride.socket";
 import { TransactionModel } from "../../models/TransactionModel";
 import { driverStore } from "../../store/driverStore";
 import { socketIo } from "../../gateway/socket.maps";
+import { driverStoreRedis } from "../../store/driverStoreRedis";
 
 export const payChange = async (req: AuthRequest, res: Response) => {
     try {
@@ -74,7 +75,7 @@ export const payChange = async (req: AuthRequest, res: Response) => {
             .sort({ createdAt: 1 });
 
         emitToUser(updatedPassenger.phone, "balance_top_up", { amount, passengerBalance: updatedPassenger.balance, driverId });
-        const driverSession = driverStore.get(driverId);
+        const driverSession = await driverStoreRedis.get(driverId);
         socketIo.to(driverSession?.socketId!).emit("pay_change", { transactions });
 
         return res.json({

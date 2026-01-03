@@ -13,6 +13,7 @@ import { handleRideCommission } from "../utils/fare.helper";
 import { PassengerModel } from "../models/PassengerModel";
 import { getSession } from "../bot/services/sessionManager";
 import { sendFcm } from "../utils/sendFcm";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 type SearchResult = {
     drivers: any[] | 0; // replace `any` with your actual driver type
@@ -193,12 +194,12 @@ export const RideService = {
         // 2) Update driver session + database
         const [driverErr, updatedDriver] = await safeAsync(async () => {
 
-            driverStore.upsert(driverId, {
+            driverStoreRedis.upsert(driverId, {
                 currentRideId: acceptedRide._id.toString(),
             });
 
             // Clear from being offer ride list
-            driverStore.clearOffer(driverId);
+            driverStoreRedis.clearOffer(driverId);
 
             return DriverModel.findByIdAndUpdate(
                 driverId,
@@ -229,7 +230,7 @@ export const RideService = {
         }
 
         // 3) Notify driver
-        const driverSession = driverStore.get(driverId);
+        const driverSession = await driverStoreRedis.get(driverId);
 
         const ride_accepted_emitted = emitToUser(
             acceptedRide.userPhoneNumber,
@@ -246,7 +247,7 @@ export const RideService = {
         const userSocketId = userSockets.get(acceptedRide.userChatId);
 
         if (userSocketId) {
-            const driverSession = driverStore.get(driverId);
+            const driverSession = await driverStoreRedis.get(driverId);
 
             socketIo.to(userSocketId).emit("ride_assigned", {
                 rideId: acceptedRide._id.toString(),
@@ -268,7 +269,7 @@ export const RideService = {
         if (!ride) throw new Error(`Ride ${rideId} not found`);
 
         // Sync driver store
-        driverStore.upsert(driverId, { currentRideId: null });
+        driverStoreRedis.upsert(driverId, { currentRideId: null });
 
         // 2. Update ride fields (endedAt, fare, distance)
         const [updateRideErr] = await safeAsync(() =>

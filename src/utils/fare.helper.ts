@@ -2,6 +2,7 @@ import { driverSockets, socketIo } from "../gateway/socket.maps";
 import { DriverModel } from "../models/DriverModel";
 import { RideModel } from "../models/Ride";
 import { driverStore } from "../store/driverStore";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 /**
  * Deducts commission from driver’s balance when a ride completes.
@@ -40,9 +41,9 @@ export const handleRideCommission = async (
     }
 
     // 🔄 Update driverStore if driver is online
-    const session = driverStore.get(driverId);
+    const session = await driverStoreRedis.get(driverId);
     if (session) {
-        driverStore.upsert(driverId, { canReceiveOffers });
+        driverStoreRedis.upsert(driverId, { canReceiveOffers });
 
         // Notify driver if they lost access
         if (!canReceiveOffers) {
