@@ -14,6 +14,7 @@ import admin from 'firebase-admin';
 import { config } from "./bot/config/env";
 import { userBot } from "./bot/PassengerBot";
 import { PaynetCallbackController } from "./controllers/paynet.controller";
+import { connectRedis } from "./redis/redisClient";
 
 const app = express();
 app.use(bodyParser.json());
@@ -31,6 +32,7 @@ async function startServer() {
         });
     }
     await connectDB();
+    await connectRedis();
     const server = http.createServer(app);
     initSocketServer(server);
 

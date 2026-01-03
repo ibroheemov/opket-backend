@@ -12,6 +12,7 @@ import { emitToUser, updateRideStatus } from "../gateway/ride.socket";
 import { handleRideCommission } from "../utils/fare.helper";
 import { PassengerModel } from "../models/PassengerModel";
 import { getSession } from "../bot/services/sessionManager";
+import { sendFcm } from "../utils/sendFcm";
 
 type SearchResult = {
     drivers: any[] | 0; // replace `any` with your actual driver type
@@ -288,7 +289,7 @@ export const RideService = {
 
         const rideUpdte = await RideModel.findOne({ _id: rideId });
         // 3. Update driver in DB (clear currentRideId)
-        const [updateDriverErr] = await safeAsync(() =>
+        const [updateDriverErr, updatedDriver] = await safeAsync(() =>
             DriverModel.findOneAndUpdate({ _id: driverId }, { currentRideId: null })
         );
         if (updateDriverErr)
@@ -306,6 +307,7 @@ export const RideService = {
             );
 
         const { balance, commission } = commissionResult!;
+        if (updatedDriver?.fcmToken) sendFcm(updatedDriver?.fcmToken, commission);
 
         // 5. Notify driver
         // socketIo.emit("balance_updated", {

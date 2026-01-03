@@ -315,7 +315,8 @@ export class PaynetCallbackController {
             data: {
                 type: 'balance_updated',
                 amount: amount.toString(),
-                source: "Paynet"
+                source: "Paynet",
+                message: `Hisobingiz ${amount} UZS ga Paynet orqali to'ldirildi.`
             },
         };
 

@@ -77,7 +77,8 @@ export const payfare = async (req: AuthRequest, res: Response) => {
                 data: {
                     type: 'balance_updated',
                     amount: amount.toString(),
-                    source: ""
+                    source: "",
+                    message: `Hisobingiz ${amount} UZS ga to'ldirildi.`
                 },
             };
 

@@ -45,16 +45,13 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         console.error("🟡❌ DRIVER => NO BALANCE", driverId);
     }
 
+    emitToDriver(driverId, "feature_flags", { 'driverStatusToggleEnabled': false });
+
     // 2️⃣ Handle location updates
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
         console.error("🟡📍 DRIVER => LOCATION UPDATE", driverId);
 
-        // update driver's current location in DB
-        await DriverModel.findByIdAndUpdate(driverId, {
-            location: { lat, lon },
-            lastUpdated: new Date(),
-        });
         driverStore.updateLocation(driverId, { lat, lon, bearing });
         const driverSession = driverStore.get(driverId);
         if (driverSession?.currentRideId) {
@@ -120,7 +117,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
     socket.on("driver_arrived", async ({ rideId }) => {
         const ride = await updateRideStatus(rideId, "arrived");
-        if (ride) emitToUser(ride.userChatId, "ride_status_update", { status: "arrived", message: "🚖 Haydovchi yetib keldi!" });
+        if (ride) emitToUser(ride.userPhoneNumber, "driver_arrived", { status: "arrived", message: "🚖 Haydovchi yetib keldi!" });
     });
 
     socket.on("ride_started", async (data: RideStartedPayload) => {
