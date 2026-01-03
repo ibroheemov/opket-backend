@@ -12,7 +12,7 @@ import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 export const requestRide = async (req: Request, res: Response) => {
 
     try {
-        const { phone, chatId, location, dropoff, address } = req.body;
+        const { phone, chatId, location, dropoff, address, type } = req.body;
 
         console.log(phone, location);
 
@@ -28,7 +28,7 @@ export const requestRide = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "[phone] or [chatId] is required" });
         }
 
-        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address });
+        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type });
         return res.status(200).json(result);
     } catch (err) {
         logger.error("requestRide error:", err);

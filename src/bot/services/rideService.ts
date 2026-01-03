@@ -2,7 +2,7 @@ import axios from "axios";
 import { config } from "../config/env";
 
 export interface RequestRideResponse {
-    rideId: string;
+    ride_id: string;
     message?: string;
     drivers: number;
 }
@@ -11,6 +11,7 @@ export async function requestRide(chatId: number, location: { lat: number; lon: 
     const res = await axios.post<RequestRideResponse>(`${config.backendUrl}/user/request-ride`, {
         chatId,
         location,
+        type: "bot"
     });
     return res.data;
 }

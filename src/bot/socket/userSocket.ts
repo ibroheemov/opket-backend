@@ -38,49 +38,49 @@ export function initUserSocket(chatId: number): Socket {
 
     // Register event handlers
     socket.on("ride_assigned", (data: RideAssignedPayload) => {
-        // handleRideAssigned(userBot, chatId, data)
+        handleRideAssigned(userBot, chatId, data)
     }
     );
 
     socket.on("ride_no_drivers", () => {
-        // handleRideNoDrivers(userBot, chatId)
+        handleRideNoDrivers(userBot, chatId)
     }
     );
 
     socket.on("driver_location_update", (data: DriverLocationUpdatePayload) => {
-        // handleDriverLocationUpdate(userBot, chatId, data)
+        handleDriverLocationUpdate(userBot, chatId, data)
     }
     );
 
     socket.on("ride_status_update", (data: RideStatusPayload) => {
-        // handleRideStatusUpdate(userBot, chatId, data)
+        handleRideStatusUpdate(userBot, chatId, data)
     }
     );
 
     socket.on("add_luggage", () => {
-        // handleAddLuggage(userBot, chatId)
+        handleAddLuggage(userBot, chatId)
     }
     );
 
     socket.on("ride_started", (data: RideStartedPayload) => {
-        // handleRideStarted(chatId, data)
+        handleRideStarted(chatId, data)
     });
 
     socket.on("ride_progress", (data: RideProgressPayload) => {
-        // handleRideProgress(userBot, chatId, data)
+        handleRideProgress(userBot, chatId, data)
     }
     );
 
     socket.on("pay_change", async (data: RidePayChangePayload) => {
-        // handleRidePayChange(userBot, chatId, data)
+        handleRidePayChange(userBot, chatId, data)
     });
 
     socket.on("ride_closed", async () => {
-        // handleRideClosed(userBot, chatId)
+        handleRideClosed(userBot, chatId)
     });
 
     socket.on("ride_completed", (data: RideCompletedPayload) => {
-        //  handleRideCompleted(userBot, chatId, data)
+        handleRideCompleted(userBot, chatId, data)
     });
 
     socket.on("connect", () => console.log("🟢 #1[PASSENGER] connected"));

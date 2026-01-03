@@ -8,7 +8,7 @@ import { getPassengerBalance } from "../controllers/passenger/getPassengerBalanc
 
 const router = express.Router();
 
-router.post("/:id/get-passenger", getPassenger);
+router.get("/:id/get-passenger", getPassenger);
 router.get("/:id/balance", getPassengerBalance);
 router.post("/:id/pay-fare", payfare);
 router.post("/request-ride", requestRide);

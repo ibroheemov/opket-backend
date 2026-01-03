@@ -4,39 +4,61 @@ import axios from "axios";
 import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
 import { deleteMessageSafely, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { initializeUserSession } from "../services/sessionManager";
+import { contactRequestPrompt } from "../ui/prompts/contactRequestPrompt";
+
+export interface Passenger {
+    chatId: number;
+    phone: number;
+    balance: number;
+    currentRideId?: string;
+    events: {
+        event: string;
+        data: Record<string, any>;
+    }[];
+}
+
 
 export const handleStart = async (msg: Message) => {
     const chatId = msg.chat.id;
 
     try {
+        const hasPhone = await hasPassengerPhone(chatId);
+
+        if (hasPhone) {
+            // User already exists with phone → nothing more to do
+            const sent = await sendLocationRequestPrompt(chatId);
+            if (sent?.message_id) queueMessageForDeletion(chatId, sent.message_id);
+            return;
+        }
+
+        // 2️⃣ User does not have phone → ask for contact
         initializeUserSession(chatId);
         queueMessageForDeletion(chatId, msg.message_id);
-        // Run all operations concurrently
-        const [locationResult, deleteResult, userResult] = await Promise.allSettled([
-            sendLocationRequestPrompt(chatId),
-            deleteMessageSafely(chatId, msg.message_id),
-            axios.post(`${config.backendUrl}/user/create`, { chatId })
-        ]);
 
-        // Handle location prompt result
-        if (locationResult.status === 'fulfilled' && locationResult.value?.message_id) {
-            queueMessageForDeletion(chatId, locationResult.value.message_id);
-        } else if (locationResult.status === 'rejected') {
-            console.error("Failed to send location request prompt:", locationResult.reason);
+        const locationResult = await contactRequestPrompt(chatId);
+
+        if (locationResult?.message_id) {
+            queueMessageForDeletion(chatId, locationResult.message_id);
         }
 
-        // Handle deletion result
-        if (deleteResult.status === 'rejected') {
-            console.error("Failed to delete start message:", deleteResult.reason);
-        }
-
-        // Handle user creation result
-        if (userResult.status === 'rejected') {
-            console.error("User creation failed:", userResult.reason);
-        }
+        // ⚠️ DO NOT call create here — wait for contact from user
+        // The contact handler will call your API to create/update the user
 
     } catch (err) {
-        // Should rarely happen since Promise.allSettled never rejects
         console.error("Unexpected error in handleStart:", err);
+    }
+};
+
+
+export const hasPassengerPhone = async (chatId: number): Promise<boolean> => {
+    try {
+        const res = await axios.get<Passenger | null>(
+            `${config.backendUrl}/user/${chatId}/get-passenger`
+        );
+
+        return Boolean(res?.data?.phone);
+    } catch (error) {
+        console.error("Failed to check passenger phone:", error);
+        return false;
     }
 };

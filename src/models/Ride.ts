@@ -17,6 +17,7 @@ export interface IRide extends Document {
     startedAt?: Date;
     endedAt?: Date;
     luggage: boolean;
+    type: string | "app" | "bot",
     distanceTraveled: number,
     candidateDrivers: { driverId: string, distKm: number }[],
     offeredTo?: string;
@@ -47,6 +48,10 @@ const rideSchema = new Schema<IRide>({
         type: String,
         enum: ["pending", "offered", "accepted", "arrived", "started", "completed", "cancelled"],
         default: "pending",
+    },
+    type: {
+        type: String,
+        default: "app",
     },
     fare: { type: Number, default: 2000 },
     fareEstimate: Number,

@@ -10,6 +10,8 @@ import { emit } from "process";
 import { socketIo } from "../gateway/socket2";
 import { driverStore } from "../store/driverStore";
 import { handleMessage } from "./handlers/handleMessage";
+import { sendLocationRequestPrompt } from "./ui/prompts/locationRequestPrompt";
+import { handleContact } from "./handlers/handleContact";
 
 export const userBot = new TelegramBot(
     config.token, {
@@ -26,23 +28,7 @@ function attachHandlers(bot: TelegramBot) {
 
     bot.on("message", handleMessage);
 
-    userBot.on("contact", async (msg) => {
-        const chatId = msg.chat.id;
-        const session = getSession(chatId);
-        const phone = msg?.contact?.phone_number;
-
-        session.phone = phone;
-        queueMessageForDeletion(chatId, msg.message_id);
-        const sent = await userBot.sendMessage(chatId, "✅ Raqam qabul qilindi!");
-        deleteMessageSafely(chatId, msg.message_id);
-        if (session.currentMsgId) deleteMessageSafely(chatId, session.currentMsgId);
-        queueMessageForDeletion(chatId, sent.message_id);
-        const ride = await RideModel.findByIdAndUpdate(session.rideId, { userPhoneNumber: phone });
-
-        if (ride && ride.driverId) {
-            socketIo.emit("user_contact", { phone });
-        }
-    });
+    userBot.on("contact", handleContact);
 
     setupUserCallbackHandlers(userBot);
 }

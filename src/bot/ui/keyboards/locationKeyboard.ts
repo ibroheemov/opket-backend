@@ -1,6 +1,8 @@
+import { call_taxi_msg } from "../messages";
+
 export const locationRequestKeyboard = {
     keyboard: [
-        [{ text: "📍 Lokatsiya yuborish", request_location: true }]
+        [{ text: call_taxi_msg, request_location: true }]
     ],
     resize_keyboard: true,
 };

@@ -11,9 +11,9 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
         const chatId = query.message?.chat.id!;
         const action = query.data!;
         const session = getSession(chatId);
+        console.log(action, session);
 
         if (action.startsWith("cancel_ride")) {
-            delete session.rideId;
             if (session?.rideId) {
                 await axios.post(`${config.backendUrl}/user/cancel-ride`, { rideId: session?.rideId });
             }

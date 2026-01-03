@@ -26,6 +26,7 @@ export interface RideRequestInput {
     location: { lat: number; lon: number };
     dropoff?: { lat: number; lon: number; address?: string };
     address?: string;
+    type?: string;
 }
 
 export interface RideOfferPaylod {
@@ -44,7 +45,7 @@ export const RideService = {
     async searchForDriversFor3Minutes(
         rideId: string,
         pickup: { lat: number; lon: number },
-        phone: number,
+        phone: number | undefined,
     ): Promise<SearchResult> {
         const MAX_DURATION = 1 * 60 * 1000; // 3 minutes
         const INTERVAL = 5000; // 5 seconds
@@ -125,8 +126,8 @@ export const RideService = {
 
 
     async requestRide(input: RideRequestInput) {
-        const { phone, chatId, location, dropoff, address } = input;
-        if (!phone || chatId) return;
+        const { phone, chatId, location, dropoff, address, type } = input;
+        if (!phone && !chatId) return;
 
         // 1) Create initial ride
         const ride = await RideRepository.createRide({
@@ -137,6 +138,7 @@ export const RideService = {
                 ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
                 : undefined,
             status: "pending",
+            type,
         });
 
         // 2) Begin search loop for up to 3 minutes
@@ -233,7 +235,7 @@ export const RideService = {
         const driverSession = await driverStoreRedis.get(driverId);
 
         const ride_accepted_emitted = emitToUser(
-            acceptedRide.userPhoneNumber,
+            acceptedRide.type == "app" ? acceptedRide.userPhoneNumber : acceptedRide.userChatId,
             'ride_accepted',
             {
                 driver: updatedDriver,
