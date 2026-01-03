@@ -32,7 +32,7 @@ async function startServer() {
         });
     }
     await connectDB();
-    await connectRedis();
+    // await connectRedis();
     const server = http.createServer(app);
     initSocketServer(server);
 
