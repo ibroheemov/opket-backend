@@ -1,6 +1,6 @@
 import express from "express";
 // import { markArrived, startRide, endRide } from "../controllers/rideController";
-import { cancelRide, confirmLuggage, createPassenger, declineLuggage } from "../controllers/userController";
+import { cancelRide, confirmLuggage, createPassengerApp, createPassengerBot, declineLuggage } from "../controllers/userController";
 import { currentRide, requestRide } from "../controllers/ride.controller";
 import { getPassenger } from "../controllers/passenger/getPassenger";
 import { payfare } from "../controllers/passenger/payFare";
@@ -16,6 +16,7 @@ router.post("/:id/current-ride", currentRide);
 router.post("/cancel-ride", cancelRide);
 router.post("/confirm-luggage", confirmLuggage);
 router.post("/decline-luggage", declineLuggage);
-router.post("/create", createPassenger);
+router.post("/create", createPassengerApp);
+router.post("/create-bot", createPassengerBot);
 
 export default router;

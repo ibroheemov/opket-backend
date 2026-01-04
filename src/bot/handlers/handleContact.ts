@@ -13,7 +13,7 @@ export const handleContact = async (msg: Message) => {
 
     try {
         // Call backend to create or update user
-        const res = await axios.post(`${config.backendUrl}/user/create`, { chatId, phone });
+        const res = await axios.post(`${config.backendUrl}/user/create-bot`, { chatId, phone });
         console.log("User created/updated:", res.data);
 
         // Optionally send location prompt

@@ -7,87 +7,67 @@ import { IPassengerDocument, PassengerModel } from "../models/PassengerModel";
 import { emitToDriver } from "../gateway/ride.socket";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 
-export const createPassenger = async (req: Request, res: Response) => {
+export const createPassengerBot = async (req: Request, res: Response) => {
     try {
         const { chatId, phone } = req.body;
+        console.log(chatId, phone);
 
-        if (!chatId) {
-            return res.status(400).json({ error: "chatId is required" });
+        if (!chatId || !phone) {
+            return res.status(400).json({ error: "userChatId/phone is required" });
         }
 
-        // 1️⃣ Find by chatId first
-        const passenger = await PassengerModel.findOne({ chatId });
-
-        // 2️⃣ If passenger exists
-        if (passenger) {
-            // If phone already exists → do nothing
-            if (passenger.phone) {
-                return res.json({
-                    message: "Passenger already exists",
-                    chatId: passenger.chatId,
-                    phone: passenger.phone
-                });
-            }
-
-            // 3️⃣ If passenger has NO phone → update it
-            if (!phone) {
-                return res.status(400).json({
-                    error: "Phone is required to update existing passenger"
-                });
-            }
-
-            // 4️⃣ Prevent phone collision
-            const phoneExists = await PassengerModel.findOne({ phone });
-            if (phoneExists) {
-                return res.status(409).json({
-                    error: "Phone already registered"
-                });
-            }
-
-            passenger.phone = phone;
-            await passenger.save();
-
-            return res.json({
-                message: "Passenger updated with phone",
-                chatId,
-                phone
-            });
+        let existing: IPassengerDocument | null = null;
+        // Prevent duplicate phone registrations
+        if (chatId) {
+            existing = await PassengerModel.findOne({ chatId });
+        }
+        if (phone) {
+            existing = await PassengerModel.findOneAndUpdate({ phone, chatId });
         }
 
-        // 5️⃣ No passenger exists → create new
-        if (!phone) {
-            return res.status(400).json({
-                error: "Phone is required to create passenger"
-            });
+        if (existing) {
+            return res.json({ message: "User with this Chatid/phone already exists" });
         }
 
-        const phoneExists = await PassengerModel.findOne({ phone });
-        if (phoneExists) {
-            return res.status(409).json({
-                error: "Phone already registered"
-            });
-        }
+        const passenger = await PassengerModel.create({ chatId, phone });
 
-        const newPassenger = await PassengerModel.create({ chatId, phone });
-
-        return res.status(201).json({
-            message: "Passenger created",
-            chatId: newPassenger.chatId,
-            phone: newPassenger.phone
-        });
-
-    } catch (err) {
-        console.error("createPassenger error:", err);
-        return res.status(500).json({ error: "Internal server error" });
+        return res.json({ chatId, phone, message: "Passenger created" });
+    } catch (err: any) {
+        console.error("createUser error:", err);
+        return res.status(500).json({ error: "Internal error" });
     }
 };
 
+export const createPassengerApp = async (req: Request, res: Response) => {
+    try {
+        const { phone } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ error: "phone is required" });
+        }
+
+        let existing: IPassengerDocument | null = null;
+        // Prevent duplicate phone registrations
+        if (phone) {
+            existing = await PassengerModel.findOne({ phone });
+        }
+
+        if (existing) {
+            return res.json({ message: "User with this Chatid/phone already exists" });
+        }
+
+        const passenger = await PassengerModel.create({ phone });
+
+        return res.json({ phone, message: "Passenger created" });
+    } catch (err: any) {
+        console.error("createUser error:", err);
+        return res.status(500).json({ error: "Internal error" });
+    }
+};
 
 export const cancelRide = async (req: Request, res: Response) => {
     try {
         const { rideId } = req.body;
-        console.log("cancelRide:", rideId);
-
         if (!rideId) {
             return res.status(400).json({ error: "rideId required" });
         }
