@@ -33,9 +33,19 @@ export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
 
     const message = {
         token: rideOffer.fcmToken,
+        notification: {
+            title: "New Ride Request",
+            body: "You have a new ride offer",
+        },
         android: {
             priority: "high" as const,
+            notification: {
+                channelId: "ride_channel", // must exist on app
+                sound: "default",
+                visibility: "public" as const,
+            },
         },
+
         data: data,
     };
 
