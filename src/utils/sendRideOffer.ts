@@ -19,43 +19,43 @@ export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
 
     try {
         const sent = emitToDriver(rideOffer.driverId, 'ride_offer', data);
-        console.log(`SENT VIA SOCKET ${sent}`, rideOffer.driverId);
-
-    } catch (error) {
-        console.log(error);
-
-    }
-
-    if (!rideOffer.fcmToken) {
-        console.log(`⚠️ No active socket or FCM token for driver ${rideOffer.driverId}`);
-        return false;
-    }
-
-    const message = {
-        token: rideOffer.fcmToken,
-        notification: {
-            title: "New Ride Request",
-            body: "You have a new ride offer",
-        },
-        android: {
-            priority: "high" as const,
-            notification: {
-                channelId: "ride_channel", // must exist on app
-                sound: "default",
-                visibility: "public" as const,
-            },
-        },
-
-        data: data,
-    };
-
-    try {
-        await admin.messaging().send(message);
         console.log(`📲 Ride [${rideOffer.id}] offer sent to driver ${rideOffer.driverId} via FCM`);
         return true;
     } catch (error) {
-        console.error(`❌ Error sending FCM to driver ${rideOffer.driverId}:`, error);
+        console.error(`❌ Error sending SOCKET RIDE OFFER to driver ${rideOffer.driverId}:`, error);
         return false;
     }
+
+    // if (!rideOffer.fcmToken) {
+    //     console.log(`⚠️ No active socket or FCM token for driver ${rideOffer.driverId}`);
+    //     return false;
+    // }
+
+    // const message = {
+    //     token: rideOffer.fcmToken,
+    //     notification: {
+    //         title: "Sizga yangi buyurtma bor",
+    //         body: "You have a new ride offer",
+    //     },
+    //     android: {
+    //         priority: "high" as const,
+    //         notification: {
+    //             channelId: "ride_channel", // must exist on app
+    //             sound: "default",
+    //             visibility: "public" as const,
+    //         },
+    //     },
+
+    //     data: data,
+    // };
+
+    // try {
+    //     await admin.messaging().send(message);
+    //     console.log(`📲 Ride [${rideOffer.id}] offer sent to driver ${rideOffer.driverId} via FCM`);
+    //     return true;
+    // } catch (error) {
+    //     console.error(`❌ Error sending FCM to driver ${rideOffer.driverId}:`, error);
+    //     return false;
+    // }
 };
 
