@@ -29,6 +29,11 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
                 if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
             }
 
+        } else if (action.startsWith("pay_fare_yes")) {
+            if (session?.rideId) {
+                await axios.post(`${config.backendUrl}/user/${session?.phone}/pay-fare`, { driverId: session?.driverId, amount: session.deduction_amount });
+                if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
+            }
         }
     });
 }

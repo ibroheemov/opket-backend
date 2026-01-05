@@ -23,6 +23,7 @@ import { handleRidePayChange } from "./handlers/ridePayChange";
 import { config } from "../config/env";
 import { userBot } from "../PassengerBot";
 import { handleRideClosed } from "./handlers/rideClosed";
+import { handleBalanceDeduction } from "./handlers/handleBalanceDeduction";
 
 export function initUserSocket(chatId: any, phone: number): Socket {
     console.log("chatId", chatId);
@@ -68,11 +69,14 @@ export function initUserSocket(chatId: any, phone: number): Socket {
 
     socket.on("ride_progress", (data: RideProgressPayload) => {
         handleRideProgress(userBot, chatId, data)
-    }
-    );
+    });
 
-    socket.on("pay_change", async (data: RidePayChangePayload) => {
+    socket.on("balance_top_up", async (data: RidePayChangePayload) => {
         handleRidePayChange(userBot, chatId, data)
+    });
+
+    socket.on("balance_deduction_request", (data: { amount: number, phone: number, driverId: string }) => {
+        handleBalanceDeduction(chatId, data)
     });
 
     socket.on("ride_closed", async () => {

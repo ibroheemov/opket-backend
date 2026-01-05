@@ -13,7 +13,9 @@ export interface UserSession {
     driveron?: number,
     searchingMessage?: { messageId: number, stopAnimation: Function },
     messagesToDelete: number[],
-    driverInfoMessageId?: number
+    driverInfoMessageId?: number,
+    driverId?: string,
+    deduction_amount?: number,
 }
 
 export const userSessions: Record<number, UserSession> = {};

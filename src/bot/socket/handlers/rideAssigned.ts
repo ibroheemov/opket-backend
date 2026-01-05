@@ -25,7 +25,7 @@ export async function handleRideAssigned(
     const { lat, lon } = location;
     const locationMsg = await bot.sendLocation(chatId, lat, lon, { live_period: 900 });
     session.messageId = locationMsg.message_id;
-
+    session.driverId = data.driver.id;
     // Send driver info
     const infoMsg = await rideAssignedPrompt(chatId, data);
 
