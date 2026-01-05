@@ -7,7 +7,7 @@ export interface DriverSession {
     status: "online" | "offline";
     socketStatus?: "connected" | "disconnected";
     currentRideId?: string | null;
-    location?: DriverLocation | null;
+    location?: DriverLocation;
     lastUpdated: number;
     fcmToken?: string;
     canReceiveOffers: boolean;
@@ -151,177 +151,175 @@ const ONLINE_DRIVERS_KEY = "onlineDrivers";
 
 export class DriverStore {
     private maxStaleMs = 2 * 60 * 1000;
-    private static NULL = "__null__";
 
     private key(driverId: string) {
-        return `driver:${driverId}`;
+        return DRIVER_KEY_PREFIX + driverId;
     }
 
-    /* -------------------- helpers -------------------- */
+    /* ----------------- Availability ----------------- */
 
-    private encode(value: any) {
-        if (value === null || value === undefined) return DriverStore.NULL;
-        if (typeof value === "object") return JSON.stringify(value);
-        return String(value);
-    }
-
-    private decode<T = any>(value: string | null): T | null {
-        if (!value || value === DriverStore.NULL) return null;
-        try {
-            return JSON.parse(value);
-        } catch {
-            return value as unknown as T;
-        }
-    }
-
-    private log(
-        driverId: string,
-        action: string,
-        field: string,
-        before: any,
-        after: any
-    ) {
-        console.debug(
-            `[DriverStore] driver=${driverId} action=${action} field=${field}`,
-            { before, after }
-        );
-    }
-
-    /* -------------------- availability -------------------- */
-
-    async isAvailable(driverId: string) {
-        return !(await redis.sIsMember("activeOffers", driverId));
+    async isAvailable(driverId: string): Promise<boolean> {
+        return !(await redis.sIsMember(ACTIVE_OFFERS_KEY, driverId));
     }
 
     async markAsOffered(driverId: string) {
-        await redis.sAdd("activeOffers", driverId);
+        await redis.sAdd(ACTIVE_OFFERS_KEY, driverId);
     }
 
     async clearOffer(driverId: string) {
-        await redis.sRem("activeOffers", driverId);
+        await redis.sRem(ACTIVE_OFFERS_KEY, driverId);
     }
 
-    /* -------------------- SAFE UPSERT -------------------- */
+    /* ----------------- Upserts ----------------- */
 
-    async upsert(
-        driverId: string,
-        data: Partial<DriverSession>,
-        source = "unknown"
-    ) {
+    /**
+     * Partial atomic update (NO race conditions)
+     */
+    async upsert(driverId: string, data: Partial<DriverSession>) {
         const key = this.key(driverId);
         const now = Date.now();
 
-        const multi = redis.multi();
+        const hash: Record<string, string> = {
+            driverId,
+            lastUpdated: now.toString(),
+        };
 
-        for (const [field, value] of Object.entries(data)) {
-            // DEBUG: read previous value ONLY for logging
-            const before = await redis.hGet(key, field);
-
-            this.log(
-                driverId,
-                source,
-                field,
-                this.decode(before),
-                value
-            );
-
-            multi.hSet(key, field, this.encode(value));
+        if (data.status !== undefined) {
+            hash.status = data.status;
         }
 
-        multi.hSet(key, "driverId", driverId);
-        multi.hSet(key, "lastUpdated", now.toString());
-
-        await multi.exec();
-
-        // Maintain online drivers set
-        if (data.status === "online") {
-            await redis.sAdd("onlineDrivers", driverId);
+        if (data.canReceiveOffers !== undefined) {
+            hash.canReceiveOffers = data.canReceiveOffers ? "1" : "0";
         }
 
-        if (data.status === "offline") {
-            await redis.sRem("onlineDrivers", driverId);
-            await this.clearOffer(driverId);
+        if (data.currentRideId !== undefined) {
+            hash.currentRideId = data.currentRideId ?? "";
+        }
+
+        if (data.location !== undefined) {
+            hash.location = JSON.stringify(data.location);
+        }
+
+        await redis.hSet(key, hash);
+
+        // Maintain online set atomically with state
+        if (data.status !== undefined) {
+            if (data.status === "online") {
+                await redis.sAdd(ONLINE_DRIVERS_KEY, driverId);
+            } else {
+                await redis.sRem(ONLINE_DRIVERS_KEY, driverId);
+                await this.clearOffer(driverId);
+            }
         }
     }
 
-    /* -------------------- READ -------------------- */
+    /* ----------------- Location ----------------- */
+
+    async updateLocation(driverId: string, location: DriverLocation) {
+        await redis.hSet(this.key(driverId), {
+            location: JSON.stringify(location),
+            lastUpdated: Date.now().toString(),
+        });
+    }
+
+    /* ----------------- Reads ----------------- */
 
     async get(driverId: string): Promise<DriverSession | null> {
-        const raw = await redis.hGetAll(this.key(driverId));
-        if (!raw || Object.keys(raw).length === 0) return null;
+        const data = await redis.hGetAll(this.key(driverId));
+        if (!Object.keys(data).length) return null;
 
         return {
-            driverId: raw.driverId,
-            socketId: raw.socketId,
-            status: raw.status as any,
-            socketStatus: raw.socketStatus as any,
-            currentRideId: this.decode(raw.currentRideId),
-            location: this.decode(raw.location),
-            lastUpdated: Number(raw.lastUpdated),
-            fcmToken: raw.fcmToken,
-            canReceiveOffers: raw.canReceiveOffers === "true",
+            socketId: data.socketId,
+            driverId: data.driverId,
+            status: data.status as any,
+            canReceiveOffers: data.canReceiveOffers === "1",
+            currentRideId: data.currentRideId || null,
+            location: data.location ? JSON.parse(data.location) : undefined,
+            lastUpdated: Number(data.lastUpdated),
         };
     }
 
-    /* -------------------- REMOVE -------------------- */
-
-    async remove(driverId: string) {
-        await redis.del(this.key(driverId));
-        await redis.sRem("onlineDrivers", driverId);
-        await this.clearOffer(driverId);
-    }
-
-    /* -------------------- LOCATION -------------------- */
-
-    async updateLocation(driverId: string, location: DriverLocation) {
-        await this.upsert(
-            driverId,
-            { location },
-            "updateLocation"
-        );
-    }
-
-    /* -------------------- ONLINE DRIVERS -------------------- */
+    /* ----------------- Online Drivers ----------------- */
 
     async getOnlineDrivers(): Promise<DriverSession[]> {
-        const driverIds = await redis.sMembers("onlineDrivers");
+        const driverIds = await redis.sMembers(ONLINE_DRIVERS_KEY);
         if (!driverIds.length) return [];
+
+        const multi = redis.multi();
+        driverIds.forEach(id => multi.hGetAll(this.key(id)));
+        const results = await multi.exec();
 
         const now = Date.now();
         const drivers: DriverSession[] = [];
 
-        for (const id of driverIds) {
-            const driver = await this.get(id);
-            if (!driver) continue;
+        for (let i = 0; i < results.length; i++) {
+            const data = results[i] as unknown as Record<string, string>;
+            if (!data || !data.driverId) continue;
 
-            const isOffered = await redis.sIsMember("activeOffers", id);
+            const isOffered = await redis.sIsMember(
+                ACTIVE_OFFERS_KEY,
+                data.driverId
+            );
+
+            const lastUpdated = Number(data.lastUpdated);
 
             if (
-                driver.canReceiveOffers &&
-                !driver.currentRideId &&
+                data.canReceiveOffers === "1" &&
+                !data.currentRideId &&
                 !isOffered &&
-                driver.lastUpdated + this.maxStaleMs >= now
+                lastUpdated + this.maxStaleMs >= now
             ) {
-                drivers.push(driver);
+                drivers.push({
+                    socketId: data.socketId,
+                    driverId: data.driverId,
+                    status: data.status as any,
+                    canReceiveOffers: true,
+                    currentRideId: null,
+                    location: data.location
+                        ? JSON.parse(data.location)
+                        : undefined,
+                    lastUpdated,
+                });
             }
         }
 
         return drivers;
     }
 
-    /* -------------------- CLEANUP -------------------- */
+    /* ----------------- Cleanup ----------------- */
+
+    async remove(driverId: string) {
+        await redis.del(this.key(driverId));
+        await redis.sRem(ONLINE_DRIVERS_KEY, driverId);
+        await this.clearOffer(driverId);
+    }
 
     async cleanupStaleDrivers(ttlMs = 5 * 60 * 1000) {
-        const ids = await redis.sMembers("onlineDrivers");
+        const driverIds = await redis.sMembers(ONLINE_DRIVERS_KEY);
         const now = Date.now();
 
-        for (const id of ids) {
-            const driver = await this.get(id);
-            if (!driver) continue;
+        const multi = redis.multi();
+        driverIds.forEach(id => multi.hGet(this.key(id), "lastUpdated"));
+        const results = await multi.exec();
 
-            if (now - driver.lastUpdated > ttlMs) {
-                await this.remove(id);
+        for (let i = 0; i < results.length; i++) {
+            const lastUpdated = Number(results[i]);
+            if (!lastUpdated) continue;
+
+            if (now - lastUpdated > ttlMs) {
+                await this.remove(driverIds[i]);
             }
+        }
+    }
+
+    /* ----------------- Testing ----------------- */
+
+    async addTestDriversToStore(drivers: DriverSession[]) {
+        console.log(`🧪 Adding ${drivers.length} test driver(s)`);
+
+        for (const d of drivers) {
+            await this.upsert(d.driverId, d);
+            console.log(`✅ Added ${d.driverId}`);
         }
     }
 }
