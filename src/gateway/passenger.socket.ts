@@ -27,7 +27,15 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         }
     );
 
-    console.log("🟢 [PASSENGER-MOBILE] connected")
+    console.log("🟢 [PASSENGER-MOBILE] connected");
+
+    const passenger_in_store = passengerStore.get(phone);
+
+    if (passenger.events.length != 0 && passenger_in_store) {
+        for (const event of passenger.events) {
+            await emitToUser(phone, event.event, event.data);
+        }
+    }
 
     socket.on("ride_started_ack", async ({ eventId }) => {
         await PassengerModel.updateOne(
@@ -114,13 +122,7 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         console.log("🟢🔴 [PASSENGER-MOBILE] disconnected")
     });
 
-    const passenger_in_store = passengerStore.get(phone);
 
-    if (passenger.events.length != 0 && passenger_in_store) {
-        for (const event of passenger.events) {
-            await emitToUser(phone, event.event, event.data);
-        }
-    }
 };
 
 

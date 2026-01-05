@@ -10,7 +10,7 @@ import { payChange } from "../controllers/driver/payChange";
 import { heartbeat } from "../controllers/driver/heartbeat";
 import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchWorkingAreas } from "../controllers/fare.controller";
-import { acceptRide, declineRide } from "../controllers/ride.controller";
+import { acceptRide, completeRide, declineRide } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
 
 const router = express.Router();
@@ -42,6 +42,7 @@ router.post(
     registerDriver
 );
 router.post("/accept-ride/:id", authenticateDriver, acceptRide);
+router.post("/complete-ride", authenticateDriver, completeRide);
 
 
 export default router;

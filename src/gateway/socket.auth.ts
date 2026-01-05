@@ -6,14 +6,23 @@ import { DriverLocation } from "../types/location";
 
 export const authenticateSocket = (socket: Socket): {
     driverId?: string;
+    isBackground?: boolean;
     fcmToken?: string;
     location?: DriverLocation;
     userChatId?: number,
     phone?: number
 } | null => {
-    const { token, fcmToken, userChatId, phone, location } = socket.handshake.auth || {};
+    const { token, isBackground, fcmToken, userChatId, phone, location } = socket.handshake.auth || {};
 
-    console.log(token, fcmToken, location);
+    if (token && isBackground) {
+        try {
+            const decoded = jwt.verify(token, config.jwtSecret) as SocketAuthPayload;
+            return { driverId: decoded.id, isBackground };
+        } catch {
+            console.warn("❌ Invalid driver token");
+            return null;
+        }
+    }
 
     if (token && fcmToken && location) {
         try {

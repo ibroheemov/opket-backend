@@ -61,6 +61,28 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
     }
 };
 
+export const completeRide = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+        const { rideId, distance, fare } = req.body;
+
+        if (!rideId || !distance || !fare) {
+            return res.status(400).json({ message: "These are required [rideId, distance, fare]" });
+        }
+
+        if (!driverId) {
+            return res.status(400).json({ message: "driverId is required" });
+        }
+
+        await RideService.completeRide(driverId, { rideId, distance, fare });
+
+        return res.status(200).json({ message: "Ride completed successfully" });
+    } catch (err) {
+        console.error('Error completing current ride:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 
 export const declineRide = async (req: AuthRequest, res: Response) => {
     try {

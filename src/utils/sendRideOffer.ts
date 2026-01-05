@@ -18,7 +18,8 @@ export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
     };
 
     try {
-        const sent = emitToDriver(rideOffer.driverId, 'ride_offer', data);
+        await emitToDriver(`${rideOffer.driverId}-bg`, 'ride_offer', data);
+        await emitToDriver(rideOffer.driverId, 'ride_offer', data);
         console.log(`📲 Ride [${rideOffer.id}] offer sent to driver ${rideOffer.driverId} via FCM`);
         return true;
     } catch (error) {

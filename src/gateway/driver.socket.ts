@@ -39,11 +39,17 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         }
     )
 
-
-
     if (!canReceiveOffers) {
         socket.emit("no_balance", { balance: driver.balance });
         console.error("🟡❌ DRIVER => NO BALANCE", driverId);
+    }
+
+    const passenger_in_store = await driverStoreRedis.get(driverId);
+
+    if (driver.events.length != 0 && passenger_in_store) {
+        for (const event of driver.events) {
+            await emitToDriver(driverId, event.event, event.data);
+        }
     }
 
     emitToDriver(driverId, "feature_flags", { 'driverStatusToggleEnabled': true });
@@ -51,7 +57,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     // 2️⃣ Handle location updates
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
-        console.error("🟡📍 DRIVER => LOCATION UPDATE", driverId);
+        // console.error("🟡📍 DRIVER => LOCATION UPDATE", driverId);
         driverStoreRedis.updateLocation(driverId, { lat, lon, bearing });
 
         const driverSession = await driverStoreRedis.get(driverId);
@@ -185,11 +191,5 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
     });
 
-    const passenger_in_store = await driverStoreRedis.get(driverId);
 
-    if (driver.events.length != 0 && passenger_in_store) {
-        for (const event of driver.events) {
-            await emitToDriver(driverId, event.event, event.data);
-        }
-    }
 };

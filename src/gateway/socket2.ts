@@ -6,6 +6,7 @@ import { registerUserHandlers } from "./user.socket";
 import { setSocketServer } from "./socket.maps";
 import { driverStore } from "../store/driverStore";
 import { registerPassengerHandlersMobile } from "./passenger.socket";
+import { registerDriverBGHandler } from "./driver.socket.bg";
 
 export let socketIo: Server;
 
@@ -34,7 +35,13 @@ export const initSocketServer = (server: http.Server) => {
                 fcmToken: auth.fcmToken,
                 location: auth.location
             });
-        } else if (auth.userChatId) {
+        } else if (auth.driverId && auth.isBackground) {
+            registerDriverBGHandler({
+                socket,
+                driverId: auth.driverId,
+            });
+        }
+        else if (auth.userChatId) {
             registerUserHandlers(socket, auth.userChatId);
         } else if (auth.phone) {
             registerPassengerHandlersMobile({ socket, phone: auth.phone });

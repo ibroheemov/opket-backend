@@ -63,6 +63,8 @@ export class DriverStore {
             ...data,
             lastUpdated: Date.now(),
         } as DriverSession;
+        // console.log("CLEAR RIDE", data, updated);
+
 
         await redis.set(key, JSON.stringify(updated));
 
@@ -90,11 +92,8 @@ export class DriverStore {
 
     /** Update driver location */
     async updateLocation(driverId: string, location: DriverLocation) {
-        const driver = await this.get(driverId);
-        if (!driver) return;
-        driver.location = location;
-        driver.lastUpdated = Date.now();
-        await this.upsert(driverId, driver);
+        await this.upsert(driverId, { location, lastUpdated: Date.now() });
+
     }
 
     /** Get all online drivers efficiently */

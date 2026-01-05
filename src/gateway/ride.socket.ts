@@ -59,7 +59,7 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
 export const emitToDriver = async (driverId: string, event: string, data: any) => {
     const driver = await driverStoreRedis.get(driverId);
 
-    console.log(`SOCKET STATUS: ${driver?.socketStatus} \nIS EVENT INCL: UDED${driver_missable_events.includes(event)} (${event})`);
+    console.log(`SOCKET STATUS: ${driver?.socketStatus} \nIS EVENT INCLUDED${driver_missable_events.includes(event)} (${event})`);
 
     if (driver?.socketStatus == "disconnected" && driver_missable_events.includes(event)) {
         await DriverModel.findByIdAndUpdate(

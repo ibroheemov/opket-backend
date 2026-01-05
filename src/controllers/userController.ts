@@ -81,9 +81,8 @@ export const cancelRide = async (req: Request, res: Response) => {
             );
 
             await DriverModel.findOneAndUpdate({ _id: ride.driverId }, { currentRideId: null });
-            // const driverSession = driverStoreRedis.get(ride.driverId);
-            driverStoreRedis.upsert(ride.driverId, { currentRideId: null });
 
+            driverStoreRedis.upsert(ride.driverId, { currentRideId: null });
 
             emitToDriver(ride.driverId, "ride_cancelled", { rideId });
         }
