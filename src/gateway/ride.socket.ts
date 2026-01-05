@@ -1,3 +1,4 @@
+import { log } from "console";
 import { DriverModel } from "../models/DriverModel";
 import { PassengerModel } from "../models/PassengerModel";
 import { RideModel } from "../models/Ride";
@@ -48,7 +49,9 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
         );
     }
 
-    const socketId = userSockets.get(id);
+    const socketId = userSockets.get(Number(id));
+    console.log(id, event, socketId);
+
     if (socketId) {
         socketIo.to(socketId).emit(event, data);
         return true;

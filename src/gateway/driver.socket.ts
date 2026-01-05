@@ -141,6 +141,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("add_luggage", async ({ phone }) => {
+        console.log(phone);
         const luggageCharge = fareConfigs['default'].luggageCharge;
 
         const sent = await emitToUser(phone, "add_luggage", { luggageCharge, driverId });

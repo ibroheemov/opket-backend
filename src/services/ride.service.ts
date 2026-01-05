@@ -246,7 +246,7 @@ export const RideService = {
         console.log('ride_accepted_emitted', ride_accepted_emitted, acceptedRide.userPhoneNumber);
 
         // 4) Notify user (if online)
-        const userSocketId = userSockets.get(acceptedRide.userChatId);
+        const userSocketId = userSockets.get(acceptedRide.userPhoneNumber ?? 0);
 
         if (userSocketId) {
             const driverSession = await driverStoreRedis.get(driverId);

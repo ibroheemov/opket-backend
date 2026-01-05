@@ -24,7 +24,7 @@ import { config } from "../config/env";
 import { userBot } from "../PassengerBot";
 import { handleRideClosed } from "./handlers/rideClosed";
 
-export function initUserSocket(chatId: number): Socket {
+export function initUserSocket(chatId: any, phone: number): Socket {
     console.log("chatId", chatId);
 
     const backendUrl = config.backendUrl.replace("/api", "");
@@ -32,7 +32,7 @@ export function initUserSocket(chatId: number): Socket {
     const socket = io(backendUrl, {
         path: "/socket.io",
         transports: ["websocket"],
-        auth: { userChatId: chatId || "unknown" },
+        auth: { userChatId: phone || "unknown" },
     });
 
 

@@ -3,8 +3,9 @@ import { config } from "../config/env";
 import axios from "axios";
 import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
 import { deleteMessageSafely, queueMessageForDeletion } from "../utils/message_cleanup_manager";
-import { initializeUserSession } from "../services/sessionManager";
+import { getSession, initializeUserSession } from "../services/sessionManager";
 import { contactRequestPrompt } from "../ui/prompts/contactRequestPrompt";
+import { initUserSocket } from "../socket/userSocket";
 
 export interface Passenger {
     chatId: number;
@@ -27,7 +28,7 @@ export const handleStart = async (msg: Message) => {
         if (hasPhone) {
             // User already exists with phone → nothing more to do
             const sent = await sendLocationRequestPrompt(chatId);
-            if (sent?.message_id) queueMessageForDeletion(chatId, sent.message_id);
+            deleteMessageSafely(chatId, msg.message_id)
             return;
         }
 
@@ -51,12 +52,20 @@ export const handleStart = async (msg: Message) => {
 
 
 export const hasPassengerPhone = async (chatId: number): Promise<boolean> => {
+    const session = getSession(chatId);
     try {
         const res = await axios.get<Passenger | null>(
             `${config.backendUrl}/user/${chatId}/get-passenger`
         );
 
-        return Boolean(res?.data?.phone);
+        const hasPhone = Boolean(res?.data?.phone);
+
+        if (hasPhone) {
+            session.phone = Number(res?.data?.phone);
+            initUserSocket(chatId, session.phone)
+        }
+
+        return hasPhone;
     } catch (error) {
         console.error("Failed to check passenger phone:", error);
         return false;
