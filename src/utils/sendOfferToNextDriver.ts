@@ -53,15 +53,15 @@ export async function sendOfferToDriverSequentially(rideId: string, candidate: a
     }
 
     const driverSession = await driverStoreRedis.get(nextDriverId);
-    if (!driverSession?.fcmToken) {
-        console.log(`⚠️ Driver ${nextDriverId} has no FCM token, removing candidate`);
-        await RideRepository.pullDriverCandidate(rideId, nextDriverId);
-        await RideModel.findOneAndUpdate(
-            { _id: rideId, offeredTo: nextDriverId },
-            { $unset: { offeredTo: "" }, $set: { offerExpiresAt: null } }
-        );
-        return false;
-    }
+    // if (!driverSession?.fcmToken) {
+    //     console.log(`⚠️ Driver ${nextDriverId} has no FCM token, removing candidate`);
+    //     await RideRepository.pullDriverCandidate(rideId, nextDriverId);
+    //     await RideModel.findOneAndUpdate(
+    //         { _id: rideId, offeredTo: nextDriverId },
+    //         { $unset: { offeredTo: "" }, $set: { offerExpiresAt: null } }
+    //     );
+    //     return false;
+    // }
 
     const distKm = candidate.distKm;
     const travelTime = calculateApproxTime(distKm);
@@ -77,7 +77,7 @@ export async function sendOfferToDriverSequentially(rideId: string, candidate: a
         userChatId: claimed.userChatId,
         travelDistance: distKm?.toFixed?.(2) ?? String(distKm),
         travelTime,
-        fcmToken: driverSession.fcmToken,
+        // fcmToken: driverSession.fcmToken,
         driverId: nextDriverId,
     });
 
@@ -165,15 +165,15 @@ async function sendOfferToDriverParallel(rideId: string, candidate: any, cancelS
     }
 
     const driverSession = await driverStoreRedis.get(nextDriverId);
-    if (!driverSession?.fcmToken) {
-        console.log(`⚠️ Driver ${nextDriverId} has no FCM token, removing candidate`);
-        await RideRepository.pullDriverCandidate(rideId, nextDriverId);
-        await RideModel.findOneAndUpdate(
-            { _id: rideId, offeredTo: nextDriverId },
-            { $unset: { offeredTo: "" }, $set: { offerExpiresAt: null } }
-        );
-        return;
-    }
+    // if (!driverSession?.fcmToken) {
+    //     console.log(`⚠️ Driver ${nextDriverId} has no FCM token, removing candidate`);
+    //     await RideRepository.pullDriverCandidate(rideId, nextDriverId);
+    //     await RideModel.findOneAndUpdate(
+    //         { _id: rideId, offeredTo: nextDriverId },
+    //         { $unset: { offeredTo: "" }, $set: { offerExpiresAt: null } }
+    //     );
+    //     return;
+    // }
 
     const distKm = candidate.distKm;
     const travelTime = calculateApproxTime(distKm);
@@ -186,7 +186,7 @@ async function sendOfferToDriverParallel(rideId: string, candidate: any, cancelS
         userChatId: claimed.userChatId,
         travelDistance: distKm?.toFixed?.(2) ?? String(distKm),
         travelTime,
-        fcmToken: driverSession.fcmToken,
+        // fcmToken: driverSession.fcmToken,
         driverId: nextDriverId,
     });
 

@@ -36,7 +36,7 @@ export interface RideOfferPaylod {
     userChatId: number;
     travelDistance: string;
     travelTime: number;
-    fcmToken: string | undefined;
+    fcmToken?: string | undefined;
     driverId: string;
 }
 
