@@ -109,8 +109,7 @@ export const confirmLuggage = async (req: Request, res: Response) => {
         const ride = await RideModel.findOneAndUpdate({ _id: rideId }, { luggage: true });
 
         if (ride && ride.driverId) {
-            const driverSession = await driverStoreRedis.get(ride.driverId);
-            socketIo.to(driverSession?.socketId!).emit("luggage_confirmed", { rideId });
+            emitToDriver(ride.driverId, "luggage_confirmed", {});
         }
 
         return res.json({ rideId, message: "Klient bagajni tasdiqladi!" });
@@ -130,8 +129,7 @@ export const declineLuggage = async (req: Request, res: Response) => {
         const ride = await RideModel.findById(rideId);
 
         if (ride && ride.driverId) {
-            const driverSession = await driverStoreRedis.get(ride.driverId);
-            socketIo.to(driverSession?.socketId!).emit("luggage_declined", { rideId });
+            emitToDriver(ride.driverId, "luggage_declined", {});
         }
 
         return res.json({ rideId, message: "Klient bagajni rad etdi!" });

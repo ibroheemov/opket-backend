@@ -5,6 +5,7 @@ import axios from "axios";
 import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
 import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { deleteMessages } from "../utils/message_deletions";
+import { sendPaymentSuccessMsg } from "../ui/prompts/sendPaymentSuccessMsg";
 
 export function setupUserCallbackHandlers(bot: TelegramBot) {
     bot.on("callback_query", async (query) => {
@@ -30,9 +31,12 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
             }
 
         } else if (action.startsWith("pay_fare_yes")) {
+            console.log("pay_fare_yes", session?.rideId);
             if (session?.rideId) {
-                await axios.post(`${config.backendUrl}/user/${session?.phone}/pay-fare`, { driverId: session?.driverId, amount: session.deduction_amount });
-                if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
+                const res = await axios.post(`${config.backendUrl}/user/${session?.phone}/pay-fare`, { driverId: session?.driverId, amount: session.deduction_amount });
+                console.log(res.data);
+                await sendPaymentSuccessMsg(chatId);
+                await flushDeletionQueue(chatId);
             }
         }
     });

@@ -32,5 +32,4 @@ export async function handleRideAssigned(
     await flushAllDeletionQueues()
     queueMessageForDeletion(chatId, infoMsg.message_id);
     queueMessageForDeletion(chatId, locationMsg.message_id);
-    delete session.searchingMessage;
 }

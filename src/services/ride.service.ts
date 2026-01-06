@@ -313,10 +313,7 @@ export const RideService = {
         if (updatedDriver?.fcmToken) sendFcm(updatedDriver?.fcmToken, commission);
 
         // 6. Notify user (if online)
-        const userSocketId = userSockets.get(ride.userChatId);
-        if (userSocketId) {
-            socketIo.to(userSocketId).emit("ride_completed", data);
-        }
+        emitToUser(ride.userPhoneNumber, "ride_completed", data);
     }
 };
 

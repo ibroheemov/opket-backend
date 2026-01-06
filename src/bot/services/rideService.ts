@@ -14,5 +14,8 @@ export async function requestRide(chatId: number, location: { lat: number; lon: 
         location,
         type: "bot"
     });
+
+    console.log(res.data);
+
     return res.data;
 }

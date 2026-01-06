@@ -63,7 +63,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         const driverSession = await driverStoreRedis.get(driverId);
         if (driverSession?.currentRideId) {
             const ride = await RideModel.findById(driverSession?.currentRideId);
-            if (ride && ride.userPhoneNumber) {
+            if (ride && ride.userPhoneNumber && ride.status == "accepted") {
                 emitToUser(ride.userPhoneNumber, "driver_location_update", {
                     driverId,
                     location: { lat, lon, bearing },
@@ -119,7 +119,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
             socket.emit("error", { message: "Ride not found" });
             return;
         };
-        if (data) emitToUser(ride.userChatId, "ride_progress", data);
+        if (data) emitToUser(ride.userPhoneNumber, "ride_progress", data);
     });
 
     socket.on("driver_arrived", async ({ rideId }) => {
