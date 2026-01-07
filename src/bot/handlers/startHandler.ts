@@ -34,9 +34,9 @@ export const handleStart = async (msg: Message) => {
 
         // 2️⃣ User does not have phone → ask for contact
         initializeUserSession(chatId);
-        queueMessageForDeletion(chatId, msg.message_id);
 
         const locationResult = await contactRequestPrompt(chatId);
+        await deleteMessageSafely(chatId, msg.message_id)
 
         if (locationResult?.message_id) {
             queueMessageForDeletion(chatId, locationResult.message_id);
