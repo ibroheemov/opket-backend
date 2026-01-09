@@ -23,9 +23,10 @@ export const handleStart = async (msg: Message) => {
     const chatId = msg.chat.id;
 
     try {
-        const hasPhone = await hasPassengerPhone(chatId);
+        // const hasPhone = await hasPassengerPhone(chatId);
+        const session = getSession(chatId);
 
-        if (hasPhone) {
+        if (session.phone) {
             // User already exists with phone → nothing more to do
             const sent = await sendLocationRequestPrompt(chatId);
             deleteMessageSafely(chatId, msg.message_id)

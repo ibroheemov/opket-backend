@@ -18,7 +18,7 @@ export const handleContact = async (msg: Message) => {
         queueMessageForDeletion(chatId, msg.message_id);
 
         // Call backend to create or update user
-        const res = await axios.post(`${config.backendUrl}/user/create-bot`, { chatId, phone: trimUzbekCountryCode(phone) });
+        axios.post(`${config.backendUrl}/user/create-bot`, { chatId, phone: trimUzbekCountryCode(phone) });
 
         session.phone = Number(phone);
         // Optionally send location prompt

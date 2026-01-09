@@ -44,51 +44,32 @@ async function startServer() {
     app.use("/driver", driverRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
 
+    // -------------------------------
+    // Telegram webhook route
+    if (config.env === "production") {
+        app.post(`/bot${config.token}`, (req, res) => {
+            userBot.processUpdate(req.body); // forward update to your TelegramBot instance
+            res.sendStatus(200);
+        });
 
-
+        // Set webhook if not already set
+        (async () => {
+            try {
+                const webhookInfo = await userBot.getWebHookInfo();
+                if (!webhookInfo.url || webhookInfo.url === "") {
+                    await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
+                } else {
+                }
+            } catch (err) {
+            }
+        })();
+    }
+    // -------------------------------
     // simple health check
     app.get("/health", (req, res) => res.send("ok"));
 
     const PORT = config.PORT ?? 3000;
-    server.listen(PORT, () => {
-        // -------------------------------
-        // Telegram webhook route
-        if (config.env === "production") {
-            app.post(`/bot${config.token}`, (req, res) => {
-                userBot.processUpdate(req.body); // forward update to your TelegramBot instance
-                res.sendStatus(200);
-            });
-
-            // Set webhook if not already set
-            (async () => {
-                try {
-                    const webhookInfo = await userBot.getWebHookInfo();
-                    if (!webhookInfo.url || webhookInfo.url === "") {
-                        await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
-                    } else {
-                    }
-                } catch (err) {
-                }
-            })();
-        }
-        // -------------------------------
-
-
-        // ----------------- Environment-based initialization -----------------
-
-        if (config.env === "development") {
-            // Clear old updates to avoid phantom triggers
-            userBot.getUpdates({ offset: -1 }).then(() => {
-                attachHandlers(userBot);
-                userBot.startPolling(); // Only in dev
-            });
-        } else {
-            // Production: webhook is set in server.ts
-            attachHandlers(userBot);
-        }
-    });
-
-
+    server.listen(PORT, () => console.log(`Listening on PORT: ${config.PORT}`));
 }
 
 startServer();
