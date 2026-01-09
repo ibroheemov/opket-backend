@@ -1,7 +1,7 @@
-import { getSession } from "../services/sessionManager";
+import { checkOrderCooldown, getSession, registerSuccessfulOrder } from "../services/sessionManager";
 import { requestRide } from "../services/rideService";
 import TelegramBot from "node-telegram-bot-api";
-import { deleteMessageSafely, queueMessageForDeletion } from "../utils/message_cleanup_manager";
+import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { contactRequestPrompt } from "../ui/prompts/contactRequestPrompt";
 import { logger } from "../../utils/logger";
 import { hasPassengerPhone } from "./startHandler";
@@ -13,7 +13,19 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id;
     const session = getSession(chatId);
 
+    // 🔒 COOLDOWN CHECK
+    const cooldownCheck = checkOrderCooldown(session);
+    if (!cooldownCheck.allowed) {
+        const sent = await userBot.sendMessage(chatId, cooldownCheck.message!);
+        await flushDeletionQueue(chatId);
+        await deleteMessageSafely(chatId, msg.message_id);
+        queueMessageForDeletion(chatId, sent.message_id);
+        return;
+    }
+
     const { latitude, longitude } = msg.location!;
+
+    const success_msg = await sendRideRequestSuccessMsg(chatId);
 
     const hasPhone = await hasPassengerPhone(chatId);
 
@@ -25,17 +37,18 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
     // Step 0: Update session & initialize socket (non-blocking)
     session.location = { lat: latitude, lon: longitude };
 
-    // Step 1: Run deletion & searching prompt concurrently
-
     // Step 2: Queue deletions immediately
     queueMessageForDeletion(chatId, msg.message_id);
+
     // Step 4: Request ride with timeout (concurrent with animation)
     const ride = await requestRide(chatId, { lat: latitude, lon: longitude }, session.phone);
 
     session.rideId = ride.ride_id;
-    console.log(session);
-    const success_msg = await sendRideRequestSuccessMsg(chatId);
+
+    // ✅ REGISTER ORDER AFTER SUCCESS
+    registerSuccessfulOrder(session);
     queueMessageForDeletion(chatId, success_msg.message_id);
 };
+
 
 

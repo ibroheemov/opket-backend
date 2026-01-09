@@ -1,4 +1,4 @@
-export const location_request_message = "🚕 Taksi chaqirish tugmasini bosing yoki lokatsiya yuboring";
+export const location_request_message = "🚕 Taksi chaqirish tugmasini bosing";
 export const call_taxi_msg = "🚕 Taksi chaqirish";
 export const searching_driver_message = "☎️ Telefon raqam qoldiring, haydovchi bog'lanadi";
 export const no_driver_message = "❌ Haydovchi topilmadi, birozdan so'ng urinib ko‘ring.";

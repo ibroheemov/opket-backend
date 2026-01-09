@@ -6,6 +6,7 @@ import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
 import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { deleteMessages } from "../utils/message_deletions";
 import { sendPaymentSuccessMsg } from "../ui/prompts/sendPaymentSuccessMsg";
+import { deleteMessageLater } from "../utils/deleteMessageLater";
 
 export function setupUserCallbackHandlers(bot: TelegramBot) {
     bot.on("callback_query", async (query) => {
@@ -35,7 +36,8 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
             if (session?.rideId) {
                 const res = await axios.post(`${config.backendUrl}/user/${session?.phone}/pay-fare`, { driverId: session?.driverId, amount: session.deduction_amount });
                 console.log(res.data);
-                await sendPaymentSuccessMsg(chatId);
+                const sent = await sendPaymentSuccessMsg(chatId);
+                deleteMessageLater(chatId, sent.message_id);
                 await flushDeletionQueue(chatId);
             }
         }

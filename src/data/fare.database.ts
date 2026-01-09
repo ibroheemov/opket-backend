@@ -6,10 +6,10 @@ export const fareConfigs: Record<string, FareConfig> = {
     "default": {
         baseFare: 2000,
         perKm: 2000,
-        firstKm: 5000,
+        firstKm: 5500,
         perMinute: 500,
         luggageEnabled: false,
-        luggageCharge: 1000
+        luggageCharge: 3000
     },
 
 };

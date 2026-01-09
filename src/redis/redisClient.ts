@@ -1,12 +1,13 @@
 // redisClient.ts
 import { createClient } from 'redis';
+import { config } from '../bot/config/env';
 
 const redis = createClient({
     username: 'default',
-    password: process.env.REDIS_PASSWORD,
+    password: config.REDIS_PASSWORD,
     socket: {
-        host: process.env.REDIS_ENDPOINT,
-        port: 16049
+        host: config.REDIS_ENDPOINT,
+        port: Number(config.REDIS_PORT)
     }
 });
 

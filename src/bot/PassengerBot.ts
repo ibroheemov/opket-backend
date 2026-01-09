@@ -19,7 +19,7 @@ export const userBot = new TelegramBot(
 }
 );
 
-function attachHandlers(bot: TelegramBot) {
+export function attachHandlers(bot: TelegramBot) {
     // Command handlers
     userBot.onText(/\/start/, handleStart);
 
@@ -34,15 +34,3 @@ function attachHandlers(bot: TelegramBot) {
 }
 
 
-// ----------------- Environment-based initialization -----------------
-
-if (config.env === "development") {
-    // Clear old updates to avoid phantom triggers
-    userBot.getUpdates({ offset: -1 }).then(() => {
-        attachHandlers(userBot);
-        userBot.startPolling(); // Only in dev
-    });
-} else {
-    // Production: webhook is set in server.ts
-    attachHandlers(userBot);
-}

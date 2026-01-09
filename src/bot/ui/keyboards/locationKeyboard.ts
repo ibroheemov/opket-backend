@@ -5,4 +5,5 @@ export const locationRequestKeyboard = {
         [{ text: call_taxi_msg, request_location: true }]
     ],
     resize_keyboard: true,
+    one_time_keyboard: false,
 };
