@@ -7,12 +7,14 @@ import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from
 import { deleteMessages } from "../utils/message_deletions";
 import { sendPaymentSuccessMsg } from "../ui/prompts/sendPaymentSuccessMsg";
 import { deleteMessageLater } from "../utils/deleteMessageLater";
+import { getSessionRedis } from "../../store/passengerStoreRedis";
 
 export function setupUserCallbackHandlers(bot: TelegramBot) {
     bot.on("callback_query", async (query) => {
         const chatId = query.message?.chat.id!;
         const action = query.data!;
         const session = getSession(chatId);
+        const sessionRedis = await getSessionRedis(chatId);
         console.log(action, session);
 
         if (action.startsWith("cancel_ride")) {
@@ -34,7 +36,7 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
         } else if (action.startsWith("pay_fare_yes")) {
             console.log("pay_fare_yes", session?.rideId);
             if (session?.rideId) {
-                const res = await axios.post(`${config.backendUrl}/user/${session?.phone}/pay-fare`, { driverId: session?.driverId, amount: session.deduction_amount });
+                const res = await axios.post(`${config.backendUrl}/user/${sessionRedis?.phone}/pay-fare`, { driverId: session?.driverId, amount: session.deduction_amount });
                 console.log(res.data);
                 const sent = await sendPaymentSuccessMsg(chatId);
                 deleteMessageLater(chatId, sent.message_id);

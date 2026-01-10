@@ -39,6 +39,8 @@ export function initUserSocket(chatId: any, phone: number): Socket {
 
     // Register event handlers
     socket.on("ride_assigned", (data: RideAssignedPayload) => {
+        console.log("RIDE ASSIGNED", data);
+
         handleRideAssigned(userBot, chatId, data)
     }
     );

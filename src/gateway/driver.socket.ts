@@ -36,6 +36,9 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
             fcmToken,
             location: location,
             canReceiveOffers,
+            name: driver.name,
+            car: `${driver.carColor}, ${driver.carModel} - ${driver.carNumber}`,
+            phone: driver.phone,
         }
     )
 
@@ -85,7 +88,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
     socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
         try {
-            await RideService.acceptRide(rideId, driverId);
+            const res: { success: boolean } = await RideService.acceptRide(rideId, driverId);
+            if (!res.success) emitToDriver(driverId, "ride_already_taken", {});
         } catch (err) {
             handleSocketError(socket, (err as Error).message, err as Error);
         }
@@ -101,12 +105,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("balance_deduction_request", async ({ amount, phone }: { amount: number, phone: number }) => {
-        const driver = await DriverModel.findById(driverId);
-        if (!driver) return;
         const sSent = emitToUser(Number(phone), 'balance_deduction_request', { amount, driverId, driverName: driver.name });
-
-        console.log(sSent, amount);
-
     });
 
     socket.on("ride_progress", async (data: RideProgressPayload) => {
@@ -141,11 +140,10 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("add_luggage", async ({ phone }) => {
-        console.log(phone);
+        console.log("ADD LUGGAGE EVENT");
         const luggageCharge = fareConfigs['default'].luggageCharge;
 
-        const sent = await emitToUser(phone, "add_luggage", { luggageCharge, driverId });
-
+        emitToUser(phone, "add_luggage", { luggageCharge, driverId });
     });
 
     socket.on("ride_completed", async (data: RideCompletedPayload) => {

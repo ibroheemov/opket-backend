@@ -34,20 +34,20 @@ export const updateRideStatus = async (rideId: string, status: string) => {
 export const emitToUser = async (id: number | undefined, event: string, data: any) => {
     if (!id) return;
     const passenger = passengerStore.get(id);
-    if (!passenger && passenger_missable_events.includes(event)) {
-        await PassengerModel.findOneAndUpdate(
-            { phone: id },
-            {
-                $push: {
-                    events: {
-                        event: event,
-                        data: data
-                    }
-                }
-            },
-            { new: true }
-        );
-    }
+    // if (!passenger && passenger_missable_events.includes(event)) {
+    //     await PassengerModel.findOneAndUpdate(
+    //         { phone: id },
+    //         {
+    //             $push: {
+    //                 events: {
+    //                     event: event,
+    //                     data: data
+    //                 }
+    //             }
+    //         },
+    //         { new: true }
+    //     );
+    // }
 
     const socketId = userSockets.get(Number(id));
     console.log(id, event, socketId);
@@ -60,24 +60,24 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
 };
 
 export const emitToDriver = async (driverId: string, event: string, data: any) => {
-    const driver = await driverStoreRedis.get(driverId);
+    // const driver = await driverStoreRedis.get(driverId);
 
-    console.log(`SOCKET STATUS: ${driver?.socketStatus} \nIS EVENT INCLUDED${driver_missable_events.includes(event)} (${event})`);
+    // console.log(`SOCKET STATUS: ${driver?.socketStatus} \nIS EVENT INCLUDED${driver_missable_events.includes(event)} (${event})`);
 
-    if (driver?.socketStatus == "disconnected" && driver_missable_events.includes(event)) {
-        await DriverModel.findByIdAndUpdate(
-            driverId,
-            {
-                $push: {
-                    events: {
-                        event: event,
-                        data: data
-                    }
-                }
-            },
-            { new: true }
-        );
-    }
+    // if (driver?.socketStatus == "disconnected" && driver_missable_events.includes(event)) {
+    //     await DriverModel.findByIdAndUpdate(
+    //         driverId,
+    //         {
+    //             $push: {
+    //                 events: {
+    //                     event: event,
+    //                     data: data
+    //                 }
+    //             }
+    //         },
+    //         { new: true }
+    //     );
+    // }
 
     const socketId = driverSockets.get(driverId);
 

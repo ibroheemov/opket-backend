@@ -8,6 +8,9 @@ export interface DriverSession {
     socketStatus?: "connected" | "disconnected";
     currentRideId?: string | null;
     location?: DriverLocation;
+    name?: string;
+    car?: string;
+    phone?: string;
     lastUpdated: number;
     fcmToken?: string;
     canReceiveOffers: boolean;
