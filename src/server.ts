@@ -69,7 +69,21 @@ async function startServer() {
     app.get("/health", (req, res) => res.send("ok"));
 
     const PORT = config.PORT ?? 3000;
-    server.listen(PORT, () => console.log(`Listening on PORT: ${config.PORT}`));
+    server.listen(PORT, () => {
+
+
+        if (config.env === "development") {
+            // Clear old updates to avoid phantom triggers
+            userBot.getUpdates({ offset: -1 }).then(() => {
+                attachHandlers(userBot);
+                userBot.startPolling(); // Only in dev
+            });
+        } else {
+            // Production: webhook is set in server.ts
+            attachHandlers(userBot);
+        }
+        console.log(`Listening on PORT: ${config.PORT}`)
+    });
 }
 
 startServer();

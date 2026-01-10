@@ -8,10 +8,13 @@ import { hasPassengerPhone } from "./startHandler";
 import { userBot } from "../PassengerBot";
 import { ride_requested_msg } from "../ui/messages";
 import { sendRideRequestSuccessMsg } from "../ui/prompts/rideRequestSuccess";
+import { getSessionRedis } from "../../store/passengerStoreRedis";
+import { initUserSocket } from "../socket/userSocket";
 
 export const handleLocation = async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id;
     const session = getSession(chatId);
+    const sessionRedis = await getSessionRedis(chatId);
 
     // 🔒 COOLDOWN CHECK
     const cooldownCheck = checkOrderCooldown(session);
@@ -27,12 +30,15 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
 
     const success_msg = await sendRideRequestSuccessMsg(chatId);
 
-    const hasPhone = await hasPassengerPhone(chatId);
-
-    if (!hasPhone) {
+    if (!sessionRedis.phone) {
         const sent = await contactRequestPrompt(chatId);
         if (sent?.message_id) queueMessageForDeletion(chatId, sent.message_id);
+        return;
     }
+
+    // Initialize passenger socket
+    initUserSocket(chatId, sessionRedis.phone);
+
 
     // Step 0: Update session & initialize socket (non-blocking)
     session.location = { lat: latitude, lon: longitude };
@@ -41,7 +47,7 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
     queueMessageForDeletion(chatId, msg.message_id);
 
     // Step 4: Request ride with timeout (concurrent with animation)
-    const ride = await requestRide(chatId, { lat: latitude, lon: longitude }, session.phone);
+    const ride = await requestRide(chatId, { lat: latitude, lon: longitude }, sessionRedis.phone);
 
     session.rideId = ride.ride_id;
 

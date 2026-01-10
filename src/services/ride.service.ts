@@ -82,7 +82,12 @@ export const RideService = {
 
                 // Check for drivers
                 console.log(`🔍 Searching for available drivers near (${pickup.lat}, ${pickup.lon})...`);
+
+                const startFindDrivers = Date.now();
                 const drivers = await DriverRepository.findAvailableDrivers(pickup.lat, pickup.lon);
+
+                const duration = Date.now() - startFindDrivers;
+                console.log(`⏱️ findAvailableDrivers took ${duration} ms`);
 
                 if (drivers.length > 0) {
                     stopped = true;
@@ -193,6 +198,8 @@ export const RideService = {
             );
         }
 
+
+
         // 2) Update driver session + database
         const [driverErr, updatedDriver] = await safeAsync(async () => {
 
@@ -209,6 +216,20 @@ export const RideService = {
                 { new: true }
             );
         });
+
+        // 4) Notify user (if online)
+        const userSocketId = userSockets.get(acceptedRide.userPhoneNumber ?? 0);
+
+        if (userSocketId) {
+            const driverSession = await driverStoreRedis.get(driverId);
+
+            socketIo.to(userSocketId).emit("ride_assigned", {
+                rideId: acceptedRide._id.toString(),
+                driver: updatedDriver,
+                location: driverSession?.location,
+                message: "🚗 Your driver is on the way!",
+            });
+        }
 
         // 2) Update passenger database
         const [passengerErr, updatedpassenger] = await safeAsync(async () => {
@@ -231,33 +252,6 @@ export const RideService = {
             );
         }
 
-        // 3) Notify driver
-        const driverSession = await driverStoreRedis.get(driverId);
-
-        const ride_accepted_emitted = emitToUser(
-            acceptedRide.type == "app" ? acceptedRide.userPhoneNumber : acceptedRide.userChatId,
-            'ride_accepted',
-            {
-                driver: updatedDriver,
-                ride: acceptedRide,
-                location: driverSession?.location,
-            }
-        )
-        console.log('ride_accepted_emitted', ride_accepted_emitted, acceptedRide.userPhoneNumber);
-
-        // 4) Notify user (if online)
-        const userSocketId = userSockets.get(acceptedRide.userPhoneNumber ?? 0);
-
-        if (userSocketId) {
-            const driverSession = await driverStoreRedis.get(driverId);
-
-            socketIo.to(userSocketId).emit("ride_assigned", {
-                rideId: acceptedRide._id.toString(),
-                driver: updatedDriver,
-                location: driverSession?.location,
-                message: "🚗 Your driver is on the way!",
-            });
-        }
     },
 
     async completeRide(driverId: string, data: RideCompletedPayload) {

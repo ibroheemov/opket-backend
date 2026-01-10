@@ -1,10 +1,10 @@
-export function trimUzbekCountryCode(phone: string): string {
+export function trimUzbekCountryCode(phone: string): number {
   const digitsOnly = phone.replace(/\D/g, "");
 
   // Trim country code ONLY if it's a full international number
   if (digitsOnly.startsWith("998") && digitsOnly.length === 12) {
-    return digitsOnly.slice(3);
+    return Number(digitsOnly.slice(3));
   }
 
-  return digitsOnly;
+  return Number(digitsOnly);
 }

@@ -10,6 +10,7 @@ import { RideRepository } from "../repositories/ride.repository";
 import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 
 export const requestRide = async (req: Request, res: Response) => {
+    console.log("RIDE REQUEST RECEIVED");
 
     try {
         const { phone, chatId, location, dropoff, address, type } = req.body;

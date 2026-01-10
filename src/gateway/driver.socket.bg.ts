@@ -1,6 +1,8 @@
 import { Socket } from "socket.io";
 import { DriverModel } from "../models/DriverModel";
 import { driverSockets } from "./socket.maps";
+import { RideService } from "../services/ride.service";
+import { handleSocketError } from "../utils/socketError";
 
 export const registerDriverBGHandler = async ({ socket, driverId }: {
     socket: Socket;
@@ -15,5 +17,15 @@ export const registerDriverBGHandler = async ({ socket, driverId }: {
     }
 
     console.log("🟡♻️ DRIVER BG connected");
+
     driverSockets.set(`${driverId}-bg`, socket.id);
+
+    socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
+        console.log("ACCEPTED RIDE", rideId);
+        try {
+            await RideService.acceptRide(rideId, driverId);
+        } catch (err) {
+            handleSocketError(socket, (err as Error).message, err as Error);
+        }
+    });
 }

@@ -33,17 +33,3 @@ export function attachHandlers(bot: TelegramBot) {
     setupUserCallbackHandlers(userBot);
 }
 
-
-
-// ----------------- Environment-based initialization -----------------
-
-if (config.env === "development") {
-    // Clear old updates to avoid phantom triggers
-    userBot.getUpdates({ offset: -1 }).then(() => {
-        attachHandlers(userBot);
-        userBot.startPolling(); // Only in dev
-    });
-} else {
-    // Production: webhook is set in server.ts
-    attachHandlers(userBot);
-}

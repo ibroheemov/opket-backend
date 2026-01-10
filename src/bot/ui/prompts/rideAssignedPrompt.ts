@@ -7,7 +7,7 @@ export function rideAssignedPrompt(chatId: number, data: RideAssignedPayload) {
 
     return userBot.sendMessage(
         chatId,
-        `Haydovchi yo'lda ☝️\n\n👨‍✈️Haydovchi: ${driver.name}\n🚗 Mashina: ${driver.carColor}, ${driver.carModel}\n🔢 Raqam: ${driver.carNumber}\n☎️ +998${driver.phone}`,
+        `Haydovchi yo'lda ☝️\n\n👨‍✈️ ${driver.name}\n\n🚗 ${driver.carColor}, ${driver.carModel} - ${driver.carNumber}\n\n☎️ +998${driver.phone}`,
         {
             reply_markup: cancelRideKeyboard,
         }

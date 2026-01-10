@@ -6,6 +6,9 @@ export const DriverRepository = {
     async findAvailableDrivers(pickupLat: number, pickupLon: number, maxKm = 2) {
         const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
 
+        console.log(onlineDrivers);
+
+
         const driversWithDistance = onlineDrivers
             .map((driver) => {
                 if (!driver.location) return null;

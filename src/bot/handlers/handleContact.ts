@@ -5,22 +5,26 @@ import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
 import { flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { getSession } from "../services/sessionManager";
 import { trimUzbekCountryCode } from "../../utils/trimUzbekCountryCode";
+import { getSessionRedis, saveSession } from "../../store/passengerStoreRedis";
+import { initUserSocket } from "../socket/userSocket";
 
 
 export const handleContact = async (msg: Message) => {
     const chatId = msg.chat.id;
     const phone = msg.contact?.phone_number;
-    const session = getSession(chatId);
+    const session = await getSessionRedis(chatId);
 
     if (!phone) return;
 
     try {
         queueMessageForDeletion(chatId, msg.message_id);
 
-        // Call backend to create or update user
-        axios.post(`${config.backendUrl}/user/create-bot`, { chatId, phone: trimUzbekCountryCode(phone) });
+        session.phone = trimUzbekCountryCode(phone);
 
-        session.phone = Number(phone);
+        // Initialize passenger socket
+        initUserSocket(chatId, session.phone);
+
+        await saveSession(chatId, session);
         // Optionally send location prompt
         await sendLocationRequestPrompt(chatId);
 

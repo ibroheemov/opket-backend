@@ -6,6 +6,7 @@ import { deleteMessageSafely, queueMessageForDeletion } from "../utils/message_c
 import { getSession, initializeUserSession } from "../services/sessionManager";
 import { contactRequestPrompt } from "../ui/prompts/contactRequestPrompt";
 import { initUserSocket } from "../socket/userSocket";
+import { getSessionRedis, initializeUserSessionRedis } from "../../store/passengerStoreRedis";
 
 export interface Passenger {
     chatId: number;
@@ -21,10 +22,10 @@ export interface Passenger {
 
 export const handleStart = async (msg: Message) => {
     const chatId = msg.chat.id;
+    await initializeUserSessionRedis(chatId);
 
     try {
-        // const hasPhone = await hasPassengerPhone(chatId);
-        const session = getSession(chatId);
+        const session = await getSessionRedis(chatId);
 
         if (session.phone) {
             // User already exists with phone → nothing more to do
@@ -32,9 +33,6 @@ export const handleStart = async (msg: Message) => {
             deleteMessageSafely(chatId, msg.message_id)
             return;
         }
-
-        // 2️⃣ User does not have phone → ask for contact
-        initializeUserSession(chatId);
 
         const locationResult = await contactRequestPrompt(chatId);
         await deleteMessageSafely(chatId, msg.message_id)
