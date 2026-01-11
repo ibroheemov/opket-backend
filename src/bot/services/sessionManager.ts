@@ -2,7 +2,7 @@ import { initUserSocket } from "../socket/userSocket";
 
 const ONE_MINUTE = 60 * 1000;
 const TEN_MINUTES = 5 * 60 * 1000;
-const MAX_ORDERS = 3;
+const MAX_ORDERS = 2;
 
 export interface UserSession {
     location?: { lat: number; lon: number };

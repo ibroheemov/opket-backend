@@ -2,7 +2,6 @@ import TelegramBot from "node-telegram-bot-api";
 import { getSession } from "../services/sessionManager";
 import { config } from "../config/env";
 import axios from "axios";
-import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
 import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { deleteMessages } from "../utils/message_deletions";
 import { sendPaymentSuccessMsg } from "../ui/prompts/sendPaymentSuccessMsg";
@@ -39,7 +38,7 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
                 const res = await axios.post(`${config.backendUrl}/user/${sessionRedis?.phone}/pay-fare`, { driverId: session?.driverId, amount: session.deduction_amount });
                 console.log(res.data);
                 const sent = await sendPaymentSuccessMsg(chatId);
-                deleteMessageLater(chatId, sent.message_id);
+                deleteMessageLater(chatId, sent.message_id, 4000);
                 await flushDeletionQueue(chatId);
             }
         }

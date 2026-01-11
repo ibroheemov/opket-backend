@@ -1,8 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { RideCompletedPayload } from "../types";
 import { flushDeletionQueue, queueMessageForDeletion } from "../../utils/message_cleanup_manager";
-import { sendLocationRequestPrompt } from "../../ui/prompts/locationRequestPrompt";
-import { getSession } from "../../services/sessionManager";
+import { deleteMessageLater } from "../../utils/deleteMessageLater";
 
 export async function handleRideCompleted(
     bot: TelegramBot,
@@ -22,9 +21,7 @@ export async function handleRideCompleted(
         }
     );
 
-    const session = getSession(chatId);
-    session.currentMsgId = sent.message_id;
+    deleteMessageLater(chatId, sent.message_id, 25000);
 
     await flushDeletionQueue(chatId);
-    queueMessageForDeletion(chatId, sent.message_id);
 }

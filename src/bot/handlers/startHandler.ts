@@ -29,7 +29,7 @@ export const handleStart = async (msg: Message) => {
 
         if (session.phone) {
             // User already exists with phone → nothing more to do
-            const sent = await sendLocationRequestPrompt(chatId);
+            await sendLocationRequestPrompt(chatId);
             deleteMessageSafely(chatId, msg.message_id)
             return;
         }

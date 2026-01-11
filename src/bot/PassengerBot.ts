@@ -10,7 +10,6 @@ import { emit } from "process";
 import { socketIo } from "../gateway/socket2";
 import { driverStore } from "../store/driverStore";
 import { handleMessage } from "./handlers/handleMessage";
-import { sendLocationRequestPrompt } from "./ui/prompts/locationRequestPrompt";
 import { handleContact } from "./handlers/handleContact";
 
 export const userBot = new TelegramBot(
