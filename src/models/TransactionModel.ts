@@ -11,7 +11,7 @@ export interface ITransaction extends Document {
 
 const transactionSchema = new Schema<ITransaction>(
     {
-        rideId: { type: Schema.Types.ObjectId, ref: "Ride", required: true },
+        rideId: { type: Schema.Types.ObjectId, ref: "Ride", required: false },
         fromUserId: { type: Schema.Types.ObjectId, required: true, refPath: "fromModel" },
         toUserId: { type: Schema.Types.ObjectId, required: true, refPath: "toModel" },
         amount: { type: Number, required: true },

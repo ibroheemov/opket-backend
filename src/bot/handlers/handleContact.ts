@@ -18,8 +18,8 @@ export const handleContact = async (msg: Message) => {
 
     try {
         queueMessageForDeletion(chatId, msg.message_id);
-
         session.phone = trimUzbekCountryCode(phone);
+        createPassenger(chatId, session.phone);
 
         // Initialize passenger socket
         initUserSocket(chatId, session.phone);
@@ -31,5 +31,19 @@ export const handleContact = async (msg: Message) => {
         flushDeletionQueue(chatId)
     } catch (err) {
         console.error("Failed to create/update user:", err);
+    }
+};
+
+const createPassenger = async (chatId: number, phone: number) => {
+    const session = getSession(chatId);
+    try {
+        axios.post(
+            `${config.backendUrl}/user/create-bot`,
+            { chatId, phone }
+        );
+
+
+    } catch (error) {
+        console.error("Failed to create passenger phone:", error);
     }
 };

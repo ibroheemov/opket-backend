@@ -6,86 +6,94 @@ import { socketIo } from "../../gateway/socket2";
 import { TransactionModel } from "../../models/TransactionModel";
 import admin from 'firebase-admin';
 import { emitToDriver } from "../../gateway/ride.socket";
-import mongoose from "mongoose";
 
 export const payfare = async (req: AuthRequest, res: Response) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
         const phone = req.params.id;
         const { driverId, amount } = req.body;
 
-        if (!driverId || !phone || !amount || amount <= 0) {
+        if (!phone || !driverId || !amount || amount <= 0) {
             return res.status(400).json({ message: "Invalid input" });
         }
 
-        const passenger = await PassengerModel.findOne({ phone }).session(session);
+        // 1️⃣ Atomically deduct passenger balance (fails if insufficient)
+        const passenger = await PassengerModel.findOneAndUpdate(
+            {
+                phone,
+                balance: { $gte: amount }, // ✅ prevents overdraft
+            },
+            {
+                $inc: { balance: -amount },
+            },
+            {
+                new: true,
+                projection: { balance: 1, currentRideId: 1 }, // ✅ fetch only needed fields
+            }
+        );
+
         if (!passenger) {
-            return res.status(404).json({ message: "Passenger not found" });
+            return res
+                .status(400)
+                .json({ message: "Hamyoningizda mablag' yetarli emas!" });
         }
 
-        if ((passenger.balance ?? 0) < amount) {
-            return res.status(400).json({ message: "Hamyoningizda mablag' yetarli emas!" });
-        }
+        // 2️⃣ Credit driver balance
+        const driver = await DriverModel.findByIdAndUpdate(
+            driverId,
+            { $inc: { balance: amount } },
+            {
+                new: true,
+                projection: { balance: 1, fcmToken: 1 },
+            }
+        );
 
-        // Update balances in parallel
-        const [updatedPassenger, updatedDriver] = await Promise.all([
-            PassengerModel.findOneAndUpdate(
+        if (!driver) {
+            // ⚠️ Extremely rare, but rollback passenger just in case
+            await PassengerModel.updateOne(
                 { phone },
-                { $inc: { balance: -amount } },
-                { new: true, session }
-            ),
-            DriverModel.findByIdAndUpdate(
-                driverId,
-                { $inc: { balance: amount } },
-                { new: true, session }
-            ),
-        ]);
+                { $inc: { balance: amount } }
+            );
 
-        if (!updatedDriver) {
-            throw new Error("Driver not found");
+            return res.status(404).json({ message: "Driver not found" });
         }
-
-        if (passenger.currentRideId) {
-            await TransactionModel.create([{
-                rideId: passenger.currentRideId,
-                fromUserId: passenger._id,
-                toUserId: updatedDriver._id,
-                amount,
-                type: "passenger_to_driver",
-            }], { session });
-        }
-
-        await session.commitTransaction();
-        session.endSession();
 
         // 🚀 Respond immediately
         res.json({
             success: true,
             message: "Payment transferred successfully",
-            driverBalance: updatedDriver.balance,
-            passengerBalance: updatedPassenger?.balance,
+            passengerBalance: passenger.balance,
+            driverBalance: driver.balance,
         });
 
-        // 🔔 Send FCM AFTER response
-        if (updatedDriver.fcmToken) {
-            admin.messaging().send({
-                token: updatedDriver.fcmToken,
-                android: { priority: "high" },
-                data: {
-                    type: "balance_updated",
-                    amount: amount.toString(),
-                    message: `Hisobingiz ${amount} UZS ga to'ldirildi.`,
-                },
+        // 3️⃣ Log transaction (non-blocking)
+        if (passenger.currentRideId) {
+            TransactionModel.create({
+                rideId: passenger.currentRideId,
+                fromUserId: passenger._id,
+                toUserId: driver._id,
+                amount,
+                type: "passenger_to_driver",
             }).catch(console.error);
         }
 
-        emitToDriver(driverId, "ride_change_confirmed", {});
+        // 4️⃣ Notify driver (non-blocking)
+        if (driver.fcmToken) {
+            admin
+                .messaging()
+                .send({
+                    token: driver.fcmToken,
+                    android: { priority: "high" },
+                    data: {
+                        type: "balance_updated",
+                        amount: amount.toString(),
+                        message: `Hisobingiz ${amount} UZS ga to'ldirildi.`,
+                    },
+                })
+                .catch(console.error);
+        }
 
+        emitToDriver(driverId, "ride_change_confirmed", {});
     } catch (err) {
-        await session.abortTransaction();
-        session.endSession();
         console.error(err);
         return res.status(500).json({ message: "Internal server error" });
     }
