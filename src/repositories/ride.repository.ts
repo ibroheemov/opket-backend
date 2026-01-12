@@ -3,7 +3,16 @@ import { logger } from "../utils/logger";
 
 export const RideRepository = {
     async createRide(data: any) {
-        return RideModel.create(data);
+        try {
+            return await RideModel.create(data);
+        } catch (err: any) {
+            logger.error("Failed to create ride", {
+                error: err,
+                data,
+            });
+
+            throw new Error("RIDE_CREATE_FAILED");
+        }
     },
 
     async updateRide(id: string, updates: Partial<any>) {

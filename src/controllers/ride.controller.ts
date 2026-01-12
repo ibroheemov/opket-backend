@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import { RideService } from "../services/ride.service";
+// import { RideService } from "../services/ride.service";
+import { RideService } from "../services/ride.new.service";
 import { logger } from "../utils/logger";
 import { IRide, RideModel } from "../models/Ride";
 import { DriverModel, IDriverDocument } from "../models/DriverModel";
@@ -30,7 +31,7 @@ export const requestRide = async (req: Request, res: Response) => {
         const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type });
         return res.status(200).json(result);
     } catch (err) {
-        logger.error("requestRide error:", err);
+        // logger.error("requestRide error:", err);
         return res.status(500).json({ error: "Internal server error" });
     }
 };

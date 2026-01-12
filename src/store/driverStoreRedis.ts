@@ -92,6 +92,12 @@ export class DriverStore {
             location: JSON.stringify(location),
             lastUpdated: Date.now().toString(),
         });
+
+        await redis.geoAdd("drivers:geo", {
+            longitude: location.lon,
+            latitude: location.lat,
+            member: driverId,
+        });
     }
 
     /* ----------------- Reads ----------------- */

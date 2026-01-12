@@ -79,92 +79,7 @@ export interface RideOfferPaylod {
 
 
 export const RideService = {
-    // async searchForDrivers(
-    //     rideId: string,
-    //     pickup: { lat: number; lon: number },
-    //     phone: number | undefined,
-    // ): Promise<SearchResult> {
-    //     const MAX_DURATION = 1 * 60 * 1000; // 3 minutes
-    //     const INTERVAL = 5000; // 5 seconds
-    //     const start = Date.now();
 
-    //     console.log(`🚀 Starting driver search for rideId: ${rideId}`);
-
-    //     return new Promise<SearchResult>(async (resolve) => {
-    //         let stopped = false;
-
-    //         const checkDrivers = async () => {
-    //             if (stopped) return;
-
-    //             const elapsed = Date.now() - start;
-    //             console.log(`⏱️ Elapsed time: ${(elapsed / 1000).toFixed(1)}s`);
-
-    //             const ride = await RideModel.findById(rideId);
-
-    //             if (ride?.status.includes('cancelled')) {
-    //                 stopped = true;
-    //                 console.log(`❌ Ride ${rideId} has been cancelled.`);
-    //                 return;
-    //             }
-
-    //             // Stop if timeout
-    //             if (elapsed >= MAX_DURATION) {
-    //                 stopped = true;
-    //                 await RideRepository.updateRide(rideId, { status: "cancelled" });
-    //                 emitToUser(phone, "ride_no_drivers", null);
-
-    //                 console.log(`⏳ Timeout reached. No drivers found for ride ${rideId}.`);
-    //                 return resolve({ drivers: 0, message: "No drivers found after 3 minutes" });
-    //             }
-
-    //             // Check for drivers
-    //             console.log(`🔍 Searching for available drivers near (${pickup.lat}, ${pickup.lon})...`);
-
-    //             const startFindDrivers = Date.now();
-    //             const drivers = await DriverRepository.findAvailableDrivers(pickup.lat, pickup.lon);
-
-    //             const duration = Date.now() - startFindDrivers;
-    //             console.log(`⏱️ findAvailableDrivers took ${duration} ms`);
-
-    //             if (drivers.length > 0) {
-    //                 stopped = true;
-
-    //                 const nearest = drivers[0];
-
-    //                 await RideRepository.updateRide(rideId, {
-    //                     candidateDrivers: drivers.map(d => ({
-    //                         driverId: d.driver.driverId,
-    //                         distKm: d.distKm
-    //                     })),
-    //                     driverId: nearest.driver.driverId
-    //                 });
-
-    //                 sendOfferToDrivers(rideId);
-
-    //                 console.log(`✅ Driver found: ${nearest.driver.driverId} (distance: ${nearest.distKm} km)`);
-    //                 return resolve({
-    //                     drivers,
-    //                     message: "Driver found!",
-    //                 });
-    //             } else {
-    //                 console.log(`🚫 No drivers available at this moment. Will retry in ${INTERVAL / 1000}s`);
-    //             }
-    //         };
-
-    //         // First immediate check
-    //         await checkDrivers();
-
-    //         // Interval checks every 5 seconds
-    //         const interval = setInterval(async () => {
-    //             if (stopped) {
-    //                 clearInterval(interval);
-    //                 console.log(`🛑 Stopping search for rideId: ${rideId}`);
-    //                 return;
-    //             }
-    //             await checkDrivers();
-    //         }, INTERVAL);
-    //     });
-    // },
     async searchForDrivers(
         rideId: string,
         pickup: { lat: number; lon: number },
@@ -239,34 +154,6 @@ export const RideService = {
         });
     },
 
-    // async requestRide(input: RideRequestInput) {
-    //     const { phone, chatId, location, dropoff, address, type } = input;
-    //     if (!phone && !chatId) return;
-
-    //     // 1) Create initial ride
-    //     const ride = await RideRepository.createRide({
-    //         userChatId: chatId,
-    //         userPhoneNumber: phone,
-    //         pickup: { lat: location.lat, lon: location.lon, address },
-    //         dropoff: dropoff
-    //             ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
-    //             : undefined,
-    //         status: "pending",
-    //         type,
-    //     });
-
-    //     // 2) Begin search loop for up to 3 minutes
-    //     const controller = new AbortController();
-    //     rideSearchControllers.set(ride._id.toString(), controller);
-
-    //     this.searchForDrivers(ride._id, location, phone, controller.signal)
-    //         .catch(err => console.error("Background search failed:", err));
-
-    //     return {
-    //         ride_id: ride._id
-    //     };
-    // },
-
     async requestRide(input: RideRequestInput) {
         const { phone, chatId, location, dropoff, address, type } = input;
         if (!phone && !chatId) return;
@@ -282,6 +169,8 @@ export const RideService = {
             status: "pending",
             type,
         });
+
+        if (!ride) return;
 
         const rideId = ride._id.toString();
         const rideKey = `ride:${rideId}`;
@@ -388,103 +277,6 @@ export const RideService = {
         controller?.abort();
         rideSearchControllers.delete(rideId);
     },
-
-    // async acceptRide(
-    //     rideId: string,
-    //     driverId: string,
-    // ) {
-    //     // 1) Atomically accept the ride
-    //     const now = new Date();
-
-    //     const [updateErr, acceptedRide] = await safeAsync(() =>
-    //         RideModel.findOneAndUpdate(
-    //             {
-    //                 _id: rideId,
-    //                 status: "offered",                     // must be in offered state
-    //                 offeredTo: driverId,                   // must be offered to THIS driver
-    //                 offerExpiresAt: { $gte: now },         // offer must NOT be expired
-    //             },
-    //             {
-    //                 $set: {
-    //                     status: "accepted",
-    //                     driverId,
-    //                     acceptedAt: now,
-    //                 },
-    //                 $unset: {
-    //                     offeredTo: "",                     // remove offer fields
-    //                     offerExpiresAt: "",
-    //                 },
-    //             },
-    //             { new: true }
-    //         )
-    //     );
-
-    //     if (updateErr) {
-    //         throw new Error(
-    //             `Database error while accepting ride ${rideId}: ${updateErr.message}`
-    //         );
-    //     }
-
-    //     if (!acceptedRide) {
-    //         // Ride was not in the correct state → reject
-    //         throw new Error(
-    //             `Ride cannot be accepted. It may have expired, been offered to another driver, or already accepted.`
-    //         );
-    //     }
-
-    //     // 🔥 STOP SEARCH IMMEDIATELY
-    //     const controller = rideSearchControllers.get(rideId);
-    //     controller?.abort();
-    //     rideSearchControllers.delete(rideId);
-
-    //     // 2) Update driver session + database
-    //     const [driverErr, updatedDriver] = await safeAsync(async () => {
-
-    //         driverStoreRedis.upsert(driverId, {
-    //             currentRideId: acceptedRide._id.toString(),
-    //         });
-
-    //         // Clear from being offer ride list
-    //         driverStoreRedis.clearOffer(driverId);
-
-    //         return DriverModel.findByIdAndUpdate(
-    //             driverId,
-    //             { currentRideId: acceptedRide._id.toString() },
-    //             { new: true }
-    //         );
-    //     });
-
-    //     // 4) Notify user (if online)
-    //     const driverSession = await driverStoreRedis.get(driverId);
-    //     emitToUser(acceptedRide.userPhoneNumber, "ride_assigned", {
-    //         rideId: acceptedRide._id.toString(),
-    //         driver: updatedDriver,
-    //         location: driverSession?.location,
-    //         message: "🚗 Your driver is on the way!",
-    //     });
-
-    //     // 2) Update passenger database
-    //     const [passengerErr, updatedpassenger] = await safeAsync(async () => {
-    //         return PassengerModel.findOneAndUpdate(
-    //             { chatId: acceptedRide.userChatId },
-    //             { currentRideId: acceptedRide._id.toString() },
-    //             { new: true }
-    //         );
-    //     });
-
-    //     if (passengerErr) {
-    //         throw new Error(
-    //             `Error updating passenger ${acceptedRide.userChatId} on ride accept: ${passengerErr.message}`
-    //         );
-    //     }
-
-    //     if (driverErr) {
-    //         throw new Error(
-    //             `Error updating driver ${driverId} on ride accept: ${driverErr.message}`
-    //         );
-    //     }
-
-    // },
 
     async completeRide(driverId: string, data: RideCompletedPayload) {
         const { rideId, distance, fare } = data;

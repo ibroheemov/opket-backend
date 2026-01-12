@@ -5,7 +5,8 @@ import { updateRideStatus, emitToUser, emitToDriver } from "./ride.socket";
 import { driverStore } from "../store/driverStore";
 import { DriverSocketConnectionPayload, RideCompletedPayload, RideProgressPayload, RideStartedPayload } from "../bot/socket/types";
 import { handleSocketError } from "../utils/socketError";
-import { RideService } from "../services/ride.service";
+// import { RideService } from "../services/ride.service";
+import { RideService } from "../services/ride.new.service";
 import { fareConfigs } from "../data/fare.database";
 import { PassengerModel } from "../models/PassengerModel";
 import { driverStoreRedis } from "../store/driverStoreRedis";
@@ -89,7 +90,10 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
         try {
             const res: { success: boolean } = await RideService.acceptRide(rideId, driverId);
-            if (!res.success) emitToDriver(driverId, "ride_already_taken", {});
+            if (!res.success) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                emitToDriver(driverId, "ride_already_taken", {})
+            };
         } catch (err) {
             handleSocketError(socket, (err as Error).message, err as Error);
         }
