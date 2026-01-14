@@ -166,41 +166,15 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: "Bu telefon raqamli haydovchi ro'yxatdan o'tgan" });
         }
 
-        // Build base driver fields
         const name = `${firstname} ${lastname}`;
         const vehicle = `${carModel || "Unknown"} - ${carNumber || "N/A"}`;
 
-        // Prepare placeholders for uploaded file URLs
-        let selfieUrl: string | undefined;
-        let licenseUrl: string | undefined;
-        let passportUrl: string | undefined;
-
-        // multer memory storage places files on req.files; when using fields() it is an object
         const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+        const licenseFile = files?.driverLicense?.[0];
 
-        // Helper to conditionally upload one file
-        const maybeUpload = async (fileArr?: Express.Multer.File[]) => {
-            if (!fileArr || fileArr.length === 0) return undefined;
-            const file = fileArr[0];
-            return await uploadBufferToCloudinary(file.buffer, "drivers");
-        };
-
-        // Upload files if present (do them sequentially or parallel; sequential is simpler to handle errors)
-        if (files?.selfie) {
-            const r = await maybeUpload(files.selfie);
-            selfieUrl = r?.url;
-        }
-
-        if (files?.driverLicense) {
-            const r = await maybeUpload(files.driverLicense);
-            licenseUrl = r?.url;
-        }
-
-        if (files?.passport) {
-            const r = await maybeUpload(files.passport);
-            passportUrl = r?.url;
-        }
-
+        /**
+         * 1️⃣ Create driver immediately
+         */
         const newDriver = new DriverModel({
             name,
             firstname,
@@ -212,26 +186,53 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
             carModel,
             carNumber,
             status: "offline",
-            // other schema fields are optional
-        });
 
-        // attach file URLs — if you want these typed, extend your Driver schema to include them
-        (newDriver as any).selfie = selfieUrl;
-        (newDriver as any).driver_license = licenseUrl;
-        (newDriver as any).passport = passportUrl;
+            // driver license state
+            driver_license_status: licenseFile ? "PENDING_UPLOAD" : "NOT_PROVIDED",
+        });
 
         await newDriver.save();
 
+        /**
+         * 2️⃣ Background upload (fire-and-forget)
+         */
+        if (licenseFile) {
+            void uploadBufferToCloudinary(licenseFile.buffer, "drivers")
+                .then(({ url, public_id }) =>
+                    DriverModel.findByIdAndUpdate(newDriver._id, {
+                        driver_license: {
+                            url,
+                            publicId: public_id,
+                            status: "UPLOADED",
+                        },
+                    })
+                )
+                .catch((err) => {
+                    console.error("Driver license upload failed:", err);
+
+                    return DriverModel.findByIdAndUpdate(newDriver._id, {
+                        "driver_license.status": "UPLOAD_FAILED",
+                    });
+                });
+        }
+
+        /**
+         * 3️⃣ Tokens & response
+         */
         const accessToken = generateAccessToken({ id: newDriver._id });
         const refreshToken = generateRefreshToken({ id: newDriver._id });
 
-        // Return created driver (or a DTO excluding secrets if needed)
         return res.status(200).json({
-            message: "Driver registered", driver: newDriver, accessToken,
+            message: "Driver registered",
+            driver: newDriver,
+            accessToken,
             refreshToken,
         });
     } catch (err: any) {
         console.error("register driver error:", err);
-        return res.status(500).json({ message: "Internal server error", error: err.message });
+        return res.status(500).json({
+            message: "Internal server error",
+            error: err.message,
+        });
     }
 };

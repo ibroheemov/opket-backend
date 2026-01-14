@@ -31,6 +31,7 @@
     "multer": "^2.0.2",
     "node-telegram-bot-api": "^0.66.0",
     "redis": "^5.10.0",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "streamifier": "^0.1.1",

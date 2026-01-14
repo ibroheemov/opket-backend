@@ -1,74 +1,126 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export type DriverStatus = "offline" | "available" | "on_trip";
+
+export type UploadStatus =
+    | "NOT_PROVIDED"
+    | "PENDING_UPLOAD"
+    | "UPLOADED"
+    | "UPLOAD_FAILED";
+
+export interface IUploadMeta {
+    url?: string;
+    publicId?: string;
+    status: UploadStatus;
+}
+
+
 export interface IDriverDocument extends Document {
-    _id: string,
+    _id: string;
+
     firstname: string;
     lastname: string;
-    name: string; // full name for display
+    name: string;
     phone: string;
+
     carModel?: string;
     carColor?: string;
     carNumber?: string;
     regionCode?: string;
-    vehicle: string; // derived string like "Toyota - ABC123"
-    status: "offline" | "available" | "on_trip";
-    location?: { lat: number; lon: number, bearing?: number };
+    vehicle: string;
+
+    status: DriverStatus;
+
+    location?: {
+        lat: number;
+        lon: number;
+        bearing?: number;
+    };
+
     otp?: string;
-    fcmToken?: string;
     otpExpiresAt?: Date;
+    fcmToken?: string;
     chatId?: number;
     currentRideId?: string;
-    selfie?: string;
-    driver_license?: string;
-    passport?: string;
+
+    // Uploads (refactored)
+    selfie?: IUploadMeta;
+    driver_license?: IUploadMeta;
+    passport?: IUploadMeta;
+
     balance: number;
     canReceiveOffers: boolean;
+
     events: {
         event: string;
         data: Record<string, any>;
     }[];
 }
 
+
+const UploadSchema = new Schema<IUploadMeta>(
+    {
+        url: { type: String },
+        publicId: { type: String },
+        status: {
+            type: String,
+            enum: ["NOT_PROVIDED", "PENDING_UPLOAD", "UPLOADED", "UPLOAD_FAILED"],
+            default: "NOT_PROVIDED",
+        },
+    },
+    { _id: false }
+);
+
 const DriverSchema = new Schema<IDriverDocument>(
     {
         firstname: { type: String, required: true },
         lastname: { type: String, required: true },
         name: { type: String, required: true },
-        phone: { type: String, required: true, unique: true },
+
+        phone: { type: String, required: true, unique: true, index: true },
+
         balance: { type: Number, default: 40_000 },
-        carModel: { type: String },
-        carNumber: { type: String },
-        regionCode: { type: String },
-        carColor: { type: String },
-        vehicle: { type: String },
+
+        carModel: String,
+        carNumber: String,
+        regionCode: String,
+        carColor: String,
+        vehicle: String,
+
         status: {
             type: String,
             enum: ["offline", "available", "on_trip"],
             default: "offline",
         },
+
         location: {
             lat: Number,
             lon: Number,
             bearing: Number,
         },
-        fcmToken: { type: String },
+
+        fcmToken: String,
         otp: String,
         otpExpiresAt: Date,
         chatId: Number,
-        currentRideId: { type: String },
-        selfie: { type: String },
-        driver_license: { type: String },
-        passport: { type: String },
-        canReceiveOffers: { type: Boolean },
+        currentRideId: String,
+
+        // Uploads
+        selfie: { type: UploadSchema, default: () => ({}) },
+        driver_license: { type: UploadSchema, default: () => ({}) },
+        passport: { type: UploadSchema, default: () => ({}) },
+
+        canReceiveOffers: { type: Boolean, default: true },
+
         events: {
             type: [
                 {
                     event: { type: String, required: true },
-                    data: { type: Schema.Types.Mixed, required: true }
-                }
+                    data: { type: Schema.Types.Mixed, required: true },
+                },
             ],
-            default: []
-        }
+            default: [],
+        },
     },
     { timestamps: true }
 );
