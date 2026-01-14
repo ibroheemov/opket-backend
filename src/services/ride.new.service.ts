@@ -6,7 +6,7 @@ import { RideModel } from "../models/Ride";
 import { redis } from "../redis/redisClient";
 import { DriverRepository } from "../repositories/driver.repository";
 import { RideRepository } from "../repositories/ride.repository";
-import { DriverSession } from "../store/driverStoreRedis";
+import { DriverSession, driverStoreRedis } from "../store/driverStoreRedis";
 import { calculateApproxTime } from "../utils/calculateApproxTime";
 import { handleRideCommission } from "../utils/fare.helper";
 import { sendFcm } from "../utils/sendFcm";
@@ -360,6 +360,7 @@ export const RideService = {
 
     async acceptRide(rideId: string, driverId: string) {
         const rideKey = `ride:${rideId}`;
+        const driverKey = `driver:${driverId}`;
         const acceptKey = `ride_accept:${rideId}`;
         const now = Date.now();
 
@@ -393,10 +394,44 @@ export const RideService = {
 
         // Notify passenger
         const rideData = await redis.hGetAll(rideKey);
+        const driverSession = await driverStoreRedis.get(driverId);
+        const userPhone = Number(rideData.userPhoneNumber);
+
         emitToUser(Number(rideData.userPhoneNumber), "ride_assigned", {
             rideId,
             driverId,
         });
+
+        // 4️⃣ Fire-and-forget: fetch driver info asynchronously
+        DriverModel.findById(driverId)
+            .then((driver) => {
+                emitToUser(userPhone, "ride_assigned", {
+                    rideId,
+                    driverId,
+                    driver,
+                    location: driverSession?.location,
+                    message: "🚗 Your driver is on the way!",
+                });
+
+                emitToUser(userPhone, "ride_accepted", {
+                    rideId,
+                    driverId,
+                    driver,
+                    location: driverSession?.location,
+                    message: "🚗 Your driver is on the way!",
+                });
+            })
+            .catch((err) => {
+                console.error("Failed to fetch driver for notification:", err);
+                // optionally still notify user without driver details
+                emitToUser(userPhone, "ride_assigned", {
+                    rideId,
+                    driverId,
+                    driver: null,
+                    location: rideData.driverLocation,
+                    message: "🚗 Your driver is on the way!",
+                });
+            });
 
         return {
             success: true,

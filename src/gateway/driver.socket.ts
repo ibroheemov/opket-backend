@@ -10,6 +10,7 @@ import { RideService } from "../services/ride.new.service";
 import { fareConfigs } from "../data/fare.database";
 import { PassengerModel } from "../models/PassengerModel";
 import { driverStoreRedis } from "../store/driverStoreRedis";
+import { redis } from "../redis/redisClient";
 
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
@@ -126,8 +127,31 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("driver_arrived", async ({ rideId }) => {
-        const ride = await updateRideStatus(rideId, "arrived");
-        if (ride) emitToUser(ride.userPhoneNumber, "driver_arrived", { status: "arrived", message: "🚖 Haydovchi yetib keldi!" });
+        const rideKey = `ride:${rideId}`;
+
+        // 1️⃣ Update Redis state (authoritative)
+        const updated = await redis.hSet(rideKey, {
+            phase: "arrived",
+            arrivedAt: Date.now().toString(),
+        });
+
+        if (!updated) return;
+
+        // 2️⃣ Read required fields from Redis
+        const { userPhoneNumber, userChatId } = await redis.hGetAll(rideKey);
+
+        // 3️⃣ Emit event
+        emitToUser(
+            Number(userPhoneNumber),
+            "driver_arrived",
+            {
+                status: "arrived",
+                message: "🚖 Haydovchi yetib keldi!",
+            }
+        );
+
+        // 4️⃣ Persist to Mongo asynchronously (history only)
+        // updateRideStatusInMongo(rideId, "arrived").catch(console.error);
     });
 
     socket.on("ride_started", async (data: RideStartedPayload) => {
