@@ -96,7 +96,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
                 emitToDriver(driverId, "accept_ride_status", { success: true })
             }
             if (!res.success) {
-                await new Promise(resolve => setTimeout(resolve, 200));
+                // await new Promise(resolve => setTimeout(resolve, 200));
                 emitToDriver(driverId, "accept_ride_status", { success: false })
             };
         } catch (err) {
