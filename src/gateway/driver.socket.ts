@@ -67,9 +67,10 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
         const driverSession = await driverStoreRedis.get(driverId);
         if (driverSession?.currentRideId) {
-            const ride = await RideModel.findById(driverSession?.currentRideId);
-            if (ride && ride.userPhoneNumber && ride.status == "accepted") {
-                emitToUser(ride.userPhoneNumber, "driver_location_update", {
+            const rideKey = `ride:${driverSession?.currentRideId}`;
+            const rideData = await redis.hGetAll(rideKey);
+            if (rideData && rideData.userPhoneNumber && rideData.status == "accepted") {
+                emitToUser(Number(rideData.userPhoneNumber), "driver_location_update", {
                     driverId,
                     location: { lat, lon, bearing },
                     timestamp: Date.now(),
@@ -91,9 +92,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
         try {
             const res: { success: boolean } = await RideService.acceptRide(rideId, driverId);
+            if (res.success) {
+                emitToDriver(driverId, "accept_ride_status", { success: true })
+            }
             if (!res.success) {
                 await new Promise(resolve => setTimeout(resolve, 200));
-                emitToDriver(driverId, "ride_already_taken", {})
+                emitToDriver(driverId, "accept_ride_status", { success: false })
             };
         } catch (err) {
             handleSocketError(socket, (err as Error).message, err as Error);
@@ -141,14 +145,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         const { userPhoneNumber, userChatId } = await redis.hGetAll(rideKey);
 
         // 3️⃣ Emit event
-        emitToUser(
-            Number(userPhoneNumber),
-            "driver_arrived",
-            {
-                status: "arrived",
-                message: "🚖 Haydovchi yetib keldi!",
-            }
-        );
+        emitToUser(Number(userPhoneNumber), "driver_arrived", {});
 
         // 4️⃣ Persist to Mongo asynchronously (history only)
         // updateRideStatusInMongo(rideId, "arrived").catch(console.error);

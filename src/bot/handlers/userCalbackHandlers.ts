@@ -18,7 +18,7 @@ export function setupUserCallbackHandlers(bot: TelegramBot) {
 
         if (action.startsWith("cancel_ride")) {
             if (session?.rideId) {
-                await axios.post(`${config.backendUrl}/user/cancel-ride`, { rideId: session?.rideId });
+                axios.post(`${config.backendUrl}/user/cancel-ride`, { rideId: session?.rideId });
             }
             await flushDeletionQueue(chatId);
         } else if (action.startsWith("add_luggage_no")) {

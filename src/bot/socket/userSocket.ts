@@ -24,6 +24,8 @@ import { config } from "../config/env";
 import { userBot } from "../PassengerBot";
 import { handleRideClosed } from "./handlers/rideClosed";
 import { handleBalanceDeduction } from "./handlers/handleBalanceDeduction";
+import { handleRideCancelledByDriver } from "./handlers/driverCancelledRide";
+import { handleDriverArrived } from "./handlers/driverArrived";
 
 export function initUserSocket(chatId: any, phone: number): Socket {
     console.log("chatId", chatId);
@@ -50,13 +52,25 @@ export function initUserSocket(chatId: any, phone: number): Socket {
     }
     );
 
+
+    socket.on("ride_cancelled_by_driver", () => {
+        handleRideCancelledByDriver(userBot, chatId)
+    }
+    );
+
     socket.on("driver_location_update", (data: DriverLocationUpdatePayload) => {
+        console.log("Location update received");
         handleDriverLocationUpdate(userBot, chatId, data)
     }
     );
 
     socket.on("ride_status_update", (data: RideStatusPayload) => {
         handleRideStatusUpdate(userBot, chatId, data)
+    }
+    );
+
+    socket.on("driver_arrived", (data: RideStatusPayload) => {
+        handleDriverArrived(userBot, chatId)
     }
     );
 

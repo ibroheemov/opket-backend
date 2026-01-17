@@ -7,16 +7,10 @@ export async function handleRideNoDrivers(bot: TelegramBot, chatId: number) {
 
     const sent = await bot.sendMessage(
         chatId,
-        "❌ Haydovchi topilmadi, yana urinib ko'ring",
-        {
-            reply_markup: {
-                keyboard: [[{ text: "🚖 Taksi chaqirish", request_location: true }]],
-                resize_keyboard: true,
-            },
-        }
+        "❌ Haydovchi topilmadi, yana urinib ko'ring"
     );
     delete session.rideId;
-    if (session?.currentMsgId) await deleteMessageSafely(chatId, session?.currentMsgId)
+    // if (session?.currentMsgId) await deleteMessageSafely(chatId, session?.currentMsgId)
     await flushDeletionQueue(chatId);
-    queueMessageForDeletion(chatId, sent.message_id);
+    // queueMessageForDeletion(chatId, sent.message_id);
 }

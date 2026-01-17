@@ -1,11 +1,12 @@
-export const location_request_message = "🚕 Taksi chaqirish tugmasini bosing";
-// export const location_request_message = "🚕 Taksi chaqirish tugmasini bosing yoki lokatsiya yuboring";
-export const call_taxi_msg = "🚕 Taksi chaqirish";
+// export const location_request_message = "🚕 TAXI - Oddiy taxi, ⭐️ PRO - Premium taxi";
+export const location_request_message = "🚕 TAXI ni bosing yoki lokatsiya yuboring";
+export const call_taxi_msg = "🚕 TAXI";
 export const searching_driver_message = "☎️ Telefon raqam qoldiring, haydovchi bog'lanadi";
 export const no_driver_message = "❌ Haydovchi topilmadi, birozdan so'ng urinib ko‘ring.";
 export const cancel_ride_message = "❌ Buyurtmani bekor qilish";
 export const rideErrorMessage = "❌ Buyurtma berishda xatolik yuz berdi";
 export const ride_requested_msg = "✅ Haydovchi siz bilan bog'lanadi";
 export const payment_success_msg = "✅ Haydovchiga pul o'tkazildi";
+export const driver_arrived_msg = "✅ Haydovchi yetib keldi";
 export const contact_request_message = "☎️ Iltimos, telefon raqamingizni ulashing";
 export const contact_found_message = "🧑‍✈️ Haydovchi ushbu raqamga bog'lanadi: ";

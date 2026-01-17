@@ -10,6 +10,7 @@ import { ride_requested_msg } from "../ui/messages";
 import { sendRideRequestSuccessMsg } from "../ui/prompts/rideRequestSuccess";
 import { getSessionRedis } from "../../store/passengerStoreRedis";
 import { initUserSocket } from "../socket/userSocket";
+import { deleteMessageLater } from "../utils/deleteMessageLater";
 
 export const handleLocation = async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id;
@@ -22,7 +23,7 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
         const sent = await userBot.sendMessage(chatId, cooldownCheck.message!);
         await flushDeletionQueue(chatId);
         await deleteMessageSafely(chatId, msg.message_id);
-        queueMessageForDeletion(chatId, sent.message_id);
+        deleteMessageLater(chatId, sent.message_id, 5000);
         return;
     }
 

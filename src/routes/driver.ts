@@ -12,6 +12,7 @@ import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchWorkingAreas } from "../controllers/fare.controller";
 import { acceptRide, completeRide, declineRide } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
+import { cancelRideDriver } from "../controllers/userController";
 
 const router = express.Router();
 
@@ -43,6 +44,7 @@ router.post(
 );
 router.post("/accept-ride/:id", authenticateDriver, acceptRide);
 router.post("/complete-ride", authenticateDriver, completeRide);
+router.post("/cancel-ride", authenticateDriver, cancelRideDriver);
 
 
 export default router;

@@ -108,6 +108,73 @@ export const cancelRide = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "rideId required" });
         }
 
+        RideService.notifyOtherDriversRideCancelled(rideId);
+
+        const rideKey = `ride:${rideId}`;
+        const acceptKey = `ride_accept:${rideId}`;
+        const cancelKey = `ride_cancel:${rideId}`;
+
+        // 1️⃣ Fetch ride from Redis first (authoritative state)
+        const rideData = await redis.hGetAll(rideKey);
+        if (!rideData || Object.keys(rideData).length === 0) {
+            return res.status(404).json({ error: `Ride ${rideId} not found` });
+        }
+
+        const driverId = rideData.driverId;
+
+        console.log(`${driverId}-bg`);
+
+        // 2️⃣ Mark ride as cancelled in Redis
+        await redis.hSet(rideKey, { status: "cancelled", phase: "cancelled" });
+        await redis.set(cancelKey, "1", { EX: 60 }); // short TTL to signal cancellation
+        await redis.del(acceptKey); // remove acceptance key
+
+        // 3️⃣ Stop ongoing search if any
+        if (RideService.stopSearching) {
+            RideService.stopSearching(rideId);
+        }
+
+
+        // 4️⃣ Clear driver state (make driver available for new offers)
+        if (driverId) {
+            console.log(`${driverId}-bg`);
+
+            const driverKey = `driver:${driverId}`;
+            await redis.hSet(driverKey, { currentRideId: "" });
+            // Optional: also clear driver_offer key in case it exists
+            await redis.del(`driver_offer:${driverId}`);
+
+        }
+
+        // 5️⃣ Update ride status in MongoDB for history
+        RideModel.findOneAndUpdate(
+            { _id: rideId },
+            { status: "cancelled", endedAt: new Date() }
+        );
+
+        // 6️⃣ Notify passenger if online
+        const userPhone = rideData.userPhoneNumber;
+        if (userPhone) {
+            emitToUser(Number(userPhone), "ride_cancelled", { rideId });
+        }
+
+        return res.json({ rideId, message: "Buyurtma bekor qilindi" });
+
+    } catch (err: unknown) {
+        if (err instanceof Error) {
+            return res.status(500).json({ error: "Internal server error", details: err.message });
+        }
+        return res.status(500).json({ error: "Internal server error" });
+    }
+};
+
+export const cancelRideDriver = async (req: Request, res: Response) => {
+    try {
+        const { rideId } = req.body;
+        if (!rideId) {
+            return res.status(400).json({ error: "rideId required" });
+        }
+
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
@@ -130,17 +197,20 @@ export const cancelRide = async (req: Request, res: Response) => {
             RideService.stopSearching(rideId);
         }
 
+
         // 4️⃣ Clear driver state (make driver available for new offers)
         if (driverId) {
+            console.log(`${driverId}-bg`);
+
             const driverKey = `driver:${driverId}`;
             await redis.hSet(driverKey, { currentRideId: "" });
             // Optional: also clear driver_offer key in case it exists
             await redis.del(`driver_offer:${driverId}`);
-            emitToDriver(driverId, "ride_cancelled", { rideId });
+
         }
 
         // 5️⃣ Update ride status in MongoDB for history
-        await RideModel.findOneAndUpdate(
+        RideModel.findOneAndUpdate(
             { _id: rideId },
             { status: "cancelled", endedAt: new Date() }
         );
@@ -148,7 +218,7 @@ export const cancelRide = async (req: Request, res: Response) => {
         // 6️⃣ Notify passenger if online
         const userPhone = rideData.userPhoneNumber;
         if (userPhone) {
-            emitToUser(Number(userPhone), "ride_cancelled", { rideId });
+            emitToUser(Number(userPhone), "ride_cancelled_by_driver", { rideId });
         }
 
         return res.json({ rideId, message: "Buyurtma bekor qilindi" });
@@ -169,10 +239,12 @@ export const confirmLuggage = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "rideId required" });
         }
 
-        const ride = await RideModel.findOneAndUpdate({ _id: rideId }, { luggage: true });
+        const rideKey = `ride:${rideId}`;
+        const rideData = await redis.hGetAll(rideKey);
 
-        if (ride && ride.driverId) {
-            emitToDriver(ride.driverId, "luggage_confirmed", {});
+
+        if (rideData.driverId) {
+            emitToDriver(rideData.driverId, "luggage_confirmed", {});
         }
 
         return res.json({ rideId, message: "Klient bagajni tasdiqladi!" });
