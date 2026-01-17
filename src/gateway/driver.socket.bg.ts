@@ -16,8 +16,6 @@ export const registerDriverBGHandler = async ({ socket, driverId }: {
         return; // stop socket setup
     }
 
-    console.log("🟡♻️ DRIVER BG connected");
-
     driverSockets.set(`${driverId}-bg`, socket.id);
 
     socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
