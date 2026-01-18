@@ -405,10 +405,17 @@ export const RideService = {
         }
 
         // ✅ THIS DRIVER WON
+        // 1️⃣ Set driverId on the ride hash and update driver currentRideId
         await Promise.all([
+            redis.hSet(rideKey, { driverId, status: "accepted", phase: "accepted" }),
             redis.hSet(`driver:${driverId}`, { currentRideId: rideId }),
             redis.expire(acceptKey, 600), // safety TTL
         ]);
+
+        // await Promise.all([
+        //     redis.hSet(`driver:${driverId}`, { currentRideId: rideId }),
+        //     redis.expire(acceptKey, 600), // safety TTL
+        // ]);
 
         // 🔥 STOP SEARCH IMMEDIATELY
         this.stopSearching(rideId);
@@ -484,6 +491,9 @@ export const RideService = {
         const acceptKey = `ride_accept:${rideId}`;
         const driverKey = `driver:${driverId}`;
 
+        // 3️⃣ Clear driver's current ride in Redis
+        await redis.hSet(driverKey, { currentRideId: "" });
+
         // 1️⃣ Verify ride exists and driver actually accepted it
         const rideData = await redis.hGetAll(rideKey);
         if (!rideData || !rideData.driverId || rideData.driverId !== driverId) {
@@ -503,8 +513,7 @@ export const RideService = {
         // Optional: expire ride accept key after completion
         await redis.del(acceptKey);
 
-        // 3️⃣ Clear driver's current ride in Redis
-        await redis.hSet(driverKey, { currentRideId: "" });
+
 
         // 4️⃣ Update ride in MongoDB
         await RideModel.findOneAndUpdate(

@@ -16,6 +16,9 @@ export const requestRide = async (req: Request, res: Response) => {
     try {
         const { phone, chatId, location, dropoff, address, type } = req.body;
 
+        console.log(location);
+
+
         if (
             !location ||
             typeof location.lat !== "number" ||
