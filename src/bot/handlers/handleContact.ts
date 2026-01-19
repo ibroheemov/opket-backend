@@ -34,7 +34,7 @@ export const handleContact = async (msg: Message) => {
     }
 };
 
-const createPassenger = async (chatId: number, phone: number) => {
+export const createPassenger = async (chatId: number, phone: number) => {
     const session = getSession(chatId);
     try {
         axios.post(
