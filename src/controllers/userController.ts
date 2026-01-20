@@ -108,7 +108,7 @@ export const cancelRide = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "rideId required" });
         }
 
-        RideService.notifyOtherDriversRideCancelled(rideId);
+        // RideService.notifyOtherDriversRideCancelled(rideId);
 
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
@@ -138,7 +138,7 @@ export const cancelRide = async (req: Request, res: Response) => {
         // 4️⃣ Clear driver state (make driver available for new offers)
         if (driverId) {
             console.log(`${driverId}-bg`);
-
+            emitToDriver(`${driverId}-bg`, "ride_already_taken", { rideId })
             const driverKey = `driver:${driverId}`;
             await redis.hSet(driverKey, { currentRideId: "" });
             // Optional: also clear driver_offer key in case it exists

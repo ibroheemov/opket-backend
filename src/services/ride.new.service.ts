@@ -11,89 +11,99 @@ import { calculateApproxTime } from "../utils/calculateApproxTime";
 import { handleRideCommission } from "../utils/fare.helper";
 import { sendFcm } from "../utils/sendFcm";
 
+
+type DriverCandidate = {
+    driver: {
+        driverId: string;
+    };
+    distKm: number;
+};
+
+
 const ACCEPT_RIDE_LUA = `
 -- =========================
 -- KEYS
 -- 1 = ride:{rideId}
 -- 2 = ride_accept:{rideId}
--- =========================
-
+-- 3 = ride_reservation:{rideId}:{driverId}
 -- =========================
 -- ARGV
 -- 1 = driverId
--- 2 = timestamp (ms)
+-- 2 = now (ms)
 -- =========================
 
-local rideKey   = KEYS[1]
-local acceptKey = KEYS[2]
-
-local driverId  = ARGV[1]
-local now       = ARGV[2]
-
--- 🚫 Ride does not exist
-if redis.call("EXISTS", rideKey) == 0 then
+-- Ride missing
+if redis.call("EXISTS", KEYS[1]) == 0 then
   return {0, "RIDE_NOT_FOUND"}
 end
 
--- 🚫 Ride already accepted
-if redis.call("EXISTS", acceptKey) == 1 then
-  return {0, redis.call("GET", acceptKey)}
+-- Already accepted
+if redis.call("EXISTS", KEYS[2]) == 1 then
+  return {0, redis.call("GET", KEYS[2])}
 end
 
--- 🚫 Ride already cancelled
-local status = redis.call("HGET", rideKey, "status")
-if status == "cancelled" then
-  return {0, "RIDE_CANCELLED"}
+-- Reservation invalid
+if redis.call("EXISTS", KEYS[3]) == 0 then
+  return {0, "NOT_RESERVED_FOR_YOU"}
 end
 
--- 🚫 Ride already expired
-local expiresAt = redis.call("HGET", rideKey, "expiresAt")
-if expiresAt and tonumber(expiresAt) < tonumber(now) then
+-- Ride cancelled or expired
+local phase = redis.call("HGET", KEYS[1], "phase")
+if phase == "cancelled" or phase == "expired" then
+  return {0, "RIDE_NOT_ACTIVE"}
+end
+
+local expiresAt = redis.call("HGET", KEYS[1], "expiresAt")
+if expiresAt and tonumber(expiresAt) < tonumber(ARGV[2]) then
   return {0, "RIDE_EXPIRED"}
 end
 
--- ✅ Mark ride as accepted (ATOMIC)
-redis.call("SET", acceptKey, driverId)
-redis.call("HSET", rideKey,
+-- Accept ride
+redis.call("SET", KEYS[2], ARGV[1], "PX", 600000)
+
+redis.call("HSET", KEYS[1],
   "status", "accepted",
-  "driverId", driverId,
-  "acceptedAt", now
+  "driverId", ARGV[1],
+  "acceptedAt", ARGV[2]
 )
 
-return {1, driverId}
+return {1, ARGV[1]}
 `;
 
-
-const OFFER_RIDE_LUA = `
+const RESERVE_RIDE_LUA = `
+-- version: 2
+-- =========================
 -- KEYS
--- 1 = ride_accept:{rideId}
+-- 1 = ride_reservation:{rideId}:{driverId}
 -- 2 = driver_offer:{driverId}
-
+-- =========================
 -- ARGV
--- 1 = rideId
--- 2 = ttlMs
+-- 1 = driverId
+-- 2 = rideId
+-- 3 = ttlMs
+-- =========================
 
-if redis.call("EXISTS", KEYS[1]) == 1 then
+-- Driver busy
+if redis.call("EXISTS", KEYS[2]) == 1 then
   return 0
 end
 
-local ok = redis.call("SET", KEYS[2], ARGV[1], "NX", "PX", ARGV[2])
-if not ok then
-  return 0
-end
+-- Reserve the ride for this driver
+redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[3])
+
+-- Set driver_offer key
+redis.call("SET", KEYS[2], ARGV[2], "PX", ARGV[3])
 
 return 1
-`;
-
+`
 
 const rideSearchControllers = new Map<string, AbortController>();
 
 const SEARCH_INTERVAL_MS = 5000;      // expand every 5s
-const OFFER_TTL_MS = 7000;            // driver has 7s to accept
+const OFFER_TTL_MS = 10000;            // driver has 7s to accept
 const MAX_SEARCH_TIME_MS = 60000;     // total 1 minute
 const INITIAL_RADIUS_KM = 1.0;
 const RADIUS_STEP_KM = 0.5;
-const MAX_DRIVERS_PER_BATCH = 5;
 
 export interface RideRequestInput {
     phone?: number;
@@ -185,16 +195,15 @@ export const RideService = {
         signal?: AbortSignal
     ) {
         const rideKey = `ride:${rideId}`;
-        const rideOffersKey = `ride_offers:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
-
+        const lastDriverKey = `ride_last_driver:${rideId}`;
         const startTime = Date.now();
+
         let radiusKm = INITIAL_RADIUS_KM;
 
-        console.log(`🚀 Starting optimized search for ride ${rideId}`);
+        console.log(`🚀 Starting round-robin driver search for ride ${rideId}`);
 
-        // AbortController from central subscriber signals search stop
         const sleepAbortable = (ms: number) =>
             new Promise<void>((resolve, reject) => {
                 if (signal?.aborted) return reject(new Error("Aborted"));
@@ -206,160 +215,155 @@ export const RideService = {
                 signal?.addEventListener("abort", onAbort, { once: true });
             });
 
-        try {
-            while (Date.now() - startTime < MAX_SEARCH_TIME_MS) {
-                if (signal?.aborted) throw new Error("Aborted");
+        while (Date.now() - startTime < MAX_SEARCH_TIME_MS) {
+            if (signal?.aborted) return;
 
-                // Keep search lock alive
-                await redis.expire(`ride_search_lock:${rideId}`, 60);
+            await redis.expire(`ride_search_lock:${rideId}`, 60);
 
-                // Check if ride canceled
-                if (await redis.exists(cancelKey)) {
-                    console.log(`🛑 Ride ${rideId} canceled, stopping search`);
-                    return;
-                }
-
-                // Find drivers within current radius
-                const drivers = await DriverRepository.findAvailableDrivers(
-                    pickup.lat,
-                    pickup.lon,
-                    radiusKm
-                );
-
-                if (!drivers.length) {
-                    console.log(`⏭ No drivers in ${radiusKm}km, expanding radius`);
-                    radiusKm += RADIUS_STEP_KM;
-                    await sleepAbortable(SEARCH_INTERVAL_MS);
-                    continue;
-                }
-
-                // Batch fetch already offered drivers to reduce Redis round-trips
-                const offeredDriversSet = new Set(await redis.sMembers(rideOffersKey));
-
-                // Filter out drivers already offered
-                const idleDrivers = drivers
-                    .filter(d => !offeredDriversSet.has(d.driver.driverId))
-                    .slice(0, MAX_DRIVERS_PER_BATCH);
-
-                if (!idleDrivers.length) {
-                    radiusKm += RADIUS_STEP_KM;
-                    await sleepAbortable(SEARCH_INTERVAL_MS);
-                    continue;
-                }
-
-                // Send offers concurrently
-                await this.sendOffersBatch(rideId, idleDrivers, OFFER_TTL_MS);
-
-                // Mark drivers as offered in Redis
-                const driverIds = idleDrivers.map(c => c.driver.driverId);
-                if (driverIds.length > 0) {
-                    await redis.sAdd(rideOffersKey, driverIds);
-                }
-
-                radiusKm += RADIUS_STEP_KM;
-                // await sleepAbortable(SEARCH_INTERVAL_MS);
+            if (await redis.exists(cancelKey)) {
+                console.log(`🛑 Ride ${rideId} cancelled`);
+                return;
             }
 
-            // Max search time reached, no drivers found
-            console.log(`⏳ No drivers found for ride ${rideId}`);
-            await redis.hSet(rideKey, { phase: "expired" });
-            await redis.set(cancelKey, "1", { EX: 60 });
+            const drivers = await DriverRepository.findAvailableDrivers(
+                pickup.lat,
+                pickup.lon,
+                radiusKm
+            );
+
+            if (!drivers.length) {
+                await sleepAbortable(SEARCH_INTERVAL_MS);
+                continue;
+            }
+
+            const lastDriverId = await redis.get(lastDriverKey);
+            const candidate = this.nextDriver(drivers, lastDriverId);
+
+            if (!candidate) {
+                await sleepAbortable(SEARCH_INTERVAL_MS);
+                continue;
+            }
+
+            const driverId = candidate.driver.driverId;
+            const reservationKey = `ride_reservation:${rideId}:${driverId}`;
+            const driverOfferKey = `driver_offer:${driverId}`;
+
+            const reserved = await redis.eval(RESERVE_RIDE_LUA, {
+                keys: [reservationKey, driverOfferKey],
+                arguments: [driverId, rideId, OFFER_TTL_MS.toString()],
+            });
+
+            if (reserved !== 1) {
+                // mark and rotate anyway
+                await redis.set(lastDriverKey, driverId);
+                continue;
+            }
+
+            console.log(`🔐 Offered ride ${rideId} to driver ${driverId}`);
 
             const rideData = await redis.hGetAll(rideKey);
-            if (rideData.userPhoneNumber) {
-                emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
-            }
-
-        } catch (err) {
-            if ((err as Error).message === "Aborted") {
-                console.log(`🛑 Search for ride ${rideId} aborted`);
-            } else {
-                console.error(`❌ Search failed for ride ${rideId}:`, err);
-                throw err;
-            }
-        } finally {
-            // Cleanup
-            rideSearchControllers.delete(rideId);
-        }
-    },
-
-
-    /**
-   * Send ride offers to multiple drivers concurrently and efficiently
-   */
-    async sendOffersBatch(
-        rideId: string,
-        candidates: { driver: DriverSession; distKm: number }[],
-        ttlMs: number
-    ) {
-        if (!candidates.length) return;
-
-        const rideKey = `ride:${rideId}`;
-
-        // Fetch ride data once
-        const rideData = await redis.hGetAll(rideKey);
-        if (!rideData || !rideData.pickupLat) return;
-
-        // Prepare promises for all candidate drivers
-        const offerPromises = candidates.map(async (candidate) => {
-            const driverId = candidate.driver.driverId;
-
-            // 1️⃣ Attempt atomic offer claim via Lua
-            const claimed = await redis.eval(OFFER_RIDE_LUA, {
-                keys: [`ride_accept:${rideId}`, `driver_offer:${driverId}`],
-                arguments: [rideId, ttlMs.toString()],
-            });
-
-            if (claimed !== 1) return null; // someone else accepted or driver busy
-
-            // 2️⃣ Mark driver as offered in Redis (state + rideId)
-            const hSetPromise = redis.hSet(`driver:${driverId}`, {
-                state: "offered",
+            const payload = RideService.buildDriverOfferPayload(
                 rideId,
-            });
+                rideData,
+                candidate
+            );
 
-            // 3️⃣ Prepare offer payload
-            const payload = RideService.buildDriverOfferPayload(rideId, rideData, candidate);
+            await emitToDriver(driverId, "ride_offer", payload);
+            await emitToDriver(`${driverId}-bg`, "ride_offer", payload);
 
-            // 4️⃣ Emit offer concurrently (driver + background)
-            const emitPromise = Promise.all([
-                emitToDriver(`${driverId}-bg`, "ride_offer", payload),
-                emitToDriver(driverId, "ride_offer", payload),
-            ]);
+            const acceptedDriverId =
+                await this.waitForAcceptanceWithFallback(
+                    rideId,
+                    driverId,
+                    OFFER_TTL_MS
+                );
 
-            await Promise.all([hSetPromise, emitPromise]);
-            return driverId;
-        });
+            if (acceptedDriverId) {
+                console.log(`✅ Ride ${rideId} accepted by driver ${acceptedDriverId}`);
+                return;
+            }
 
-        // Wait for all offers to complete
-        const results = await Promise.allSettled(offerPromises);
+            // timeout → rotate
+            if (!(await redis.get(acceptKey))) {
+                await Promise.all([
+                    redis.del(reservationKey),
+                    redis.del(driverOfferKey),
+                    redis.set(lastDriverKey, driverId),
+                    emitToDriver(driverId, "ride_already_taken", { rideId }),
+                    emitToDriver(`${driverId}-bg`, "ride_already_taken", { rideId }),
+                ]);
 
-        // Filter out drivers who actually received the offer
-        const successfulDrivers = results
-            .filter(r => r.status === "fulfilled" && r.value)
-            .map(r => (r as PromiseFulfilledResult<string>).value);
+                console.log(`⏳ Driver ${driverId} timed out`);
+            }
 
-        // 5️⃣ Mark successfully offered drivers in ride_offers set in batch
-        if (successfulDrivers.length) {
-            await redis.sAdd(`ride_offers:${rideId}`, successfulDrivers);
+            await sleepAbortable(SEARCH_INTERVAL_MS);
         }
 
-        if (successfulDrivers.length) {
-            console.log(`📩 Offers sent to drivers: ${successfulDrivers.join(", ")}`);
+        console.log(`⏳ Ride ${rideId} expired — no drivers`);
+        await redis.hSet(rideKey, { phase: "expired" });
+        await redis.set(cancelKey, "1", { EX: 60 });
+
+        const rideData = await redis.hGetAll(rideKey);
+        if (rideData.userPhoneNumber) {
+            emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
         }
+    }
+    ,
+
+    nextDriver(
+        drivers: DriverCandidate[],
+        lastDriverId: string | null
+    ): DriverCandidate | null {
+        if (!drivers.length) return null;
+
+        if (!lastDriverId) return drivers[0];
+
+        const idx = drivers.findIndex(
+            d => d.driver.driverId === lastDriverId
+        );
+
+        // if last driver not found (e.g. driver list changed)
+        if (idx === -1) return drivers[0];
+
+        return drivers[(idx + 1) % drivers.length];
     },
 
 
-    async waitForAcceptance(
-        acceptKey: string,
+    async waitForAcceptanceWithFallback(
+        rideId: string,
+        driverId: string,
         timeoutMs: number
-    ): Promise<boolean> {
-        const start = Date.now();
-        while (Date.now() - start < timeoutMs) {
-            if (await redis.exists(acceptKey)) return true;
-            await sleep(200);
-        }
-        return false;
+    ): Promise<string | null> {
+        const acceptKey = `ride_accept:${rideId}`;
+
+        // 1️⃣ Fast check: maybe driver already accepted
+        const acceptedDriverId = await redis.get(acceptKey);
+        if (acceptedDriverId) return acceptedDriverId;
+
+        // 2️⃣ Subscribe to acceptance event
+        return new Promise(async (resolve, reject) => {
+            const subscriber = redis.duplicate();
+            await subscriber.connect();
+
+            const timeout = setTimeout(async () => {
+                await subscriber.disconnect();
+                resolve(null);
+            }, timeoutMs);
+
+            await subscriber.subscribe("ride.accepted", async (message) => {
+                try {
+                    const data = JSON.parse(message);
+                    if (data.rideId === rideId) {
+                        clearTimeout(timeout);
+                        await subscriber.unsubscribe("ride.accepted");
+                        await subscriber.disconnect();
+                        resolve(data.driverId);
+                    }
+                } catch (err) {
+                    console.error("Failed parsing ride.accepted message", err);
+                }
+            });
+        });
     },
 
     buildDriverOfferPayload(
@@ -387,62 +391,80 @@ export const RideService = {
     async acceptRide(rideId: string, driverId: string) {
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
+        const reservationKey = `ride_reservation:${rideId}:${driverId}`;
+        const driverOfferKey = `driver_offer:${driverId}`;
         const now = Date.now();
 
+        /**
+         * 1️⃣ Atomic acceptance with reservation validation
+         */
         const result = await redis.eval(ACCEPT_RIDE_LUA, {
-            keys: [rideKey, acceptKey],
+            keys: [rideKey, acceptKey, reservationKey],
             arguments: [driverId, now.toString()],
         });
 
-        const [accepted, winnerDriverId] = result as [number, string];
+        const [accepted, reasonOrWinner] = result as [number, string];
 
         if (accepted === 0) {
-            // Someone else already accepted
             return {
                 success: false,
-                winnerDriverId,
+                reason: reasonOrWinner, // NOT_RESERVED_FOR_YOU | RIDE_CANCELLED | etc.
             };
         }
 
-        // ✅ THIS DRIVER WON
-        // 1️⃣ Set driverId on the ride hash and update driver currentRideId
+        /**
+         * 2️⃣ Stop search immediately
+         */
+        this.stopSearching(rideId);
+
+        /**
+         * 3️⃣ Clean up reservation & offer state
+         */
         await Promise.all([
-            redis.hSet(rideKey, { driverId, status: "accepted", phase: "accepted" }),
-            redis.hSet(`driver:${driverId}`, { currentRideId: rideId }),
+            redis.del(reservationKey),
+            redis.del(driverOfferKey),
+        ]);
+
+        /**
+         * 4️⃣ Update Redis state (Lua already set driverId + status)
+         */
+        await Promise.all([
+            redis.hSet(rideKey, {
+                phase: "accepted",
+                acceptedAt: now.toString(),
+            }),
+            redis.hSet(`driver:${driverId}`, {
+                currentRideId: rideId,
+                state: "busy",
+            }),
             redis.expire(acceptKey, 600), // safety TTL
         ]);
 
-        // await Promise.all([
-        //     redis.hSet(`driver:${driverId}`, { currentRideId: rideId }),
-        //     redis.expire(acceptKey, 600), // safety TTL
-        // ]);
-
-        // 🔥 STOP SEARCH IMMEDIATELY
-        this.stopSearching(rideId);
+        /**
+         * 5️⃣ Publish acceptance event
+         */
         await redis.publish(
             "ride.accepted",
             JSON.stringify({ rideId, driverId })
         );
 
-        // 🔔 Notify other drivers (fire-and-forget is OK)
-        this.notifyOtherDriversRideTaken(rideId, driverId)
-            .catch(err =>
-                console.error("Failed to notify other drivers:", err)
-            );
-
-        // Notify passenger
+        /**
+         * 6️⃣ Notify passenger immediately
+         */
         const rideData = await redis.hGetAll(rideKey);
         const driverSession = await driverStoreRedis.get(driverId);
         const userPhone = Number(rideData.userPhoneNumber);
 
-        emitToUser(Number(rideData.userPhoneNumber), "ride_assigned", {
+        emitToUser(userPhone, "ride_assigned", {
             rideId,
             driverId,
         });
 
-        // 4️⃣ Fire-and-forget: fetch driver info asynchronously
+        /**
+         * 7️⃣ Fetch driver info asynchronously (non-blocking UX)
+         */
         DriverModel.findById(driverId)
-            .then((driver) => {
+            .then(driver => {
                 emitToUser(userPhone, "ride_assigned", {
                     rideId,
                     driverId,
@@ -459,16 +481,8 @@ export const RideService = {
                     message: "🚗 Your driver is on the way!",
                 });
             })
-            .catch((err) => {
-                console.error("Failed to fetch driver for notification:", err);
-                // optionally still notify user without driver details
-                emitToUser(userPhone, "ride_assigned", {
-                    rideId,
-                    driverId,
-                    driver: null,
-                    location: rideData.driverLocation,
-                    message: "🚗 Your driver is on the way!",
-                });
+            .catch(err => {
+                console.error("Failed to fetch driver info:", err);
             });
 
         return {
@@ -563,65 +577,4 @@ export const RideService = {
             balance,
         };
     },
-
-    async notifyOtherDriversRideTaken(rideId: string, winnerDriverId: string) {
-        const rideOffersKey = `ride_offers:${rideId}`;
-
-        const offeredDriverIds = await redis.sMembers(rideOffersKey);
-        if (!offeredDriverIds.length) return;
-
-        const losers = offeredDriverIds.filter(id => id !== winnerDriverId);
-
-        if (!losers.length) return;
-
-        await Promise.all(
-            losers.map(driverId =>
-                Promise.all([
-                    emitToDriver(driverId, "ride_already_taken", { rideId }),
-                    emitToDriver(`${driverId}-bg`, "ride_already_taken", { rideId }),
-
-                    // Optional: clear offered state
-                    redis.hSet(`driver:${driverId}`, {
-                        state: "idle",
-                        rideId: "",
-                    }),
-                ])
-            )
-        );
-
-        console.log(
-            `🚫 ride_already_taken sent to drivers: ${losers.join(", ")}`
-        );
-    },
-
-
-    async notifyOtherDriversRideCancelled(rideId: string) {
-        const rideOffersKey = `ride_offers:${rideId}`;
-
-        const offeredDriverIds = await redis.sMembers(rideOffersKey);
-        if (!offeredDriverIds.length) return;
-
-
-        if (!offeredDriverIds.length) return;
-
-        await Promise.all(
-            offeredDriverIds.map(driverId =>
-                Promise.all([
-                    emitToDriver(driverId, "ride_cancelled", { rideId }),
-                    emitToDriver(`${driverId}-bg`, "ride_cancelled", { rideId }),
-
-                    // Optional: clear offered state
-                    redis.hSet(`driver:${driverId}`, {
-                        state: "idle",
-                        rideId: "",
-                    }),
-                ])
-            )
-        );
-
-        console.log(
-            `🚫 ride_already_taken sent to drivers: ${offeredDriverIds.join(", ")}`
-        );
-    }
-
 }
