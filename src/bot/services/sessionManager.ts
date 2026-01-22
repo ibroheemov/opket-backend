@@ -9,6 +9,7 @@ export interface UserSession {
     lastLocation?: { lat: number; lon: number };
     rideId?: string,
     searchFinished?: boolean,
+    permium?: boolean,
     phone?: number,
     currentMsgId?: number,
     loadingMessageId?: number,

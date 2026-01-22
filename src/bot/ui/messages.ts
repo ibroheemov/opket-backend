@@ -1,6 +1,10 @@
 // export const location_request_message = "🚕 TAXI - Oddiy taxi, ⭐️ PRO - Premium taxi";
 export const location_request_message = "👇Pastdagi 🚕 TAXI tugmasini ni bosing yoki lokatsiya yuboring";
 export const call_taxi_msg = "🚕 TAXI";
+export const premium_msg = "⭐️ Premium";
+export const premium_taxi_msg = "⭐️ Premium Taxi chaqirish uchun joylashuv yuboring";
+export const send_location_msg = "📍 Joylashuv yuborish";
+export const go_back_msg = "⬅️ Orqaga qaytish";
 export const searching_driver_message = "☎️ Telefon raqam qoldiring, haydovchi bog'lanadi";
 export const no_driver_message = "❌ Haydovchi topilmadi, birozdan so'ng urinib ko‘ring.";
 export const cancel_ride_message = "❌ Buyurtmani bekor qilish";
@@ -10,4 +14,5 @@ export const payment_success_msg = "✅ Haydovchiga pul o'tkazildi";
 export const driver_arrived_msg = "✅ Haydovchi yetib keldi";
 export const contact_request_message = "👇Pastdagi ☎️ Telefon ulashish tugmasini bosing yoki ishlatadigan nomerizni yozing";
 export const contact_found_message = "🧑‍✈️ Haydovchi ushbu raqamga bog'lanadi: ";
-export const phone_format_incorrect = "❌ Telefon raqam noto'g'ri yozildi";              
+export const phone_format_incorrect = "❌ Telefon raqam noto'g'ri yozildi";
+export const ride_confirmation_msg = "👨‍✈️: Rostdan taksi chaqirdingizmi, manzilga borsam bo'ladimi?";              

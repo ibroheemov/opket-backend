@@ -11,6 +11,11 @@ import { calculateApproxTime } from "../utils/calculateApproxTime";
 import { handleRideCommission } from "../utils/fare.helper";
 import { sendFcm } from "../utils/sendFcm";
 
+enum RideSearchMode {
+    SEQUENTIAL = "sequential", // current behavior
+    PARALLEL = "parallel"      // new behavior
+}
+
 
 type DriverCandidate = {
     driver: {
@@ -104,6 +109,9 @@ const OFFER_TTL_MS = 10000;            // driver has 7s to accept
 const MAX_SEARCH_TIME_MS = 60000;     // total 1 minute
 const INITIAL_RADIUS_KM = 1.0;
 const RADIUS_STEP_KM = 0.5;
+const PARALLEL_MAX_DRIVERS = 3;
+const PARALLEL_PICK_WINDOW_MS = 500;
+const PARALLEL_RADIUS_EXPAND_MS = 15000;
 
 export interface RideRequestInput {
     phone?: number;
@@ -112,13 +120,18 @@ export interface RideRequestInput {
     dropoff?: { lat: number; lon: number; address?: string };
     address?: string;
     type?: string;
+    isPremium?: boolean;
 }
 
+const SEARCH_MODE: RideSearchMode =
+    RideSearchMode.PARALLEL;
+
 export const RideService = {
+
     async requestRide(input: RideRequestInput) {
         console.log("RIDE RECEIVED");
 
-        const { phone, chatId, location, dropoff, address, type } = input;
+        const { phone, chatId, location, dropoff, address, type, isPremium } = input;
         if (!phone && !chatId) return;
 
         // 1️⃣ Persist ride in Mongo (history)
@@ -182,17 +195,23 @@ export const RideService = {
         rideSearchControllers.set(rideId, controller);
 
         // 4️⃣ Start search (no AbortController anymore)
-        this.searchForDrivers(rideId, location, phone, controller.signal)
-            .catch(err => console.error("Search failed:", err));
+        // this.searchForDrivers(rideId, location, phone, controller.signal)
+        //     .catch(err => console.error("Search failed:", err));
 
+        if (SEARCH_MODE === RideSearchMode.PARALLEL) {
+            this.searchForDriversParallel(rideId, location, phone, controller.signal, isPremium);
+        } else {
+            this.searchForDriversSequential(rideId, location, phone, controller.signal, isPremium);
+        }
         return { ride_id: rideId };
     },
 
-    async searchForDrivers(
+    async searchForDriversSequential(
         rideId: string,
         pickup: { lat: number; lon: number },
         phone?: number,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        isPremium?: boolean
     ) {
         const rideKey = `ride:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
@@ -228,7 +247,8 @@ export const RideService = {
             const drivers = await DriverRepository.findAvailableDrivers(
                 pickup.lat,
                 pickup.lon,
-                radiusKm
+                radiusKm,
+                isPremium ? { isPremium: true } : undefined
             );
 
             if (!drivers.length) {
@@ -307,8 +327,7 @@ export const RideService = {
         if (rideData.userPhoneNumber) {
             emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
         }
-    }
-    ,
+    },
 
     nextDriver(
         drivers: DriverCandidate[],
@@ -327,6 +346,133 @@ export const RideService = {
 
         return drivers[(idx + 1) % drivers.length];
     },
+
+    async searchForDriversParallel(
+        rideId: string,
+        pickup: { lat: number; lon: number },
+        phone?: number,
+        signal?: AbortSignal,
+        isPremium?: boolean
+    ) {
+        const rideKey = `ride:${rideId}`;
+        const cancelKey = `ride_cancel:${rideId}`;
+        const acceptKey = `ride_accept:${rideId}`;
+        const startTime = Date.now();
+
+        let radiusKm = INITIAL_RADIUS_KM;
+        let lastRadiusExpand = Date.now();
+
+        console.log(`🚀 Parallel search started for ride ${rideId}`);
+
+        while (Date.now() - startTime < MAX_SEARCH_TIME_MS) {
+            if (signal?.aborted) return;
+
+            if (await redis.exists(cancelKey)) return;
+
+            // 🔁 Expand radius every 15s
+            if (Date.now() - lastRadiusExpand >= PARALLEL_RADIUS_EXPAND_MS) {
+                radiusKm += RADIUS_STEP_KM;
+                lastRadiusExpand = Date.now();
+                console.log(`📡 Expanding radius to ${radiusKm}km`);
+            }
+
+            // 1️⃣ Fetch candidates
+            const drivers = await DriverRepository.findAvailableDrivers(
+                pickup.lat,
+                pickup.lon,
+                radiusKm,
+                isPremium ? { isPremium: true } : undefined
+            );
+
+            if (!drivers.length) {
+                await sleep(500);
+                continue;
+            }
+
+            // 2️⃣ Pick closest N drivers
+            const selected = drivers
+                .sort((a, b) => a.distKm - b.distKm)
+                .slice(0, PARALLEL_MAX_DRIVERS);
+
+            // 3️⃣ Try reserving all of them
+            const reservedDrivers: DriverCandidate[] = [];
+
+            for (const candidate of selected) {
+                const driverId = candidate.driver.driverId;
+
+                const ok = await redis.eval(RESERVE_RIDE_LUA, {
+                    keys: [
+                        `ride_reservation:${rideId}:${driverId}`,
+                        `driver_offer:${driverId}`,
+                    ],
+                    arguments: [
+                        driverId,
+                        rideId,
+                        OFFER_TTL_MS.toString(),
+                    ],
+                });
+
+                if (ok === 1) {
+                    reservedDrivers.push(candidate);
+                }
+            }
+
+            if (!reservedDrivers.length) {
+                await sleep(300);
+                continue;
+            }
+
+            // 4️⃣ Emit offers in parallel
+            const rideData = await redis.hGetAll(rideKey);
+
+            await Promise.all(
+                reservedDrivers.map(candidate => {
+                    const driverId = candidate.driver.driverId;
+                    const payload = RideService.buildDriverOfferPayload(
+                        rideId,
+                        rideData,
+                        candidate
+                    );
+
+                    return Promise.all([
+                        emitToDriver(driverId, "ride_offer", payload),
+                        emitToDriver(`${driverId}-bg`, "ride_offer", payload),
+                    ]);
+                })
+            );
+
+            // 5️⃣ Wait for FIRST acceptance
+            const acceptedDriverId =
+                await this.waitForAcceptanceWithFallback(
+                    rideId,
+                    "*",
+                    OFFER_TTL_MS
+                );
+
+            if (acceptedDriverId) {
+                console.log(`✅ Ride accepted by ${acceptedDriverId}`);
+                return;
+            }
+
+            // 6️⃣ Cleanup timed-out offers
+            await Promise.all(
+                reservedDrivers.map(c => {
+                    const driverId = c.driver.driverId;
+                    return Promise.all([
+                        redis.del(`ride_reservation:${rideId}:${driverId}`),
+                        redis.del(`driver_offer:${driverId}`),
+                        emitToDriver(driverId, "ride_already_taken", { rideId }),
+                    ]);
+                })
+            );
+
+            await sleep(300);
+        }
+
+        console.log(`❌ Ride ${rideId} expired`);
+        await redis.hSet(rideKey, { phase: "expired" });
+    },
+
 
 
     async waitForAcceptanceWithFallback(

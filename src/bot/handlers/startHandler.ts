@@ -25,12 +25,14 @@ export const handleStart = async (msg: Message) => {
     await initializeUserSessionRedis(chatId);
 
     try {
-        const session = await getSessionRedis(chatId);
+        const sessionRedis = await getSessionRedis(chatId);
+        const session = getSession(chatId);
 
-        if (session.phone) {
+        if (sessionRedis.phone) {
             // User already exists with phone → nothing more to do
-            await sendLocationRequestPrompt(chatId);
+            const sent = await sendLocationRequestPrompt(chatId);
             deleteMessageSafely(chatId, msg.message_id)
+            session.currentMsgId = sent.message_id;
             return;
         }
 

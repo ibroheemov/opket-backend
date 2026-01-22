@@ -20,7 +20,7 @@ router.post("/send-otpr", authController.sendOtp);
 router.post("/check-driver", authController.checkDriver);
 router.post("/login", authController.login);
 router.get("/get-driver", getDriver);
-router.get("/fare", fetchFareConfig);
+router.get("/fare", authenticateDriver, fetchFareConfig);
 router.get("/:id/profile", getProfile);
 router.get("/:id/stats/weekly", getWeeklyStats);
 router.post("/refresh-token", refreshToken);

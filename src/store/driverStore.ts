@@ -12,6 +12,7 @@ export interface DriverSession {
     lastUpdated: number;
     fcmToken?: string;
     canReceiveOffers: boolean;
+    enabledServices?: string[]
 }
 
 class DriverStore {
@@ -87,11 +88,45 @@ class DriverStore {
 
     addTestDriversToStore(drivers: DriverSession[] = testDrivers) {
         console.log(`🧪 Adding ${drivers.length} test driver(s) to driverStore`);
-        drivers.forEach(driver => {
-            driverStoreRedis.upsert(driver.driverId, driver);
-            console.log(`✅ Added test driver ${driver.driverId}`);
-        });
+        // drivers.forEach(driver => {
+        //     driverStoreRedis.upsert(driver.driverId, driver);
+        //     console.log(`✅ Added test driver ${driver.driverId}`);
+        // });
     }
+
+
+    /**
+     * Add or remove a service from a driver's enabledServices
+     * If the service already exists, it is removed. Otherwise, it's added.
+     */
+    toggleEnabledService(driverId: string, service: string) {
+        const driver = this.drivers.get(driverId);
+        console.log(driver);
+        console.log(driver?.enabledServices);
+
+        if (!driver || !driver.enabledServices) return;
+
+        const index = driver.enabledServices.indexOf(service);
+        if (index > -1) {
+            // Service exists → remove it
+            driver.enabledServices.splice(index, 1);
+        } else {
+            // Service does not exist → add it
+            driver.enabledServices.push(service);
+        }
+
+        // Update lastUpdated timestamp
+        driver.lastUpdated = Date.now();
+    }
+
+    /**
+     * Get the list of enabled services for a driver
+     */
+    getEnabledServices(driverId: string): string[] {
+        const driver = this.drivers.get(driverId);
+        return driver?.enabledServices ?? [];
+    }
+
 }
 
 export const driverStore = new DriverStore();

@@ -3,7 +3,12 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 import { haversineDistanceKm } from "../utils/haversine";
 
 export const DriverRepository = {
-    async findAvailableDrivers(pickupLat: number, pickupLon: number, maxKm = 2) {
+    async findAvailableDrivers(
+        pickupLat: number,
+        pickupLon: number,
+        maxKm = 2,
+        options?: { isPremium?: boolean },
+    ) {
         const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
 
         console.log(onlineDrivers);
@@ -12,6 +17,8 @@ export const DriverRepository = {
         const driversWithDistance = onlineDrivers
             .map((driver) => {
                 if (!driver.location) return null;
+
+                if (options?.isPremium && !driver.hasPremiumCar) return null;
 
                 let dist = haversineDistanceKm(
                     pickupLat,

@@ -4,15 +4,25 @@ import { getFareByCity } from "../services/fare.service";
 import { AuthRequest } from "../middlewares/auth";
 import { DriverModel } from "../models/DriverModel";
 import { WorkingAreaService } from "../services/working.area.service";
+import { driverStore } from "../store/driverStore";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 const service = new WorkingAreaService();
 
-export const fetchFareConfig = async (req: Request, res: Response) => {
+export const fetchFareConfig = async (req: AuthRequest, res: Response) => {
     try {
         const cityId = req.params.cityId || "default";
+        const driverId = req.driverId;
+        if (!driverId) {
+            return res.status(404).json({ message: "Driver id is required" });
+        }
 
-        const fare = await getFareByCity(cityId);
+        const enabledServices = driverStore.getEnabledServices(driverId);
+        const isPremium = await driverStoreRedis.hasPremiumCar(driverId);
 
+        const fare = await getFareByCity(cityId, isPremium);
+
+        fare.enabledServices = enabledServices;
         return res.json({
             success: true,
             fare,

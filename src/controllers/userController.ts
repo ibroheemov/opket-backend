@@ -261,10 +261,11 @@ export const declineLuggage = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "rideId required" });
         }
 
-        const ride = await RideModel.findById(rideId);
+        const rideKey = `ride:${rideId}`;
+        const rideData = await redis.hGetAll(rideKey);
 
-        if (ride && ride.driverId) {
-            emitToDriver(ride.driverId, "luggage_declined", {});
+        if (rideData && rideData.driverId) {
+            emitToDriver(rideData.driverId, "luggage_declined", {});
         }
 
         return res.json({ rideId, message: "Klient bagajni rad etdi!" });

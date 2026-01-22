@@ -50,6 +50,7 @@ export interface IDriverDocument extends Document {
 
     balance: number;
     canReceiveOffers: boolean;
+    hasPremiumCar: boolean;
 
     events: {
         event: string;
@@ -111,6 +112,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         passport: { type: UploadSchema, default: () => ({}) },
 
         canReceiveOffers: { type: Boolean, default: true },
+        hasPremiumCar: { type: Boolean, default: false },
 
         events: {
             type: [

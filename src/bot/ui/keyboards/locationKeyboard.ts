@@ -1,10 +1,10 @@
-import { call_taxi_msg } from "../messages";
+import { call_taxi_msg, premium_msg } from "../messages";
 
 export const locationRequestKeyboard = {
     keyboard: [
         [
             { text: call_taxi_msg, request_location: true },
-            // { text: "⭐️ PRO", request_location: true }
+            { text: premium_msg }
         ]
     ],
     resize_keyboard: true,

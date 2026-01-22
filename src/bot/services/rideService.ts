@@ -7,12 +7,13 @@ export interface RequestRideResponse {
     drivers: number;
 }
 
-export async function requestRide(chatId: number, location: { lat: number; lon: number }, phone?: number) {
+export async function requestRide(chatId: number, location: { lat: number; lon: number }, phone?: number, isPremium?: boolean) {
     const res = await axios.post<RequestRideResponse>(`${config.backendUrl}/user/request-ride`, {
         chatId,
         phone,
         location,
-        type: "bot"
+        type: "bot",
+        isPremium
     });
 
     // console.log(res.data);

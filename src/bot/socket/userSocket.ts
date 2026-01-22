@@ -26,6 +26,7 @@ import { handleRideClosed } from "./handlers/rideClosed";
 import { handleBalanceDeduction } from "./handlers/handleBalanceDeduction";
 import { handleRideCancelledByDriver } from "./handlers/driverCancelledRide";
 import { handleDriverArrived } from "./handlers/driverArrived";
+import { passengerStore } from "../../store/passengerStore";
 
 export function initUserSocket(chatId: any, phone: number): Socket {
     console.log("chatId", chatId);
@@ -103,11 +104,20 @@ export function initUserSocket(chatId: any, phone: number): Socket {
         handleRideCompleted(userBot, chatId, data)
     });
 
-    socket.on("connect", () => console.log("🟢 #1[PASSENGER] connected"));
+    socket.on("connect", () => {
+        passengerStore.upsert(phone, { status: "online" })
+        console.log("🟢 #1[PASSENGER] connected")
+    });
+
     socket.on("connect_error", (err) =>
         console.error("🟢❌ PASSENGER Connection error:", err.message)
     );
-    socket.on("disconnect", () => console.log("🟢🔴 PASSENGER disconnected"));
+    socket.on("disconnect", () => {
+        passengerStore.upsert(phone, { status: "offline" })
+        console.log("🟢🔴 PASSENGER disconnected")
+    });
 
     return socket;
 }
+
+

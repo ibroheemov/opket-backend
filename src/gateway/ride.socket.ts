@@ -15,7 +15,6 @@ const passenger_missable_events = [
     "balance_top_up",
     "add_luggage",
     "ride_no_drivers",
-    "driver_location_update",
     "driver_arrived"
 ];
 
@@ -33,21 +32,14 @@ export const updateRideStatus = async (rideId: string, status: string) => {
 
 export const emitToUser = async (id: number | undefined, event: string, data: any) => {
     if (!id) return;
-    const passenger = passengerStore.get(id);
-    // if (!passenger && passenger_missable_events.includes(event)) {
-    //     await PassengerModel.findOneAndUpdate(
-    //         { phone: id },
-    //         {
-    //             $push: {
-    //                 events: {
-    //                     event: event,
-    //                     data: data
-    //                 }
-    //             }
-    //         },
-    //         { new: true }
-    //     );
-    // }
+    const isOnline = passengerStore.isOnline(id);
+
+    console.log(event, isOnline);
+
+    // If passenger is not in store (offline / not connected) and event is missable
+    if (!isOnline && passenger_missable_events.includes(event)) {
+        passengerStore.pushPendingEvent(id, event, data);
+    }
 
     const socketId = userSockets.get(Number(id));
     console.log(id, event, socketId);

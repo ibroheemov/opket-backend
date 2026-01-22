@@ -41,6 +41,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
             name: driver.name,
             car: `${driver.carColor}, ${driver.carModel} - ${driver.carNumber}`,
             phone: driver.phone,
+            enabledServices: [],
+            hasPremiumCar: driver.hasPremiumCar,
         }
     )
 
@@ -113,6 +115,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         const sSent = emitToUser(Number(chatId), 'ride_closed', {});
     });
 
+
+    socket.on("update_car_options", async ({ optionId }: { optionId: string }) => {
+        console.log(optionId, driverId);
+        driverStore.toggleEnabledService(driverId, optionId);
+    });
+
     socket.on("balance_deduction_request", async ({ amount, phone }: { amount: number, phone: number }) => {
         const sSent = emitToUser(Number(phone), 'balance_deduction_request', { amount, driverId, driverName: driver.name });
     });
@@ -165,9 +173,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("add_luggage", async ({ phone }) => {
-        console.log("ADD LUGGAGE EVENT");
         const luggageCharge = fareConfigs['default'].luggageCharge;
-
+        emitToDriver(driverId, "luggage_confirmed", {});
         emitToUser(phone, "add_luggage", { luggageCharge, driverId });
     });
 

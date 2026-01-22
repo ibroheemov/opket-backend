@@ -1,6 +1,6 @@
 import TelegramBot, { Message } from "node-telegram-bot-api";
 import axios from "axios";
-import { cancel_ride_message, phone_format_incorrect } from "../ui/messages";
+import { cancel_ride_message, go_back_msg, phone_format_incorrect, premium_msg } from "../ui/messages";
 import { getSession } from "../services/sessionManager";
 import { deleteMessageSafely, flushDeletionQueue, queueMessageForDeletion } from "../utils/message_cleanup_manager";
 import { config } from "../config/env";
@@ -11,6 +11,7 @@ import { sendLocationRequestPrompt } from "../ui/prompts/locationRequestPrompt";
 import { createPassenger } from "./handleContact";
 import { userBot } from "../PassengerBot";
 import { deleteMessageLater } from "../utils/deleteMessageLater";
+import { premiumTaxiPrompt } from "../ui/prompts/premiumTaxiPrompt";
 
 export async function handleMessage(msg: Message) {
     const chatId = msg.chat.id;
@@ -21,6 +22,23 @@ export async function handleMessage(msg: Message) {
     queueMessageForDeletion(chatId, msg.message_id);
 
     const session = getSession(chatId);
+
+    if (text == premium_msg) {
+        const sent = await premiumTaxiPrompt(chatId);
+        deleteMessageSafely(chatId, msg.message_id);
+        if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
+        session.currentMsgId = sent.message_id;
+        session.permium = true;
+        return;
+    }
+
+    if (text == go_back_msg) {
+        const sent = await sendLocationRequestPrompt(chatId);
+        deleteMessageSafely(chatId, msg.message_id);
+        if (session.currentMsgId) await deleteMessageSafely(chatId, session.currentMsgId);
+        session.currentMsgId = sent.message_id;
+        session.permium = false;
+    }
 
     // ❌ Cancel ride
     if (text === cancel_ride_message) {

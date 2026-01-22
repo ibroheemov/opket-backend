@@ -13,7 +13,9 @@ export interface DriverSession {
     phone?: string;
     lastUpdated: number;
     fcmToken?: string;
+    hasPremiumCar?: boolean;
     canReceiveOffers: boolean;
+    enabledServices?: [],
 }
 
 // Redis keys
@@ -32,6 +34,13 @@ export class DriverStore {
 
     async isAvailable(driverId: string): Promise<boolean> {
         return !(await redis.sIsMember(ACTIVE_OFFERS_KEY, driverId));
+    }
+
+    async hasPremiumCar(driverId: string): Promise<boolean> {
+        const data = await redis.hGetAll(this.key(driverId));
+        if (!data || !data.driverId) return false;
+
+        return data.hasPremiumCar === "1";
     }
 
     async markAsOffered(driverId: string) {
@@ -62,6 +71,10 @@ export class DriverStore {
 
         if (data.canReceiveOffers !== undefined) {
             hash.canReceiveOffers = data.canReceiveOffers ? "1" : "0";
+        }
+
+        if (data.hasPremiumCar !== undefined) {
+            hash.hasPremiumCar = data.hasPremiumCar ? "1" : "0";
         }
 
         if (data.currentRideId !== undefined) {
@@ -160,6 +173,7 @@ export class DriverStore {
                     ? JSON.parse(data.location)
                     : undefined,
                 lastUpdated,
+                hasPremiumCar: data.hasPremiumCar === "1",
             });
         }
 

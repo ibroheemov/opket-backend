@@ -28,14 +28,7 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
     );
 
     console.log("🟢 [PASSENGER-MOBILE] connected");
-
-    const passenger_in_store = passengerStore.get(phone);
-
-    if (passenger.events.length != 0 && passenger_in_store) {
-        for (const event of passenger.events) {
-            await emitToUser(phone, event.event, event.data);
-        }
-    }
+    emitMissedPassengerEvents(socket, phone);
 
     socket.on("ride_started_ack", async ({ eventId }) => {
         await PassengerModel.updateOne(
@@ -117,8 +110,14 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         console.error("🟢❌ [PASSENGER-MOBILE] Connection error:", err.message)
     );
 
+    socket.on("connect", () => {
+        passengerStore.upsert(phone, { status: "online" })
+        console.log("🟢 #1[PASSENGER] connected")
+        emitMissedPassengerEvents(socket, phone);
+    });
+
     socket.on("disconnect", () => {
-        passengerStore.remove(phone);
+        passengerStore.upsert(phone, { status: "offline" });
         console.log("🟢🔴 [PASSENGER-MOBILE] disconnected")
     });
 
@@ -126,3 +125,31 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
 };
 
 
+
+export const emitMissedPassengerEvents = (socket: Socket, phone: number) => {
+    const passenger = passengerStore.get(phone);
+    if (!passenger) return;
+
+    // If passenger has current ride -> flush only ride events
+    if (passenger.currentRideId) {
+        const missed = passengerStore.flushPendingEvents(phone);
+
+        for (const e of missed) {
+            socket.emit(e.event, e.data);
+        }
+
+        console.log(
+            `♻️ [PASSENGER:${phone}] flushed ${missed.length} missed events for rideId=${passenger.currentRideId}`
+        );
+        return;
+    }
+
+    // If no current ride -> flush everything
+    const missedAll = passengerStore.flushPendingEvents(phone);
+
+    for (const e of missedAll) {
+        socket.emit(e.event, e.data);
+    }
+
+    console.log(`♻️ [PASSENGER:${phone}] flushed ${missedAll.length} missed events (no active ride)`);
+};

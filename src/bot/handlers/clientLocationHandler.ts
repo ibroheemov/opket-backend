@@ -48,7 +48,7 @@ export const handleLocation = async (msg: TelegramBot.Message) => {
     queueMessageForDeletion(chatId, msg.message_id);
 
     // Step 4: Request ride with timeout (concurrent with animation)
-    const ride = await requestRide(chatId, { lat: latitude, lon: longitude }, sessionRedis.phone);
+    const ride = await requestRide(chatId, { lat: latitude, lon: longitude }, sessionRedis.phone, session.permium);
 
     session.rideId = ride.ride_id;
 
