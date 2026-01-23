@@ -36,6 +36,51 @@ export class DriverStore {
         return !(await redis.sIsMember(ACTIVE_OFFERS_KEY, driverId));
     }
 
+    /* ----------------- Premium Availability ----------------- */
+
+    async hasAvailablePremiumDriver(): Promise<boolean> {
+        const [driverIds, activeOfferIds] = await Promise.all([
+            redis.sMembers(ONLINE_DRIVERS_KEY),
+            redis.sMembers(ACTIVE_OFFERS_KEY),
+        ]);
+
+        if (!driverIds.length) return false;
+
+        const activeOffers = new Set(activeOfferIds);
+        const now = Date.now();
+
+        const multi = redis.multi();
+        driverIds.forEach(id => multi.hGetAll(this.key(id)));
+        const results = await multi.exec();
+
+        for (let i = 0; i < results.length; i++) {
+            const data = results[i] as unknown as Record<string, string>;
+            if (!data || !data.driverId) continue;
+
+            const lastUpdated = Number(data.lastUpdated);
+
+            const hasPremiumCar = data.hasPremiumCar === "1";
+            const canReceiveOffers = data.canReceiveOffers === "1";
+            const currentRideId = data.currentRideId; // empty string means no ride
+            const isStale = lastUpdated + this.maxStaleMs < now;
+
+            if (
+                !canReceiveOffers ||
+                !hasPremiumCar ||
+                !!currentRideId || // not empty -> currently in ride
+                activeOffers.has(data.driverId) ||
+                isStale
+            ) {
+                continue;
+            }
+
+            return true; // found at least one valid premium driver
+        }
+
+        return false;
+    }
+
+
     async hasPremiumCar(driverId: string): Promise<boolean> {
         const data = await redis.hGetAll(this.key(driverId));
         if (!data || !data.driverId) return false;

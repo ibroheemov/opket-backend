@@ -5,6 +5,7 @@ import { currentRide, requestRide } from "../controllers/ride.controller";
 import { getPassenger } from "../controllers/passenger/getPassenger";
 import { payfare } from "../controllers/passenger/payFare";
 import { getPassengerBalance } from "../controllers/passenger/getPassengerBalance";
+import { fetchFareConfigUser } from "../controllers/fare.user.controller";
 
 const router = express.Router();
 
@@ -18,5 +19,6 @@ router.post("/confirm-luggage", confirmLuggage);
 router.post("/decline-luggage", declineLuggage);
 router.post("/create", createPassengerApp);
 router.post("/create-bot", createPassengerBot);
+router.get("/fare/config", fetchFareConfigUser);
 
 export default router;

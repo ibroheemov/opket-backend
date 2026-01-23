@@ -4,6 +4,7 @@ import { socketIo, userSockets } from "./socket.maps";
 import { passengerStore } from "../store/passengerStore";
 import { emit } from "process";
 import { emitToDriver, emitToUser } from "./ride.socket";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 export const registerPassengerHandlersMobile = async ({ socket, phone }: {
     socket: Socket;
@@ -89,6 +90,13 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
 
     socket.on("ride_change_declined", async ({ driverId }) => {
         const sent = emitToDriver(driverId, 'ride_change_declined', {});
+    });
+
+
+    socket.on("premium_taxi", async ({ driverId }) => {
+        const isAvailable = await driverStoreRedis.hasAvailablePremiumDriver();
+        console.log("premium_taxi", isAvailable);
+        emitToUser(phone, "no_premium_drivers", { isAvailable });
     });
 
     socket.on("luggage_confirmed", async ({ driverId }) => {

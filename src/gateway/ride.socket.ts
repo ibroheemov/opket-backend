@@ -15,7 +15,8 @@ const passenger_missable_events = [
     "balance_top_up",
     "add_luggage",
     "ride_no_drivers",
-    "driver_arrived"
+    "driver_arrived",
+    "ride_cancelled_by_driver",
 ];
 
 export const updateRideStatus = async (rideId: string, status: string) => {
