@@ -59,7 +59,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         }
     }
 
-    emitToDriver(driverId, "feature_flags", { 'driverStatusToggleEnabled': true });
+    emitToDriver(driverId, "feature_flags", { 'driverStatusToggleEnabled': false });
 
     // 2️⃣ Handle location updates
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
