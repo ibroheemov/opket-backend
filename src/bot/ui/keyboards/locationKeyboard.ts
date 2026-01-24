@@ -4,6 +4,8 @@ export const locationRequestKeyboard = {
     keyboard: [
         [
             { text: call_taxi_msg, request_location: true },
+        ],
+        [
             { text: premium_msg }
         ]
     ],

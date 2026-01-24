@@ -18,6 +18,7 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
         return; // stop socket setup
     }
 
+
     userSockets.set(phone, socket.id);
     // 1️⃣ Mark as online
     passengerStore.upsert(
@@ -30,6 +31,7 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
 
     console.log("🟢 [PASSENGER-MOBILE] connected");
     emitMissedPassengerEvents(socket, phone);
+    emitToUser(phone, "feature_flags", { 'isLuggageEnabled': false });
 
     socket.on("ride_started_ack", async ({ eventId }) => {
         await PassengerModel.updateOne(

@@ -20,6 +20,8 @@ const passenger_missable_events = [
 ];
 
 export const updateRideStatus = async (rideId: string, status: string) => {
+    if (rideId == '') return null;
+
     const ride = await RideModel.findById(rideId);
     if (!ride) return null;
 

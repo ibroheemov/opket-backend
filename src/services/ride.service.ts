@@ -128,7 +128,9 @@ export const RideService = {
                 console.log(`🔍 Searching drivers near (${pickup.lat}, ${pickup.lon})`);
                 const drivers = await DriverRepository.findAvailableDrivers(
                     pickup.lat,
-                    pickup.lon
+                    pickup.lon,
+                    2,
+                    []
                 );
 
                 if (!drivers.length) {
@@ -320,7 +322,7 @@ export const RideService = {
 
         // 4. Deduct commission & update balance
         const [commissionErr, commissionResult] = await safeAsync(() =>
-            handleRideCommission(driverId, rideId)
+            handleRideCommission(driverId, Number(data.fare))
         );
         if (commissionErr)
             throw new Error(

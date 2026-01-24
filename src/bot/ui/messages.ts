@@ -1,7 +1,7 @@
 // export const location_request_message = "🚕 TAXI - Oddiy taxi, ⭐️ PRO - Premium taxi";
 export const location_request_message = "👇Pastdagi 🚕 TAXI tugmasini ni bosing yoki lokatsiya yuboring";
 export const call_taxi_msg = "🚕 TAXI";
-export const premium_msg = "⭐️ Premium";
+export const premium_msg = "⭐️ Premium Taxi";
 export const premium_taxi_msg = "⭐️ Premium Taxi chaqirish uchun joylashuv yuboring";
 export const send_location_msg = "📍 Joylashuv yuborish";
 export const go_back_msg = "⬅️ Orqaga qaytish";

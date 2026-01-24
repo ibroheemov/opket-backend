@@ -121,6 +121,7 @@ export interface RideRequestInput {
     address?: string;
     type?: string;
     isPremium?: boolean;
+    options?: string[];
 }
 
 const SEARCH_MODE: RideSearchMode =
@@ -131,7 +132,7 @@ export const RideService = {
     async requestRide(input: RideRequestInput) {
         console.log("RIDE RECEIVED");
 
-        const { phone, chatId, location, dropoff, address, type, isPremium } = input;
+        const { phone, chatId, location, dropoff, address, type, options } = input;
         if (!phone && !chatId) return;
 
         // 1️⃣ Persist ride in Mongo (history)
@@ -199,9 +200,9 @@ export const RideService = {
         //     .catch(err => console.error("Search failed:", err));
 
         if (SEARCH_MODE === RideSearchMode.PARALLEL) {
-            this.searchForDriversParallel(rideId, location, phone, controller.signal, isPremium);
+            this.searchForDriversParallel(rideId, location, phone, controller.signal, options);
         } else {
-            this.searchForDriversSequential(rideId, location, phone, controller.signal, isPremium);
+            this.searchForDriversSequential(rideId, location, phone, controller.signal, options);
         }
         return { ride_id: rideId };
     },
@@ -211,7 +212,7 @@ export const RideService = {
         pickup: { lat: number; lon: number },
         phone?: number,
         signal?: AbortSignal,
-        isPremium?: boolean
+        options?: string[]
     ) {
         const rideKey = `ride:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
@@ -248,7 +249,7 @@ export const RideService = {
                 pickup.lat,
                 pickup.lon,
                 radiusKm,
-                isPremium ? { isPremium: true } : undefined
+                options ?? []
             );
 
             if (!drivers.length) {
@@ -352,7 +353,7 @@ export const RideService = {
         pickup: { lat: number; lon: number },
         phone?: number,
         signal?: AbortSignal,
-        isPremium?: boolean
+        options?: string[]
     ) {
         const rideKey = `ride:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
@@ -381,7 +382,7 @@ export const RideService = {
                 pickup.lat,
                 pickup.lon,
                 radiusKm,
-                isPremium ? { isPremium: true } : undefined
+                options ?? [],
             );
 
             if (!drivers.length) {
@@ -644,6 +645,23 @@ export const RideService = {
         rideSearchControllers.delete(rideId);
     },
 
+    async completeRideGhostRide(driverId: string, data: RideCompletedPayload) {
+        // 5️⃣ Update driver in MongoDB (clear currentRideId)
+        const updatedDriver = await DriverModel.findOneAndUpdate(
+            { _id: driverId },
+            { currentRideId: null },
+            { new: true }
+        );
+
+
+        const commissionResult = await handleRideCommission(driverId, Number(data.fare));
+        const { balance, commission } = commissionResult;
+
+        // Notify driver about commission update if FCM token exists
+        if (updatedDriver?.fcmToken) {
+            sendFcm(updatedDriver.fcmToken, commission);
+        }
+    },
 
     async completeRide(driverId: string, data: RideCompletedPayload) {
         const { rideId, distance, fare } = data;
@@ -694,7 +712,7 @@ export const RideService = {
         );
 
         // 6️⃣ Deduct commission & update driver balance
-        const commissionResult = await handleRideCommission(driverId, rideId);
+        const commissionResult = await handleRideCommission(driverId, Number(data.fare));
         const { balance, commission } = commissionResult;
 
         // Notify driver about commission update if FCM token exists

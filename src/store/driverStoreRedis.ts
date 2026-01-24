@@ -15,13 +15,15 @@ export interface DriverSession {
     fcmToken?: string;
     hasPremiumCar?: boolean;
     canReceiveOffers: boolean;
-    enabledServices?: [],
+    enabledServices?: string[],
 }
 
 // Redis keys
 const DRIVER_KEY_PREFIX = "driver:";
 const ACTIVE_OFFERS_KEY = "activeOffers";
 const ONLINE_DRIVERS_KEY = "onlineDrivers";
+const ENABLED_SERVICES_KEY = "enabledServices";
+
 
 export class DriverStore {
     private maxStaleMs = 2 * 60 * 1000;
@@ -208,6 +210,8 @@ export class DriverStore {
                 continue;
             }
 
+            const enabledServices = await this.getEnabledServices(data.driverId);
+
             drivers.push({
                 socketId: data.socketId,
                 driverId: data.driverId,
@@ -219,6 +223,7 @@ export class DriverStore {
                     : undefined,
                 lastUpdated,
                 hasPremiumCar: data.hasPremiumCar === "1",
+                enabledServices: enabledServices,
             });
         }
 
@@ -259,6 +264,127 @@ export class DriverStore {
         for (const d of drivers) {
             await this.upsert(d.driverId, d);
             console.log(`✅ Added ${d.driverId}`);
+        }
+    }
+
+
+    /**
+ * Add a service to enabledServices:
+ * - if serviceId exists -> do nothing
+ * - if not -> add it
+ *
+ * Stored in redis as JSON string array in the driver hash.
+ */
+    async addEnabledService(driverId: string, serviceId: string): Promise<string[]> {
+        const key = this.key(driverId);
+
+        await redis.watch(key);
+
+        try {
+            const currentRaw = await redis.hGet(key, ENABLED_SERVICES_KEY);
+
+            let enabled: string[] = [];
+            if (currentRaw) {
+                try {
+                    enabled = JSON.parse(currentRaw);
+                    if (!Array.isArray(enabled)) enabled = [];
+                } catch {
+                    enabled = [];
+                }
+            }
+
+            // already enabled -> no update needed
+            if (enabled.includes(serviceId)) {
+                await redis.unwatch();
+                return enabled;
+            }
+
+            const updated = [...enabled, serviceId];
+
+            const tx = redis.multi();
+            tx.hSet(key, {
+                [ENABLED_SERVICES_KEY]: JSON.stringify(updated),
+                lastUpdated: Date.now().toString(),
+            });
+
+            const res = await tx.exec();
+
+            // retry on conflict
+            if (res === null) {
+                return this.addEnabledService(driverId, serviceId);
+            }
+
+            return updated;
+        } finally {
+            await redis.unwatch();
+        }
+    }
+
+
+    /**
+ * Toggle a service in enabledServices:
+ * - if serviceId exists -> remove it
+ * - if not -> add it
+ *
+ * Stored in redis as JSON string array in the driver hash.
+ */
+    async toggleEnabledService(driverId: string, serviceId: string): Promise<string[]> {
+        const key = this.key(driverId);
+
+        // watch to avoid race conditions
+        await redis.watch(key);
+
+        try {
+            const currentRaw = await redis.hGet(key, ENABLED_SERVICES_KEY);
+
+            let enabled: string[] = [];
+            if (currentRaw) {
+                try {
+                    enabled = JSON.parse(currentRaw);
+                    if (!Array.isArray(enabled)) enabled = [];
+                } catch {
+                    enabled = [];
+                }
+            }
+
+            const set = new Set(enabled);
+
+            if (set.has(serviceId)) {
+                set.delete(serviceId);
+            } else {
+                set.add(serviceId);
+            }
+
+            const updated = Array.from(set);
+
+            const tx = redis.multi();
+            tx.hSet(key, {
+                [ENABLED_SERVICES_KEY]: JSON.stringify(updated),
+                lastUpdated: Date.now().toString(),
+            });
+
+            const res = await tx.exec();
+
+            // if null => watch conflict, retry
+            if (res === null) {
+                return this.toggleEnabledService(driverId, serviceId);
+            }
+
+            return updated;
+        } finally {
+            await redis.unwatch();
+        }
+    }
+
+    /** Optional: read enabled services */
+    async getEnabledServices(driverId: string): Promise<string[]> {
+        const raw = await redis.hGet(this.key(driverId), ENABLED_SERVICES_KEY);
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
         }
     }
 }

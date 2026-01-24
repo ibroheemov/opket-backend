@@ -14,10 +14,8 @@ export const requestRide = async (req: Request, res: Response) => {
     console.log("RIDE REQUEST RECEIVED");
 
     try {
-        const { phone, chatId, location, dropoff, address, type, isPremium } = req.body;
-
-        console.log(location);
-
+        const { phone, chatId, location, dropoff, address, type, isPremium, options } = req.body;
+        console.log(options);
 
         if (
             !location ||
@@ -31,7 +29,7 @@ export const requestRide = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "[phone] or [chatId] is required" });
         }
 
-        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type, isPremium });
+        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type, options });
         return res.status(200).json(result);
     } catch (err) {
         // logger.error("requestRide error:", err);
@@ -69,13 +67,19 @@ export const completeRide = async (req: AuthRequest, res: Response) => {
         const driverId = req.driverId;
         const { rideId, distance, fare } = req.body;
 
+        if (!driverId) {
+            return res.status(400).json({ message: "driverId is required" });
+        }
+
+        if (rideId == '') {
+            await RideService.completeRideGhostRide(driverId, { rideId, distance, fare });
+            return;
+        }
+
         if (!rideId || !distance || !fare) {
             return res.status(400).json({ message: "These are required [rideId, distance, fare]" });
         }
 
-        if (!driverId) {
-            return res.status(400).json({ message: "driverId is required" });
-        }
 
         await RideService.completeRide(driverId, { rideId, distance, fare });
 

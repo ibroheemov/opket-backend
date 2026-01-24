@@ -7,7 +7,7 @@ export const DriverRepository = {
         pickupLat: number,
         pickupLon: number,
         maxKm = 2,
-        options?: { isPremium?: boolean },
+        options: string[],
     ) {
         const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
 
@@ -17,8 +17,15 @@ export const DriverRepository = {
         const driversWithDistance = onlineDrivers
             .map((driver) => {
                 if (!driver.location) return null;
+                // if options are required, driver must have enabledServices and contain them
+                if (options.length !== 0) {
+                    const enabled = driver.enabledServices ?? [];
 
-                if (options?.isPremium && !driver.hasPremiumCar) return null;
+                    console.log("", driver.enabledServices);
+
+                    const hasAllOptions = options.every((opt) => enabled.includes(opt));
+                    if (!hasAllOptions) return null;
+                }
 
                 let dist = haversineDistanceKm(
                     pickupLat,

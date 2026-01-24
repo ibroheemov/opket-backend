@@ -41,10 +41,16 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
             name: driver.name,
             car: `${driver.carColor}, ${driver.carModel} - ${driver.carNumber}`,
             phone: driver.phone,
-            enabledServices: [],
+            enabledServices: driver.hasPremiumCar ? ['premium'] : [],
             hasPremiumCar: driver.hasPremiumCar,
         }
     )
+
+    if (driver.hasPremiumCar) {
+        driverStoreRedis.addEnabledService(driverId, "premium");
+    } else {
+        driverStoreRedis.toggleEnabledService(driverId, "premium");
+    }
 
     if (!canReceiveOffers) {
         socket.emit("no_balance", { balance: driver.balance });
@@ -118,7 +124,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
     socket.on("update_car_options", async ({ optionId }: { optionId: string }) => {
         console.log(optionId, driverId);
-        driverStore.toggleEnabledService(driverId, optionId);
+        driverStoreRedis.toggleEnabledService(driverId, optionId);
     });
 
     socket.on("balance_deduction_request", async ({ amount, phone }: { amount: number, phone: number }) => {

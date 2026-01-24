@@ -17,7 +17,7 @@ export const fetchFareConfig = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ message: "Driver id is required" });
         }
 
-        const enabledServices = driverStore.getEnabledServices(driverId);
+        const enabledServices = await driverStoreRedis.getEnabledServices(driverId);
         const isPremium = await driverStoreRedis.hasPremiumCar(driverId);
 
         const fare = await getFareByCity(cityId, isPremium);
