@@ -60,6 +60,43 @@ redis.call('HSET', key, field, cjson.encode(out), 'lastUpdated', now)
 return cjson.encode(out)
 `;
 
+const ADD_ENABLED_SERVICES_LUA = `
+local key = KEYS[1]
+local field = ARGV[1]
+local now = ARGV[2]
+
+-- services start from ARGV[3...]
+local raw = redis.call('HGET', key, field)
+local arr = {}
+
+if raw and type(raw) == 'string' then
+  local ok, decoded = pcall(cjson.decode, raw)
+  if ok and type(decoded) == 'table' then
+    arr = decoded
+  end
+end
+
+local set = {}
+for i=1,#arr do
+  local v = arr[i]
+  if type(v) == 'string' then set[v] = true end
+end
+
+for i=3,#ARGV do
+  local sid = ARGV[i]
+  if sid and type(sid) == 'string' and sid ~= '' then
+    set[sid] = true
+  end
+end
+
+local out = {}
+for k,_ in pairs(set) do table.insert(out, k) end
+
+redis.call('HSET', key, field, cjson.encode(out), 'lastUpdated', now)
+return cjson.encode(out)
+`;
+
+
 export class DriverStore {
     private maxStaleMs = 2 * 60 * 1000;
 
@@ -378,6 +415,45 @@ export class DriverStore {
             return [];
         }
     }
+
+    async enableServicesForDrivers(driverIds: string[], serviceIds: string[]) {
+        if (!driverIds.length) return;
+        if (!serviceIds.length) return;
+
+        const now = Date.now().toString();
+
+        // Load once (optional but recommended)
+        const sha = await redis.scriptLoad(ADD_ENABLED_SERVICES_LUA);
+
+        const multi = redis.multi();
+
+        for (const driverId of driverIds) {
+            const key = this.key(driverId);
+
+            // EVALSHA per driver key (atomic per driver)
+            multi.evalSha(sha, {
+                keys: [key],
+                arguments: [ENABLED_SERVICES_KEY, now, ...serviceIds],
+            });
+        }
+
+        const results = await multi.exec();
+
+        // results is array of JSON strings (or tool-specific wrappers)
+        // If you want: map per driver result
+        return driverIds.map((id, i) => {
+            const raw = results?.[i] as unknown as string;
+            let enabled: string[] = [];
+            try { enabled = JSON.parse(raw); } catch { }
+            return { driverId: id, enabledServices: enabled };
+        });
+    }
+
+    async enableServicesForOnlineDrivers(serviceIds: string[]) {
+        const driverIds = await redis.sMembers(ONLINE_DRIVERS_KEY);
+        return this.enableServicesForDrivers(driverIds, serviceIds);
+    }
+
 }
 
 export const driverStoreRedis = new DriverStore();
