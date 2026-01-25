@@ -65,7 +65,7 @@ export const generateQrLink = async (req: AuthRequest, res: Response) => {
 export const updateDriverBalance = async (driverId: string, amount: number) => {
     const updatedDriver = await DriverModel.findByIdAndUpdate(
         driverId,
-        { $inc: { balance: amount } },
+        { $inc: { balance: amount, referrals: 1 } },
         { new: true }
     );
 

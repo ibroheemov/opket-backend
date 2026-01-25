@@ -41,6 +41,7 @@ export interface IDriverDocument extends Document {
     otpExpiresAt?: Date;
     fcmToken?: string;
     chatId?: number;
+    referrals?: number;
     currentRideId?: string;
 
     // Uploads (refactored)
@@ -104,6 +105,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         otp: String,
         otpExpiresAt: Date,
         chatId: Number,
+        referrals: Number,
         currentRideId: String,
 
         // Uploads
