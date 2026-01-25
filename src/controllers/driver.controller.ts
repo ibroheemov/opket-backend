@@ -1,0 +1,99 @@
+// src/controllers/fareController.ts
+import { Request, Response } from "express";
+import { getFareByCity } from "../services/fare.service";
+import { AuthRequest } from "../middlewares/auth";
+import { DriverModel } from "../models/DriverModel";
+import { WorkingAreaService } from "../services/working.area.service";
+import { driverStore } from "../store/driverStore";
+import { driverStoreRedis } from "../store/driverStoreRedis";
+import { emitToDriver } from "../gateway/ride.socket";
+import admin from 'firebase-admin';
+
+// import DriverModel from "../models/Driver"; // <- adjust path
+
+export const generateQrLink = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId; // carNumber like "T410OB"
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized: driverId missing",
+            });
+        }
+
+        // OPTIONAL: verify driver exists (recommended)
+        // const driver = await DriverModel.findOne({ carNumber: driverId }).lean();
+        // if (!driver) {
+        //   return res.status(404).json({
+        //     success: false,
+        //     message: "Driver not found",
+        //   });
+        // }
+
+        const passengerPackage = process.env.PASSENGER_ANDROID_PACKAGE;
+        if (!passengerPackage) {
+            return res.status(500).json({
+                success: false,
+                message: "Server misconfigured: PASSENGER_ANDROID_PACKAGE not set",
+            });
+        }
+
+        // Build Play Store install referrer payload
+        // Keep it short and simple; you can add &area=... if you want later.
+        const referrerPayload = `ref=${driverId}&src=driver_qr`;
+
+        // Must be URL-encoded because it's nested inside another query param
+        const encodedReferrer = encodeURIComponent(referrerPayload);
+
+        const link =
+            `https://play.google.com/store/apps/details` +
+            `?id=${encodeURIComponent(passengerPackage)}` +
+            `&referrer=${encodedReferrer}`;
+
+        return res.json({
+            success: true,
+            link,
+        });
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to generate QR link",
+        });
+    }
+};
+
+export const updateDriverBalance = async (driverId: string, amount: number) => {
+    const updatedDriver = await DriverModel.findByIdAndUpdate(
+        driverId,
+        { $inc: { balance: amount } },
+        { new: true }
+    );
+
+    emitToDriver(driverId, "balance_updated", { 'balance': updatedDriver?.balance });
+
+    const fcmToken = updatedDriver?.fcmToken;
+    if (!fcmToken) {
+        return;
+    }
+
+
+    const message = {
+        token: fcmToken,
+        android: {
+            priority: "high" as const,
+        },
+        data: {
+            type: 'balance_updated',
+            amount: amount.toString(),
+            source: "Paynet",
+            message: `Hisobingiz ${amount} UZS ga to'ldirildi.`
+        },
+    };
+
+    try {
+        await admin.messaging().send(message);
+        return true;
+    } catch (error) {
+        return false;
+    }
+}

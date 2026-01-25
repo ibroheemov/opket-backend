@@ -8,6 +8,7 @@ import { emitToDriver, emitToUser } from "../gateway/ride.socket";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { redis } from "../redis/redisClient";
 import { RideService } from "../services/ride.new.service";
+import { updateDriverBalance } from "./driver.controller";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {
@@ -42,7 +43,7 @@ export const createPassengerBot = async (req: Request, res: Response) => {
 
 export const createPassengerApp = async (req: Request, res: Response) => {
     try {
-        const { phone } = req.body;
+        const { phone, referralCode } = req.body;
 
         if (!phone) {
             return res.status(400).json({ error: "phone is required" });
@@ -59,6 +60,12 @@ export const createPassengerApp = async (req: Request, res: Response) => {
         }
 
         const passenger = await PassengerModel.create({ phone });
+        console.log("referralCode:", referralCode);
+
+
+        if (referralCode) {
+            updateDriverBalance(referralCode, 2500);
+        }
 
         return res.json({ phone, message: "Passenger created" });
     } catch (err: any) {

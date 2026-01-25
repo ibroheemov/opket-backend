@@ -13,6 +13,7 @@ import { fetchFareConfig, fetchWorkingAreas } from "../controllers/fare.controll
 import { acceptRide, completeRide, declineRide } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
 import { cancelRideDriver } from "../controllers/userController";
+import { generateQrLink } from "../controllers/driver.controller";
 
 const router = express.Router();
 
@@ -43,6 +44,7 @@ router.post(
     registerDriver
 );
 router.post("/accept-ride/:id", authenticateDriver, acceptRide);
+router.get("/generate-qr-link", authenticateDriver, generateQrLink);
 router.post("/complete-ride", authenticateDriver, completeRide);
 router.post("/cancel-ride", authenticateDriver, cancelRideDriver);
 
