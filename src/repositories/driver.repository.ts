@@ -13,7 +13,6 @@ export const DriverRepository = {
 
         console.log(onlineDrivers);
 
-
         const driversWithDistance = onlineDrivers
             .map((driver) => {
                 if (!driver.location) return null;
