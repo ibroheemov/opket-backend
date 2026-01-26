@@ -21,15 +21,6 @@ export const generateQrLink = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        // OPTIONAL: verify driver exists (recommended)
-        // const driver = await DriverModel.findOne({ carNumber: driverId }).lean();
-        // if (!driver) {
-        //   return res.status(404).json({
-        //     success: false,
-        //     message: "Driver not found",
-        //   });
-        // }
-
         const passengerPackage = process.env.PASSENGER_ANDROID_PACKAGE;
         if (!passengerPackage) {
             return res.status(500).json({
