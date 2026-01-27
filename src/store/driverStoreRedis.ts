@@ -282,7 +282,9 @@ export class DriverStore {
                 continue;
             }
 
+            console.time(`enabled:${data.driverId}`);
             const enabledServices = await this.getEnabledServices(data.driverId);
+            console.timeEnd(`enabled:${data.driverId}`);
 
             drivers.push({
                 socketId: data.socketId,

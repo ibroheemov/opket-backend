@@ -9,9 +9,9 @@ export const DriverRepository = {
         maxKm = 2,
         options: string[],
     ) {
+        console.time("getOnlineDrivers");
         const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
-
-        console.log(onlineDrivers);
+        console.timeEnd("getOnlineDrivers");
 
         const driversWithDistance = onlineDrivers
             .map((driver) => {

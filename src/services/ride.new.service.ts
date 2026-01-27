@@ -107,7 +107,7 @@ const rideSearchControllers = new Map<string, AbortController>();
 const SEARCH_INTERVAL_MS = 5000;      // expand every 5s
 const OFFER_TTL_MS = 10000;            // driver has 7s to accept
 const MAX_SEARCH_TIME_MS = 60000;     // total 1 minute
-const INITIAL_RADIUS_KM = 1.0;
+const INITIAL_RADIUS_KM = 0.5;
 const RADIUS_STEP_KM = 0.5;
 const PARALLEL_MAX_DRIVERS = 3;
 const PARALLEL_PICK_WINDOW_MS = 500;
@@ -134,6 +134,8 @@ export const RideService = {
 
         const { phone, chatId, location, dropoff, address, type, options } = input;
         if (!phone && !chatId) return;
+
+        console.time("mongo.createRide");
 
         // 1️⃣ Persist ride in Mongo (history)
         const ride = await RideRepository.createRide({
@@ -198,6 +200,7 @@ export const RideService = {
         // 4️⃣ Start search (no AbortController anymore)
         // this.searchForDrivers(rideId, location, phone, controller.signal)
         //     .catch(err => console.error("Search failed:", err));
+        console.timeEnd("mongo.createRide");
 
         if (SEARCH_MODE === RideSearchMode.PARALLEL) {
             this.searchForDriversParallel(rideId, location, phone, controller.signal, options);
@@ -461,7 +464,7 @@ export const RideService = {
                     const driverId = c.driver.driverId;
                     return Promise.all([
                         redis.del(`ride_reservation:${rideId}:${driverId}`),
-                        redis.del(`driver_offer:${driverId}`),
+                        // redis.del(`driver_offer:${driverId}`), TODO: delete expiration only if there are no other drivers. and if this driver presses skip  let it expire
                         emitToDriver(driverId, "ride_already_taken", { rideId }),
                     ]);
                 })
