@@ -11,6 +11,7 @@ import { fareConfigs } from "../data/fare.database";
 import { PassengerModel } from "../models/PassengerModel";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { redis } from "../redis/redisClient";
+import { payfareTransfer } from "../services/payfare.service";
 
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
@@ -129,6 +130,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
     socket.on("balance_deduction_request", async ({ amount, phone }: { amount: number, phone: number }) => {
         const sSent = emitToUser(Number(phone), 'balance_deduction_request', { amount, driverId, driverName: driver.name });
+
+        const result = await payfareTransfer({ phone, driverId, amount });
     });
 
     socket.on("ride_progress", async (data: RideProgressPayload) => {
