@@ -13,6 +13,7 @@ export async function requestRide(chatId: number, location: { lat: number; lon: 
         phone,
         location,
         type: "bot",
+        rideType: isPremium ? "premium" : "standard",
         options: isPremium ? ["premium"] : []
     });
 

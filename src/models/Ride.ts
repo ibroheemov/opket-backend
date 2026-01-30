@@ -18,6 +18,7 @@ export interface IRide extends Document {
     endedAt?: Date;
     luggage: boolean;
     type: string | "app" | "bot",
+    rideType: string | "standard" | "premium" | "comfort";
     distanceTraveled: number,
     candidateDrivers: { driverId: string, distKm: number }[],
     offeredTo?: string;
@@ -52,6 +53,10 @@ const rideSchema = new Schema<IRide>({
     type: {
         type: String,
         default: "app",
+    },
+    rideType: {
+        type: String,
+        default: "standard",
     },
     fare: { type: Number, default: 2000 },
     fareEstimate: Number,

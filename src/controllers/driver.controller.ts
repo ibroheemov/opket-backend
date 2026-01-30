@@ -8,6 +8,7 @@ import { driverStore } from "../store/driverStore";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { emitToDriver } from "../gateway/ride.socket";
 import admin from 'firebase-admin';
+import { payfareTransfer } from "../services/payfare.service";
 
 // import DriverModel from "../models/Driver"; // <- adjust path
 
@@ -52,6 +53,33 @@ export const generateQrLink = async (req: AuthRequest, res: Response) => {
         });
     }
 };
+
+export const deductFromUser = async (req: AuthRequest, res: Response) => {
+    try {
+        const { phone, amount } = req.body;
+        const driverId = req.driverId;
+
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized: driverId missing",
+            });
+        }
+
+        const result = await payfareTransfer({ phone, driverId, amount });
+
+        return res.status(result.status).json(result.ok ? {
+            success: true,
+            message: result.message,
+            passengerBalance: result.passengerBalance,
+            driverBalance: result.driverBalance,
+        } : { message: result.message });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
 
 export const updateDriverBalance = async (driverId: string, amount: number) => {
     const updatedDriver = await DriverModel.findByIdAndUpdate(

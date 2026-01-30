@@ -12,6 +12,7 @@ import { PassengerModel } from "../models/PassengerModel";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { redis } from "../redis/redisClient";
 import { payfareTransfer } from "../services/payfare.service";
+import { Socket } from "socket.io";
 
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
@@ -58,13 +59,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         console.error("🟡❌ DRIVER => NO BALANCE", driverId);
     }
 
-    const passenger_in_store = await driverStoreRedis.get(driverId);
-
-    if (driver.events.length != 0 && passenger_in_store) {
-        for (const event of driver.events) {
-            await emitToDriver(driverId, event.event, event.data);
-        }
-    }
+    asyncemitMissedEvents(socket, driverId);
 
     emitToDriver(driverId, "feature_flags", { 'driverStatusToggleEnabled': false });
 
@@ -99,15 +94,16 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
+        console.time("RideService.acceptRide")
         try {
             const res: { success: boolean } = await RideService.acceptRide(rideId, driverId);
             if (res.success) {
                 emitToDriver(driverId, "accept_ride_status", { success: true })
             }
             if (!res.success) {
-                // await new Promise(resolve => setTimeout(resolve, 200));
                 emitToDriver(driverId, "accept_ride_status", { success: false })
             };
+            console.timeEnd("RideService.acceptRide")
         } catch (err) {
             handleSocketError(socket, (err as Error).message, err as Error);
         }
@@ -232,4 +228,16 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
 
+};
+
+
+export const asyncemitMissedEvents = async (socket: Socket, driverId: string) => {
+    const driver = driverStoreRedis.get(driverId);
+    if (!driver) return;
+
+    const missedAll = await driverStoreRedis.flushPendingEvents(driverId);
+
+    for (const e of missedAll) {
+        socket.emit(e.event, e.data);
+    }
 };

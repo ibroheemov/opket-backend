@@ -9,9 +9,8 @@ export const DriverRepository = {
         maxKm = 2,
         options: string[],
     ) {
-        console.time("getOnlineDrivers");
+        console.log("options:", options);
         const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
-        console.timeEnd("getOnlineDrivers");
 
         const driversWithDistance = onlineDrivers
             .map((driver) => {
@@ -19,6 +18,9 @@ export const DriverRepository = {
                 // if options are required, driver must have enabledServices and contain them
                 if (options.length !== 0) {
                     const enabled = driver.enabledServices ?? [];
+
+                    console.log("enabled:", enabled);
+
 
                     console.log("", driver.enabledServices);
 

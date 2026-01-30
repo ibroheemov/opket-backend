@@ -9,6 +9,8 @@ import { uploadBufferToCloudinary } from "../utils/uploadToCloudinary";
 import jwt from "jsonwebtoken";
 import { socketIo } from "../gateway/socket.maps";
 import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt";
+import { services } from "../data/fare.database";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 export const updateLocation = async (req: AuthRequest, res: Response) => {
     const { lat, lon } = req.body;
@@ -97,6 +99,40 @@ export const updateStatus = async (req: AuthRequest, res: Response) => {
 export const getDriverBalance = async (req: AuthRequest, res: Response) => {
     try {
         const driverId = req.params.id;
+
+        const driver = await DriverModel.findById(driverId).select("balance");
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
+        }
+
+        return res.json({ balance: driver.balance || 0 });
+    } catch (error) {
+        console.error("Error fetching driver balance:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const getCarOptions = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+
+        if (!driverId) {
+            return res.status(404).json({ message: "driverId  is required" });
+        }
+
+        const enabledServices = await driverStoreRedis.getEnabledServices(driverId);
+
+        return res.json({ services, enabledServices });
+    } catch (error) {
+        console.error("Error fetching services", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+
+export const getDriverBalanceNew = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
 
         const driver = await DriverModel.findById(driverId).select("balance");
         if (!driver) {

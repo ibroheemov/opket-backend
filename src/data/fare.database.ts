@@ -1,5 +1,21 @@
 // src/data/fareDatabase.ts
-import { FareConfig } from "../models/FareConfig";
+import { FareByCarType, FareConfig, FareConfigNew } from "../models/FareConfig";
+
+export const services = [
+    { id: "bagaj", description: "🎒 Bagaj", charge: 3000 },
+    { id: "dostavka", description: "📦 Dostavka", charge: 5000 },
+    { id: "tomida_bagaj", description: "🧳 Tomida bagaj", charge: 20000 },
+    { id: "peregruz_1_kishi", description: "👤 Peregruz 1 kishi", charge: 3000 },
+    { id: "peregruz_2_kishi", description: "👥 Peregruz 2 kishi", charge: 5000 },
+    { id: "peremichka", description: "🔧 Peremichka", charge: 15000 },
+    { id: "nasos_xizmati", description: "⛽ Nasos xizmati", charge: 15000 },
+    { id: "gaz_otkazish", description: "🔥 Gaz o‘tkazish", charge: 30000 },
+    { id: "buksir", description: "🛻 Buksir", charge: 50000 },
+    { id: "peregon", description: "🚗 Peregon", charge: 50000 },
+    { id: "uzoq_zakazga", description: "🕒 Uzoq zakazga", charge: 1000 },
+    { id: "platnye_stoyanki", description: "🅿️ Platnye stoyanki", charge: 1000 },
+    { id: "zapaska_balon", description: "🛠️ Zapaska balon", charge: 15000 },
+];
 
 export const fareConfigs: Record<string, FareConfig> = {
     default: {
@@ -46,4 +62,38 @@ export const fareConfigs: Record<string, FareConfig> = {
             ]
         }
     },
+};
+
+
+export const fareConfigsNew: Record<string, FareConfigNew> = {
+    standard: {
+        baseFare: 2000,
+        perKm: 2200,
+        firstKm: 5500,
+        outsidePerKm: 2400,
+        outsideFirstKm: 4000,
+        perMinute: 500,
+        services: services,
+        enabledServices: []
+    },
+    comfort: {
+        baseFare: 2000,
+        perKm: 2200,
+        firstKm: 6500,
+        outsidePerKm: 2600,
+        outsideFirstKm: 5000,
+        perMinute: 700,
+        services: services,
+        enabledServices: []
+    },
+    premium: {
+        baseFare: 4000,
+        perKm: 3300,
+        firstKm: 5000,
+        outsidePerKm: 3500,
+        outsideFirstKm: 9000,
+        perMinute: 1500,
+        services: services,
+        enabledServices: [],
+    }
 };

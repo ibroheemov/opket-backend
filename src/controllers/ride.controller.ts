@@ -14,7 +14,7 @@ export const requestRide = async (req: Request, res: Response) => {
     console.log("RIDE REQUEST RECEIVED");
 
     try {
-        const { phone, chatId, location, dropoff, address, type, isPremium, options } = req.body;
+        const { phone, chatId, location, dropoff, address, type, rideType, options } = req.body;
         console.log(options);
 
         if (
@@ -29,7 +29,7 @@ export const requestRide = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "[phone] or [chatId] is required" });
         }
 
-        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type, options });
+        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type, options, rideType });
         return res.status(200).json(result);
     } catch (err) {
         // logger.error("requestRide error:", err);
@@ -48,14 +48,14 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: "driverId is required" });
         }
 
-        await RideService.acceptRide(id, driverId);
+        const acceptRide: { success: boolean } = await RideService.acceptRide(id, driverId);
         const ride = await RideModel.findById(id).lean();
 
         if (!ride) {
             return res.status(404).json({ message: "Ride not found" });
         }
 
-        return res.status(200).json({ message: "Driver accepted the ride" });
+        return res.status(200).json({ success: acceptRide.success, message: "Driver accepted the ride" });
     } catch (err) {
         console.error('Error fetching current ride:', err);
         return res.status(500).json({ error: 'Internal server error' });

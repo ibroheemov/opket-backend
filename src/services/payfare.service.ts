@@ -13,12 +13,15 @@ type PayfareInput = {
 export async function payfareTransfer({ phone, driverId, amount }: PayfareInput) {
     const phoneStr = String(phone);
 
+    console.log(phoneStr, driverId, amount);
+
+
     // ✅ validations (includes max 5000)
     if (!phoneStr || !driverId || !Number.isFinite(amount) || amount <= 0 || amount > 5000) {
         return {
             ok: false as const,
             status: 400,
-            message: "Invalid amount. Maximum allowed is 5000",
+            message: "Maksimal summa 5,000 so'm",
         };
     }
 
@@ -33,7 +36,7 @@ export async function payfareTransfer({ phone, driverId, amount }: PayfareInput)
         return {
             ok: false as const,
             status: 400,
-            message: "Hamyoningizda mablag' yetarli emas!",
+            message: "Mijoz hamyonida mablag' yetarli emas!",
         };
     }
 

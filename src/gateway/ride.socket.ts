@@ -37,15 +37,12 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
     if (!id) return;
     const isOnline = passengerStore.isOnline(id);
 
-    console.log(event, isOnline);
-
     // If passenger is not in store (offline / not connected) and event is missable
     if (!isOnline && passenger_missable_events.includes(event)) {
         passengerStore.pushPendingEvent(id, event, data);
     }
 
     const socketId = userSockets.get(Number(id));
-    console.log(id, event, socketId);
 
     if (socketId) {
         socketIo.to(socketId).emit(event, data);
@@ -55,26 +52,16 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
 };
 
 export const emitToDriver = async (driverId: string, event: string, data: any) => {
-    // const driver = await driverStoreRedis.get(driverId);
-
-    // console.log(`SOCKET STATUS: ${driver?.socketStatus} \nIS EVENT INCLUDED${driver_missable_events.includes(event)} (${event})`);
-
-    // if (driver?.socketStatus == "disconnected" && driver_missable_events.includes(event)) {
-    //     await DriverModel.findByIdAndUpdate(
-    //         driverId,
-    //         {
-    //             $push: {
-    //                 events: {
-    //                     event: event,
-    //                     data: data
-    //                 }
-    //             }
-    //         },
-    //         { new: true }
-    //     );
-    // }
 
     const socketId = driverSockets.get(driverId);
+    const isOnline = await driverStoreRedis.isSocketConnected(driverId);
+
+    if (!isOnline && driver_missable_events.includes(event)) {
+        driverStoreRedis.pushPendingEvent(driverId, event, data);
+    }
+
+    console.log("isOnline:", isOnline, event);
+
 
     if (socketId) {
         socketIo.to(socketId).emit(event, data);

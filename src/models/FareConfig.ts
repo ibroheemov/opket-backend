@@ -9,7 +9,25 @@ export interface FareConfig {
     luggageCharge: number;
     services: Service[];
     enabledServices: string[];
-    premium?: FareConfig
+    premium?: FareConfig,
+    comfort?: FareConfig
+}
+
+export interface FareConfigNew {
+    baseFare: number;
+    perKm: number;
+    firstKm: number;
+    outsidePerKm: number;
+    outsideFirstKm: number;
+    perMinute: number;
+    services: Service[];
+    enabledServices: string[];
+}
+
+export interface FareByCarType {
+    standard: FareConfigNew,
+    comfort: FareConfigNew,
+    premium: FareConfigNew,
 }
 
 export interface Service {

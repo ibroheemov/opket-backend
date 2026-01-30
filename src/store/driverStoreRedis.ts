@@ -16,7 +16,14 @@ export interface DriverSession {
     hasPremiumCar?: boolean;
     canReceiveOffers: boolean;
     enabledServices?: string[],
+    pendingEvents?: PendingEvent[];
 }
+
+export type PendingEvent = {
+    event: string;
+    data: any;
+    createdAt: number;
+};
 
 // Redis keys
 const DRIVER_KEY_PREFIX = "driver:";
@@ -99,11 +106,16 @@ return cjson.encode(out)
 
 export class DriverStore {
     private maxStaleMs = 2 * 60 * 1000;
+    // NEW: keep pending events bounded
+    private pendingEventsCap = 100;
 
     private key(driverId: string) {
         return DRIVER_KEY_PREFIX + driverId;
     }
 
+    private pendingKey(driverId: string) {
+        return `${DRIVER_KEY_PREFIX}${driverId}:pendingEvents`;
+    }
     /* ----------------- Availability ----------------- */
 
     async isAvailable(driverId: string): Promise<boolean> {
@@ -171,6 +183,53 @@ export class DriverStore {
     }
 
     /* ----------------- Upserts ----------------- */
+
+    // NEW: push missed event into driver memory (Redis LIST)
+    async pushPendingEvent(driverId: string, event: string, data: any) {
+        const now = Date.now();
+        const payload = JSON.stringify({ event, data, createdAt: now });
+
+        const listKey = this.pendingKey(driverId);
+        const driverKey = this.key(driverId);
+
+        // Keep lastUpdated in sync (optional but nice)
+        const multi = redis.multi();
+        multi.rPush(listKey, payload);
+        // cap list size to last N events
+        multi.lTrim(listKey, -this.pendingEventsCap, -1);
+        multi.hSet(driverKey, { lastUpdated: now.toString() });
+        await multi.exec();
+    }
+
+    // NEW: pop & clear all pending events (use when driver reconnects)
+    async flushPendingEvents(driverId: string): Promise<PendingEvent[]> {
+        const listKey = this.pendingKey(driverId);
+        const driverKey = this.key(driverId);
+
+        // Atomic-ish: LRANGE + DEL in one MULTI transaction
+        const multi = redis.multi();
+        multi.lRange(listKey, 0, -1);
+        multi.del(listKey);
+        multi.hSet(driverKey, { lastUpdated: Date.now().toString() });
+
+        const res = await multi.exec();
+        // res[0] should be the LRANGE result
+        const raw = (res?.[0] ?? []) as unknown as string[];
+
+        const events: PendingEvent[] = [];
+        for (const s of raw) {
+            try {
+                const parsed = JSON.parse(s);
+                if (parsed?.event && typeof parsed.createdAt === "number") {
+                    events.push(parsed);
+                }
+            } catch {
+                // ignore malformed items
+            }
+        }
+
+        return events;
+    }
 
     /**
      * Partial atomic update (NO race conditions)
@@ -318,6 +377,7 @@ export class DriverStore {
     async remove(driverId: string) {
         await redis.del(this.key(driverId));
         await redis.sRem(ONLINE_DRIVERS_KEY, driverId);
+        await redis.del(this.pendingKey(driverId));
         await this.clearOffer(driverId);
     }
 
@@ -465,6 +525,16 @@ export class DriverStore {
         return this.enableServicesForDrivers(driverIds, serviceIds);
     }
 
+    async isSocketConnected(driverId: string): Promise<boolean> {
+        const data = await redis.hmGet(
+            this.key(driverId),
+            "socketStatus",
+        );
+
+        const [socketStatus] = data;
+
+        return socketStatus === "connected";
+    }
 }
 
 export const driverStoreRedis = new DriverStore();

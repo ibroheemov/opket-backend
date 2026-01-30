@@ -64,7 +64,7 @@ export const createPassengerApp = async (req: Request, res: Response) => {
 
 
         if (referralCode) {
-            updateDriverBalance(referralCode, 2500);
+            updateDriverBalance(referralCode, 1500);
         }
 
         return res.json({ phone, message: "Passenger created" });
@@ -115,8 +115,6 @@ export const cancelRide = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "rideId required" });
         }
 
-        // RideService.notifyOtherDriversRideCancelled(rideId);
-
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
@@ -129,7 +127,8 @@ export const cancelRide = async (req: Request, res: Response) => {
 
         const driverId = rideData.driverId;
 
-        console.log(`${driverId}-bg`);
+        console.log("DRIVER IDDDDD", driverId);
+
 
         // 2️⃣ Mark ride as cancelled in Redis
         await redis.hSet(rideKey, { status: "cancelled", phase: "cancelled" });
@@ -144,8 +143,8 @@ export const cancelRide = async (req: Request, res: Response) => {
 
         // 4️⃣ Clear driver state (make driver available for new offers)
         if (driverId) {
-            console.log(`${driverId}-bg`);
-            emitToDriver(`${driverId}-bg`, "ride_already_taken", { rideId })
+            emitToDriver(driverId, "ride_cancelled", { rideId })
+            emitToDriver(`${driverId}-bg`, "ride_cancelled", { rideId })
             const driverKey = `driver:${driverId}`;
             await redis.hSet(driverKey, { currentRideId: "" });
             // Optional: also clear driver_offer key in case it exists

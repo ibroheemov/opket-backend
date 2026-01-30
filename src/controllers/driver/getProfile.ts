@@ -15,3 +15,18 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 
     res.json({ driver });
 };
+
+export const getProfileNew = async (req: AuthRequest, res: Response) => {
+    const driverId = req.driverId;
+    console.log("driverId", driverId);
+
+    if (!driverId) return res.sendStatus(400);
+
+    const driver = await DriverModel.findById(driverId).lean();
+
+    if (!driver) {
+        return res.status(404).json({ message: "Driver not found" });
+    }
+
+    res.json({ driver });
+};
