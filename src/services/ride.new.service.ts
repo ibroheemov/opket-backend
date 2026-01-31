@@ -204,7 +204,11 @@ export const RideService = {
         //     .catch(err => console.error("Search failed:", err));
         console.timeEnd("mongo.createRide");
 
-        this.searchForDriversSequential(rideId, location, phone, controller.signal, options);
+        this.searchForDriversSequential(rideId, location, phone, controller.signal, options).catch((err) => {
+            // Abort is expected on cancel/accept
+            if (err?.message === "Aborted") return;
+            console.error("Search failed:", err);
+        });;
         return { ride_id: rideId };
     },
 
@@ -457,8 +461,7 @@ export const RideService = {
         if (rideData.userPhoneNumber) {
             emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
         }
-    }
-    ,
+    },
 
     nextDriver(
         drivers: DriverCandidate[],
