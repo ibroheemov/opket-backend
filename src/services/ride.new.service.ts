@@ -130,7 +130,7 @@ export interface RideRequestInput {
 }
 
 const SEARCH_MODE: RideSearchMode =
-    RideSearchMode.PARALLEL;
+    RideSearchMode.SEQUENTIAL;
 
 export const RideService = {
 
@@ -204,11 +204,7 @@ export const RideService = {
         //     .catch(err => console.error("Search failed:", err));
         console.timeEnd("mongo.createRide");
 
-        if (SEARCH_MODE === RideSearchMode.PARALLEL) {
-            this.searchForDriversParallel(rideId, location, phone, controller.signal, options);
-        } else {
-            this.searchForDriversSequential(rideId, location, phone, controller.signal, options);
-        }
+        this.searchForDriversSequential(rideId, location, phone, controller.signal, options);
         return { ride_id: rideId };
     },
 
