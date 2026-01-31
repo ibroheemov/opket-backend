@@ -126,7 +126,7 @@ export interface RideRequestInput {
     type?: string;
     isPremium?: boolean;
     options?: string[];
-    rideType: string;
+    rideType?: string;
 }
 
 const SEARCH_MODE: RideSearchMode =
@@ -177,7 +177,7 @@ export const RideService = {
             dropoffAddress: dropoff?.address ?? "",
 
             type: type ?? "",
-            rideType,
+            rideType: rideType ?? "standard",
         });
 
         await redis.expire(rideKey, RIDE_TTL_SECONDS);

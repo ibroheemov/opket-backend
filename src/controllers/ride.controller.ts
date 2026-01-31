@@ -14,8 +14,15 @@ export const requestRide = async (req: Request, res: Response) => {
     console.log("RIDE REQUEST RECEIVED");
 
     try {
-        const { phone, chatId, location, dropoff, address, type, rideType, options } = req.body;
-        console.log(options);
+        const { phone, chatId, location, dropoff, address, isPremium, type, rideType, options } = req.body;
+
+        let optionsReplaced = options;
+        let rideTypeReplaced = rideType;
+
+        if (isPremium && !rideType) {
+            optionsReplaced = ["premium", ...options];
+            rideTypeReplaced = "premium";
+        }
 
         if (
             !location ||
@@ -29,7 +36,7 @@ export const requestRide = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "[phone] or [chatId] is required" });
         }
 
-        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type, options, rideType });
+        const result = await RideService.requestRide({ phone, chatId, location, dropoff, address, type, options: optionsReplaced, rideType: rideTypeReplaced });
         return res.status(200).json(result);
     } catch (err) {
         // logger.error("requestRide error:", err);
