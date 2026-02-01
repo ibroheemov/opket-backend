@@ -43,16 +43,9 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
             name: driver.name,
             car: `${driver.carColor}, ${driver.carModel} - ${driver.carNumber}`,
             phone: driver.phone,
-            enabledServices: driver.hasPremiumCar ? ['premium'] : [],
             hasPremiumCar: driver.hasPremiumCar,
         }
     )
-
-    if (driver.hasPremiumCar) {
-        driverStoreRedis.addEnabledService(driverId, "premium");
-    } else {
-        driverStoreRedis.toggleEnabledService(driverId, "premium");
-    }
 
     if (!canReceiveOffers) {
         socket.emit("no_balance", { balance: driver.balance });

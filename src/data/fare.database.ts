@@ -1,5 +1,5 @@
 // src/data/fareDatabase.ts
-import { FareByCarType, FareConfig, FareConfigNew } from "../models/FareConfig";
+import { FareConfig, FareConfigNew } from "../models/FareConfig";
 
 export const services = [
     { id: "bagaj", description: "🎒 Bagaj", charge: 3000 },

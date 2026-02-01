@@ -9,7 +9,6 @@ export const DriverRepository = {
         maxKm = 2,
         options: string[],
     ) {
-        console.log("options:", options);
         const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
 
         const driversWithDistance = onlineDrivers
@@ -18,11 +17,6 @@ export const DriverRepository = {
                 // if options are required, driver must have enabledServices and contain them
                 if (options.length !== 0) {
                     const enabled = driver.enabledServices ?? [];
-
-                    console.log("enabled:", enabled);
-
-
-                    console.log("", driver.enabledServices);
 
                     const hasAllOptions = options.every((opt) => enabled.includes(opt));
                     if (!hasAllOptions) return null;

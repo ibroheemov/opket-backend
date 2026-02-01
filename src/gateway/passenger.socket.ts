@@ -31,7 +31,7 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
 
     console.log("🟢 [PASSENGER-MOBILE] connected");
     emitMissedPassengerEvents(socket, phone);
-    emitToUser(phone, "feature_flags", { 'isLuggageEnabled': false });
+    emitToUser(phone, "feature_flags", { 'isLuggageEnabled': true });
 
     socket.on("ride_started_ack", async ({ eventId }) => {
         await PassengerModel.updateOne(
