@@ -90,7 +90,7 @@ class AuthService {
         const token = jwt.sign(
             { id: newDriver._id, phone: newDriver.phone },
             config.jwtSecret,
-            { expiresIn: "7d" }
+            { expiresIn: "2y" }
         );
 
         return { driver: newDriver, token };

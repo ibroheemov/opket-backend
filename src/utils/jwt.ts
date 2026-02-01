@@ -4,7 +4,7 @@ import { ACCESS_TOKEN_EXPIRY, REFRESH_TOKEN_EXPIRY } from "../config/constants";
 import { config } from "../bot/config/env";
 
 export const signJwt = (payload: any) => {
-    return jwt.sign(payload, config.jwtSecret, { expiresIn: "7d" });
+    return jwt.sign(payload, config.jwtSecret, { expiresIn: "2y" });
 };
 
 export const verifyJwt = (token: string) => {

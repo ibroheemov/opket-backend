@@ -54,7 +54,7 @@ export function makeDriverAuthController(driverRepo: MongoDriverRepo) {
             return res.status(401).json({ error: "Invalid or expired OTP" });
 
         const token = jwt.sign({ id: driver.id, phone: driver.phone }, config.jwtSecret, {
-            expiresIn: "7d",
+            expiresIn: "2y",
         });
 
         driver.otp = undefined;
