@@ -64,7 +64,7 @@ export const createPassengerApp = async (req: Request, res: Response) => {
 
 
         if (referralCode) {
-            updateDriverBalance(referralCode, 1500);
+            updateDriverBalance(referralCode, 0);
         }
 
         return res.json({ phone, message: "Passenger created" });

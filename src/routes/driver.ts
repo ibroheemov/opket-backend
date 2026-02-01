@@ -10,7 +10,7 @@ import { payChange } from "../controllers/driver/payChange";
 import { heartbeat } from "../controllers/driver/heartbeat";
 import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchFareConfigNew, fetchWorkingAreas } from "../controllers/fare.controller";
-import { acceptRide, completeRide } from "../controllers/ride.controller";
+import { acceptRide, completeRide, skipRide } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
 import { cancelRideDriver } from "../controllers/userController";
 import { deductFromUser, generateQrLink } from "../controllers/driver.controller";
@@ -48,6 +48,7 @@ router.post(
     registerDriver
 );
 router.post("/accept-ride/:id", authenticateDriver, acceptRide);
+router.post("/skip-ride/:id", authenticateDriver, skipRide);
 router.get("/generate-qr-link", authenticateDriver, generateQrLink);
 router.post("/complete-ride", authenticateDriver, completeRide);
 router.post("/cancel-ride", authenticateDriver, cancelRideDriver);

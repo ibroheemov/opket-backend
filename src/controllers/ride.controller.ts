@@ -69,6 +69,15 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
     }
 };
 
+export const skipRide = async (req: AuthRequest, res: Response) => {
+    try {
+
+    } catch (err) {
+        console.error('Error fetching current ride:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
 export const completeRide = async (req: AuthRequest, res: Response) => {
     try {
         const driverId = req.driverId;

@@ -16,7 +16,6 @@ enum RideSearchMode {
     PARALLEL = "parallel"      // new behavior
 }
 
-
 type DriverCandidate = {
     driver: {
         driverId: string;
@@ -113,9 +112,12 @@ const PARALLEL_MAX_DRIVERS = 3;
 const PARALLEL_PICK_WINDOW_MS = 500;
 const PARALLEL_RADIUS_EXPAND_MS = 15000;
 const STAGE_WAIT_MS = 5000;
-const STAGE3_BURST_COUNT = 5;
-const STAGE4_BATCH_COUNT = 5;
+const STAGE3_BURST_COUNT = 40;
+const STAGE4_BATCH_COUNT = 40;
 const STAGE4_EXPAND_EVERY_MS = 5000;
+const STAGE1_2_RADIUS_KM = 0.8;
+const STAGE3_RADIUS_KM = 1.5;
+const STAGE1_2_WAIT_MS = 5000;
 
 export interface RideRequestInput {
     phone?: number;
@@ -224,23 +226,10 @@ export const RideService = {
         const acceptKey = `ride_accept:${rideId}`;
         const startTime = Date.now();
 
-        let radiusKm = INITIAL_RADIUS_KM;
-
         // Prevent re-offering the same driver across stages
         const attemptedDriverIds = new Set<string>();
 
         console.log(`🚀 Starting 4-stage sequential escalation for ride ${rideId}`);
-
-        const sleepAbortable = (ms: number) =>
-            new Promise<void>((resolve, reject) => {
-                if (signal?.aborted) return reject(new Error("Aborted"));
-                const onAbort = () => reject(new Error("Aborted"));
-                const timeout = setTimeout(() => {
-                    signal?.removeEventListener("abort", onAbort);
-                    resolve();
-                }, ms);
-                signal?.addEventListener("abort", onAbort, { once: true });
-            });
 
         const isExpired = () => Date.now() - startTime >= MAX_SEARCH_TIME_MS;
 
@@ -263,34 +252,34 @@ export const RideService = {
             return false;
         };
 
-        const fetchCandidates = async () => {
+        const fetchCandidates = async (radius: number) => {
             const drivers = await DriverRepository.findAvailableDrivers(
                 pickup.lat,
                 pickup.lon,
-                radiusKm,
+                radius,
                 options ?? []
             );
 
-            // Always sort by distance ascending, since "closest" matters now
             return drivers.sort((a, b) => a.distKm - b.distKm);
         };
 
         const reserveAndEmit = async (
             candidate: DriverCandidate,
-            rideData: Record<string, string>
+            rideData: Record<string, string>,
+            ttlMs: number
         ) => {
             const driverId = candidate.driver.driverId;
 
             const reservationKey = `ride_reservation:${rideId}:${driverId}`;
             const driverOfferKey = `driver_offer:${driverId}`;
+            const offeredSetKey = `ride_offered:${rideId}`;
 
             const reserved = await redis.eval(RESERVE_RIDE_LUA, {
                 keys: [reservationKey, driverOfferKey],
-                arguments: [driverId, rideId, OFFER_TTL_MS.toString()],
+                arguments: [driverId, rideId, ttlMs.toString()],
             });
 
             if (reserved !== 1) {
-                attemptedDriverIds.add(driverId);
                 return { ok: false as const, driverId };
             }
 
@@ -301,9 +290,16 @@ export const RideService = {
                 emitToDriver(`${driverId}-bg`, "ride_offer", payload),
             ]);
 
-            console.log(`🔐 Offered ride ${rideId} to driver ${driverId}`);
+            await redis
+                .multi()
+                .sAdd(offeredSetKey, driverId)
+                .expire(offeredSetKey, 300) // or MAX_SEARCH_TIME_MS/1000 rounded up
+                .exec();
+
+            console.log(`🔐 Offered ride ${rideId} to driver ${driverId} (ttl=${ttlMs}ms)`);
             return { ok: true as const, driverId };
         };
+
 
 
         const cleanupOffer = async (driverId: string) => {
@@ -318,23 +314,23 @@ export const RideService = {
             ]);
         };
 
-        const offerOneAndWait = async (): Promise<string | null> => {
-            const rideData = await redis.hGetAll(rideKey); // ✅ once per single offer attempt
+        const offerOneAndWait = async (radius: number): Promise<string | null> => {
+            const rideData = await redis.hGetAll(rideKey);
 
-            const candidates = await fetchCandidates();
+            const candidates = await fetchCandidates(radius);
             const next = candidates.find(c => !attemptedDriverIds.has(c.driver.driverId));
             if (!next) return null;
 
             const driverId = next.driver.driverId;
             attemptedDriverIds.add(driverId);
 
-            const { ok } = await reserveAndEmit(next, rideData);
+            const { ok } = await reserveAndEmit(next, rideData, OFFER_TTL_MS);
             if (!ok) return null;
 
             const acceptedDriverId = await this.waitForAcceptanceWithFallback(
                 rideId,
                 driverId,
-                STAGE_WAIT_MS
+                STAGE1_2_WAIT_MS
             );
 
             if (acceptedDriverId) return acceptedDriverId;
@@ -347,27 +343,32 @@ export const RideService = {
         };
 
 
-        const offerManyAndWait = async (count: number): Promise<string | null> => {
-            const rideData = await redis.hGetAll(rideKey); // ✅ once per batch
+        const offerAllAndWaitUntilTimeout = async (radius: number): Promise<string | null> => {
+            const rideData = await redis.hGetAll(rideKey);
 
-            const candidates = await fetchCandidates();
-            const batch = candidates
-                .filter(c => !attemptedDriverIds.has(c.driver.driverId))
-                .slice(0, count);
+            const candidates = (await fetchCandidates(radius))
+                .filter(c => !attemptedDriverIds.has(c.driver.driverId));
 
-            if (!batch.length) return null;
+            if (!candidates.length) return null;
 
-            batch.forEach(c => attemptedDriverIds.add(c.driver.driverId));
+            candidates.forEach(c => attemptedDriverIds.add(c.driver.driverId));
 
-            const results = await Promise.all(batch.map(c => reserveAndEmit(c, rideData)));
+            // TTL should last until the end (cap it so we don't set crazy values)
+            const remainingMs = Math.max(0, MAX_SEARCH_TIME_MS - (Date.now() - startTime));
+            const ttlMs = Math.min(Math.max(remainingMs, 3000), MAX_SEARCH_TIME_MS);
+
+            const results = await Promise.all(
+                candidates.map(c => reserveAndEmit(c, rideData, ttlMs))
+            );
+
             const offeredIds = results.filter(r => r.ok).map(r => r.driverId);
-
             if (!offeredIds.length) return null;
 
+            // Wait until overall timeout (or acceptance)
             const acceptedDriverId = await this.waitForAcceptanceWithFallback(
                 rideId,
                 "*",
-                STAGE_WAIT_MS
+                remainingMs
             );
 
             if (acceptedDriverId) return acceptedDriverId;
@@ -379,70 +380,22 @@ export const RideService = {
             return null;
         };
 
-
-        // --- Stage 1: closest 1, wait 5s ---
-        while (!(await checkStopConditions())) {
-            const accepted = await offerOneAndWait();
+        // --- Stage 1: nearest 1 within 0.8km, wait 5s ---
+        if (!(await checkStopConditions())) {
+            const accepted = await offerOneAndWait(STAGE1_2_RADIUS_KM);
             if (accepted) return;
-
-            // If we couldn't offer anyone at this radius, wait a tick then maybe expand
-            // (keeps behavior robust when there are no candidates)
-            const candidates = await fetchCandidates();
-            const anyUnattempted = candidates.some(c => !attemptedDriverIds.has(c.driver.driverId));
-            if (!anyUnattempted) {
-                await sleepAbortable(SEARCH_INTERVAL_MS);
-                radiusKm += RADIUS_STEP_KM;
-            }
-
-            break; // only one attempt in stage 1
         }
 
-        // --- Stage 2: next closest 1, wait 5s ---
-        while (!(await checkStopConditions())) {
-            const accepted = await offerOneAndWait();
+        // --- Stage 2: next nearest 1 within 0.8km, wait 5s ---
+        if (!(await checkStopConditions())) {
+            const accepted = await offerOneAndWait(STAGE1_2_RADIUS_KM);
             if (accepted) return;
-
-            const candidates = await fetchCandidates();
-            const anyUnattempted = candidates.some(c => !attemptedDriverIds.has(c.driver.driverId));
-            if (!anyUnattempted) {
-                await sleepAbortable(SEARCH_INTERVAL_MS);
-                radiusKm += RADIUS_STEP_KM;
-            }
-
-            break; // only one attempt in stage 2
         }
 
-        // --- Stage 3: closest 5 at once, wait 5s ---
-        while (!(await checkStopConditions())) {
-            const accepted = await offerManyAndWait(STAGE3_BURST_COUNT);
+        // --- Stage 3: ALL drivers within 1.5km at once, wait until overall timeout ---
+        if (!(await checkStopConditions())) {
+            const accepted = await offerAllAndWaitUntilTimeout(STAGE3_RADIUS_KM);
             if (accepted) return;
-
-            const candidates = await fetchCandidates();
-            const anyUnattempted = candidates.some(c => !attemptedDriverIds.has(c.driver.driverId));
-            if (!anyUnattempted) {
-                await sleepAbortable(SEARCH_INTERVAL_MS);
-                radiusKm += RADIUS_STEP_KM;
-            }
-
-            break; // only one burst in stage 3
-        }
-
-        // --- Stage 4: keep sending batches until overall timeout (60s) ---
-        let lastExpand = Date.now();
-
-        while (!(await checkStopConditions())) {
-            // expand periodically in stage4 so we keep finding fresh candidates
-            if (Date.now() - lastExpand >= STAGE4_EXPAND_EVERY_MS) {
-                radiusKm += RADIUS_STEP_KM;
-                lastExpand = Date.now();
-                console.log(`📡 [stage4] Expanding radius to ${radiusKm}km`);
-            }
-
-            const accepted = await offerManyAndWait(STAGE4_BATCH_COUNT);
-            if (accepted) return;
-
-            // small delay so we don't hammer DB/Redis if pool is thin
-            await sleepAbortable(250);
         }
 
         // Final: expired / cancelled / accepted elsewhere
@@ -671,6 +624,7 @@ export const RideService = {
     },
 
     async acceptRide(rideId: string, driverId: string) {
+        const offeredSetKey = `ride_offered:${rideId}`;
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
         const reservationKey = `ride_reservation:${rideId}:${driverId}`;
@@ -694,6 +648,14 @@ export const RideService = {
 
         // 2) Stop searching (non-Redis; keep as you prefer)
         this.stopSearching(rideId);
+
+        await this.notifyOfferedDriversSearchStopped({
+            rideId,
+            reason: "accepted",
+            winnerDriverId: driverId,
+            cleanupKeys: true,
+            deleteOfferedSet: true,
+        });
 
         // 3+4+5+6) ONE round-trip for cleanup + state + publish + fetch fields
         // (Remove redundant expire; avoid HGETALL)
@@ -739,6 +701,59 @@ export const RideService = {
 
         return { success: true, rideId, driverId };
     },
+
+    async notifyOfferedDriversSearchStopped(params: {
+        rideId: string;
+        reason: "accepted" | "cancelled" | "expired";
+        winnerDriverId?: string;        // present when accepted
+        cleanupKeys?: boolean;          // default true
+        deleteOfferedSet?: boolean;     // default true
+    }) {
+        const {
+            rideId,
+            reason,
+            winnerDriverId,
+            cleanupKeys = true,
+            deleteOfferedSet = true,
+        } = params;
+
+        const offeredSetKey = `ride_offered:${rideId}`;
+        const offeredDriverIds = await redis.sMembers(offeredSetKey);
+
+        if (!offeredDriverIds?.length) return;
+
+        const notifyIds = winnerDriverId
+            ? offeredDriverIds.filter(id => id && id !== winnerDriverId)
+            : offeredDriverIds.filter(id => id);
+
+        await Promise.all(
+            notifyIds.map(async (id) => {
+                if (cleanupKeys) {
+                    await redis
+                        .multi()
+                        .del(`ride_reservation:${rideId}:${id}`)
+                        .del(`driver_offer:${id}`)
+                        .exec();
+                }
+
+                const payload = {
+                    rideId,
+                    reason,
+                    ...(winnerDriverId ? { winnerDriverId } : {}),
+                };
+
+                await Promise.all([
+                    emitToDriver(id, "ride_search_stopped", payload),
+                    emitToDriver(`${id}-bg`, "ride_search_stopped", payload),
+                ]);
+            })
+        );
+
+        if (deleteOfferedSet) {
+            await redis.del(offeredSetKey);
+        }
+    },
+
 
     stopSearching(rideId: string) {
         const controller = rideSearchControllers.get(rideId);
