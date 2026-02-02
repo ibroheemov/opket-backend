@@ -15,6 +15,7 @@ import { getSession } from "../bot/services/sessionManager";
 import { sendFcm } from "../utils/sendFcm";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { redis } from "../redis/redisClient";
+import { RideRequestInput } from "../modules/ride/ride.types";
 
 // Lua script to atomically accept a ride
 const ACCEPT_MULTI_LUA = `
@@ -57,14 +58,7 @@ type SearchResult = {
     message: string;
 };
 
-export interface RideRequestInput {
-    phone?: number;
-    chatId?: number;
-    location: { lat: number; lon: number };
-    dropoff?: { lat: number; lon: number; address?: string };
-    address?: string;
-    type?: string;
-}
+
 
 export interface RideOfferPaylod {
     id: string;
@@ -161,16 +155,7 @@ export const RideService = {
         if (!phone && !chatId) return;
 
         // 1️⃣ Create ride in MongoDB (persistent)
-        const ride = await RideRepository.createRide({
-            userChatId: chatId,
-            userPhoneNumber: phone,
-            pickup: { lat: location.lat, lon: location.lon, address },
-            dropoff: dropoff
-                ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
-                : undefined,
-            status: "pending",
-            type,
-        });
+        const ride = await RideRepository.createRide(input);
 
         if (!ride) return;
 
