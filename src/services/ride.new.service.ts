@@ -3,6 +3,10 @@ import { sleep } from "../bot/utils/helpers";
 import { emitToDriver, emitToUser } from "../gateway/ride.socket";
 import { DriverModel } from "../models/DriverModel";
 import { RideModel } from "../models/Ride";
+import { RideConfig } from "../modules/ride/ride.config";
+import { RideKeys } from "../modules/ride/ride.keys";
+import { ACCEPT_RIDE_LUA, RESERVE_RIDE_LUA } from "../modules/ride/ride.lua";
+import { DriverCandidate, RideRequestInput, RideSearchMode } from "../modules/ride/ride.types";
 import { redis } from "../redis/redisClient";
 import { DriverRepository } from "../repositories/driver.repository";
 import { RideRepository } from "../repositories/ride.repository";
@@ -11,161 +15,34 @@ import { calculateApproxTime } from "../utils/calculateApproxTime";
 import { handleRideCommission } from "../utils/fare.helper";
 import { sendFcm } from "../utils/sendFcm";
 
-enum RideSearchMode {
-    SEQUENTIAL = "sequential", // current behavior
-    PARALLEL = "parallel"      // new behavior
-}
-
-type DriverCandidate = {
-    driver: {
-        driverId: string;
-    };
-    distKm: number;
-};
-
-
-const ACCEPT_RIDE_LUA = `
--- =========================
--- KEYS
--- 1 = ride:{rideId}
--- 2 = ride_accept:{rideId}
--- 3 = ride_reservation:{rideId}:{driverId}
--- =========================
--- ARGV
--- 1 = driverId
--- 2 = now (ms)
--- =========================
-
--- Ride missing
-if redis.call("EXISTS", KEYS[1]) == 0 then
-  return {0, "RIDE_NOT_FOUND"}
-end
-
--- Already accepted
-if redis.call("EXISTS", KEYS[2]) == 1 then
-  return {0, redis.call("GET", KEYS[2])}
-end
-
--- Reservation invalid
-if redis.call("EXISTS", KEYS[3]) == 0 then
-  return {0, "NOT_RESERVED_FOR_YOU"}
-end
-
--- Ride cancelled or expired
-local phase = redis.call("HGET", KEYS[1], "phase")
-if phase == "cancelled" or phase == "expired" then
-  return {0, "RIDE_NOT_ACTIVE"}
-end
-
-local expiresAt = redis.call("HGET", KEYS[1], "expiresAt")
-if expiresAt and tonumber(expiresAt) < tonumber(ARGV[2]) then
-  return {0, "RIDE_EXPIRED"}
-end
-
--- Accept ride
-redis.call("SET", KEYS[2], ARGV[1], "PX", 600000)
-
-redis.call("HSET", KEYS[1],
-  "status", "accepted",
-  "driverId", ARGV[1],
-  "acceptedAt", ARGV[2]
-)
-
-return {1, ARGV[1]}
-`;
-
-const RESERVE_RIDE_LUA = `
--- version: 2
--- =========================
--- KEYS
--- 1 = ride_reservation:{rideId}:{driverId}
--- 2 = driver_offer:{driverId}
--- =========================
--- ARGV
--- 1 = driverId
--- 2 = rideId
--- 3 = ttlMs
--- =========================
-
--- Driver busy
-if redis.call("EXISTS", KEYS[2]) == 1 then
-  return 0
-end
-
--- Reserve the ride for this driver
-redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[3])
-
--- Set driver_offer key
-redis.call("SET", KEYS[2], ARGV[2], "PX", ARGV[3])
-
-return 1
-`
-
 const rideSearchControllers = new Map<string, AbortController>();
 
-const SEARCH_INTERVAL_MS = 5000;      // expand every 5s
 const OFFER_TTL_MS = 10000;            // driver has 7s to accept
 const MAX_SEARCH_TIME_MS = 60000;     // total 1 minute
 const INITIAL_RADIUS_KM = 0.5;
 const RADIUS_STEP_KM = 0.5;
 const PARALLEL_MAX_DRIVERS = 3;
-const PARALLEL_PICK_WINDOW_MS = 500;
 const PARALLEL_RADIUS_EXPAND_MS = 15000;
-const STAGE_WAIT_MS = 5000;
-const STAGE3_BURST_COUNT = 40;
-const STAGE4_BATCH_COUNT = 40;
-const STAGE4_EXPAND_EVERY_MS = 5000;
 const STAGE1_2_RADIUS_KM = 0.8;
 const STAGE3_RADIUS_KM = 1.5;
 const STAGE1_2_WAIT_MS = 5000;
 
-export interface RideRequestInput {
-    phone?: number;
-    chatId?: number;
-    location: { lat: number; lon: number };
-    dropoff?: { lat: number; lon: number; address?: string };
-    address?: string;
-    type?: string;
-    isPremium?: boolean;
-    options?: string[];
-    rideType?: string;
-}
-
-const SEARCH_MODE: RideSearchMode =
-    RideSearchMode.SEQUENTIAL;
-
 export const RideService = {
-
     async requestRide(input: RideRequestInput) {
         const { phone, chatId, location, dropoff, address, type, rideType, options } = input;
         if (!phone && !chatId) return;
 
         // 1️⃣ Persist ride in Mongo (history)
-        const ride = await RideRepository.createRide({
-            userChatId: chatId,
-            userPhoneNumber: phone,
-            pickup: { lat: location.lat, lon: location.lon, address },
-            dropoff: dropoff
-                ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
-                : undefined,
-            status: "pending",
-            type,
-            rideType,
-        });
-
-        const rideId = ride._id.toString();
-        const rideKey = `ride:${rideId}`;
-        const rideCancelKey = `ride_cancel:${rideId}`;
-        const searchLockKey = `ride_search_lock:${rideId}`;
+        const ride = await RideRepository.createRide(input);
+        const rideId = ride._id;
 
         // 2️⃣ Create authoritativeMAX Redis ride state
         const now = Date.now();
-        const RIDE_TTL_SECONDS = 300;
 
-        await redis.hSet(rideKey, {
+        await redis.hSet(RideKeys.ride(ride.id), {
             phase: "pending",
             createdAt: now.toString(),
-            expiresAt: (now + RIDE_TTL_SECONDS * 1000).toString(),
+            expiresAt: (now + RideConfig.RIDE_TTL_SECONDS * 1000).toString(),
 
             userChatId: chatId?.toString() ?? "",
             userPhoneNumber: phone?.toString() ?? "",
@@ -182,14 +59,14 @@ export const RideService = {
             rideType: rideType ?? "standard",
         });
 
-        await redis.expire(rideKey, RIDE_TTL_SECONDS);
-        await redis.del(rideCancelKey);
+        await redis.expire(RideKeys.ride(ride.id), RideConfig.RIDE_TTL_SECONDS);
+        await redis.del(RideKeys.cancel(ride.id));
 
         // 3️⃣ Acquire distributed search lock
         const lockAcquired = await redis.set(
-            searchLockKey,
+            RideKeys.searchLock(ride.id),
             "1",
-            { NX: true, EX: 60 }
+            { NX: true, EX: RideConfig.SEARCH_LOCK_EX_SECONDS }
         );
 
         if (!lockAcquired) {
@@ -200,11 +77,6 @@ export const RideService = {
         // 4️⃣ Start search
         const controller = new AbortController();
         rideSearchControllers.set(rideId, controller);
-
-        // 4️⃣ Start search (no AbortController anymore)
-        // this.searchForDrivers(rideId, location, phone, controller.signal)
-        //     .catch(err => console.error("Search failed:", err));
-        console.timeEnd("mongo.createRide");
 
         this.searchForDriversSequential(rideId, location, phone, controller.signal, options).catch((err) => {
             // Abort is expected on cancel/accept
