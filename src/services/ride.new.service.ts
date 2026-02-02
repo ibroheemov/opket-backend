@@ -34,7 +34,7 @@ export const RideService = {
 
         // 1️⃣ Persist ride in Mongo (history)
         const ride = await RideRepository.createRide(input);
-        const rideId = ride._id;
+        const rideId = ride._id.toString();
 
         // 2️⃣ Create authoritativeMAX Redis ride state
         const now = Date.now();
