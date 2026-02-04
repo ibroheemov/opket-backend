@@ -21,6 +21,13 @@ export interface RideRequestInput {
     type?: string;
 }
 
+export interface GhostRideInput {
+    driverId: string;
+    fare: number;
+    distanceTraveled: number,
+    pauseSeconds?: number,
+}
+
 export type RideSearchStopReason = "accepted" | "cancelled" | "expired";
 
 export type RideDriverOfferPayload = {

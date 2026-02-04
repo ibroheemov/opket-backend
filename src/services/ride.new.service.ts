@@ -6,7 +6,7 @@ import { RideModel } from "../models/Ride";
 import { RideConfig } from "../modules/ride/ride.config";
 import { RideKeys } from "../modules/ride/ride.keys";
 import { ACCEPT_RIDE_LUA, RESERVE_RIDE_LUA } from "../modules/ride/ride.lua";
-import { DriverCandidate, RideRequestInput, RideSearchMode } from "../modules/ride/ride.types";
+import { DriverCandidate, GhostRideInput, RideRequestInput, RideSearchMode } from "../modules/ride/ride.types";
 import { redis } from "../redis/redisClient";
 import { DriverRepository } from "../repositories/driver.repository";
 import { RideRepository } from "../repositories/ride.repository";
@@ -167,6 +167,8 @@ export const RideService = {
                 .sAdd(offeredSetKey, driverId)
                 .expire(offeredSetKey, 300) // or MAX_SEARCH_TIME_MS/1000 rounded up
                 .exec();
+
+            RideRepository.setRideStatus(rideId, "offered", { by: "system" });
 
             console.log(`🔐 Offered ride ${rideId} to driver ${driverId} (ttl=${ttlMs}ms)`);
             return { ok: true as const, driverId };
@@ -502,11 +504,12 @@ export const RideService = {
         const reservationKey = `ride_reservation:${rideId}:${driverId}`;
         const driverOfferKey = `driver_offer:${driverId}`;
         const now = Date.now();
+        const rideActiveTtlMs = RideConfig.RIDE_ACTIVE_TTL_SECONDS * 1000;
 
         // 1) Lua
         const result = await redis.eval(ACCEPT_RIDE_LUA, {
             keys: [rideKey, acceptKey, reservationKey],
-            arguments: [driverId, now.toString()],
+            arguments: [driverId, now.toString(), rideActiveTtlMs.toString()],
         });
 
         const [accepted, reasonOrWinner] = result as [number, string];
@@ -517,6 +520,8 @@ export const RideService = {
             rideId,
             { driverId, status: "accepted", acceptedAt: new Date() },
         ).exec().catch(err => console.error("Mongo ride update failed:", err));
+
+        RideRepository.setRideStatus(rideId, "accepted", { by: "driver" });
 
         // 2) Stop searching (non-Redis; keep as you prefer)
         this.stopSearching(rideId);
@@ -633,14 +638,17 @@ export const RideService = {
         rideSearchControllers.delete(rideId);
     },
 
-    async completeRideGhostRide(driverId: string, data: RideCompletedPayload) {
+    async completeRideGhostRide(data: GhostRideInput) {
+        const { driverId, fare, distanceTraveled } = data;
+
+        await RideRepository.createGostRide(data);
+
         // 5️⃣ Update driver in MongoDB (clear currentRideId)
         const updatedDriver = await DriverModel.findOneAndUpdate(
             { _id: driverId },
             { currentRideId: null },
             { new: true }
         );
-
 
         const commissionResult = await handleRideCommission(driverId, Number(data.fare));
         const { balance, commission } = commissionResult;
@@ -652,16 +660,15 @@ export const RideService = {
     },
 
     async completeRide(driverId: string, data: RideCompletedPayload) {
-        const { rideId, distance, fare } = data;
+        const { rideId, distance, fare, pauseSeconds } = data;
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
         const driverKey = `driver:${driverId}`;
 
-        // 3️⃣ Clear driver's current ride in Redis
-        await redis.hSet(driverKey, { currentRideId: "" });
-
         // 1️⃣ Verify ride exists and driver actually accepted it
         const rideData = await redis.hGetAll(rideKey);
+        console.log(rideData, driverId);
+
         if (!rideData || !rideData.driverId || rideData.driverId !== driverId) {
             throw new Error(`Ride ${rideId} not assigned to driver ${driverId}`);
         }
@@ -679,7 +686,8 @@ export const RideService = {
         // Optional: expire ride accept key after completion
         await redis.del(acceptKey);
 
-
+        // 3️⃣ Clear driver's current ride in Redis
+        await redis.hSet(driverKey, { currentRideId: "" });
 
         // 4️⃣ Update ride in MongoDB
         await RideModel.findOneAndUpdate(
@@ -687,10 +695,13 @@ export const RideService = {
             {
                 endedAt: new Date(),
                 distanceTraveled: distance,
+                pauseSeconds,
                 fare,
                 status: "completed",
             }
         );
+
+        RideRepository.setRideStatus(rideId, "completed", { by: "driver" })
 
         // 5️⃣ Update driver in MongoDB (clear currentRideId)
         const updatedDriver = await DriverModel.findOneAndUpdate(
@@ -698,6 +709,7 @@ export const RideService = {
             { currentRideId: null },
             { new: true }
         );
+
 
         // 6️⃣ Deduct commission & update driver balance
         const commissionResult = await handleRideCommission(driverId, Number(data.fare));

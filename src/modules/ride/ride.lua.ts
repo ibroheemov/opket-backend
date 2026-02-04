@@ -42,10 +42,14 @@ end
 redis.call("SET", KEYS[2], ARGV[1], "PX", 600000)
 
 redis.call("HSET", KEYS[1],
-  "status", "accepted",
+  "phase", "accepted",
   "driverId", ARGV[1],
   "acceptedAt", ARGV[2]
 )
+
+-- ✅ keep ride hash alive for the whole trip
+-- (use PEXPIRE so you don't care what previous EXPIRE was)
+redis.call("PEXPIRE", KEYS[1], tonumber(ARGV[3]))
 
 return {1, ARGV[1]}
 `;

@@ -1,11 +1,9 @@
-import { driverSockets, userSockets, socketIo } from "./socket.maps";
+import { driverSockets } from "./socket.maps";
 import { DriverModel } from "../models/DriverModel";
 import { RideModel } from "../models/Ride";
-import { updateRideStatus, emitToUser, emitToDriver } from "./ride.socket";
-import { driverStore } from "../store/driverStore";
+import { emitToUser, emitToDriver } from "./ride.socket";
 import { DriverSocketConnectionPayload, RideCompletedPayload, RideProgressPayload, RideStartedPayload } from "../bot/socket/types";
 import { handleSocketError } from "../utils/socketError";
-// import { RideService } from "../services/ride.service";
 import { RideService } from "../services/ride.new.service";
 import { fareConfigs } from "../data/fare.database";
 import { PassengerModel } from "../models/PassengerModel";
@@ -13,6 +11,7 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 import { redis } from "../redis/redisClient";
 import { payfareTransfer } from "../services/payfare.service";
 import { Socket } from "socket.io";
+import { RideRepository } from "../repositories/ride.repository";
 
 
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
@@ -23,9 +22,6 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         socket.emit("error", { message: "Driver not found" });
         return; // stop socket setup
     }
-
-    console.log("🟡 DRIVER connected", location)
-
 
     const canReceiveOffers = driver.balance > 0;
     driverSockets.set(driverId, socket.id);
@@ -47,8 +43,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         }
     )
 
+    if (driver.blocked) {
+        emitToDriver(driverId, "driver_blocked", { reason: "Iltimos sababini bilish uchun Opket rahbariyati bilan bog'laning", })
+    }
+
     if (!canReceiveOffers) {
-        socket.emit("no_balance", { balance: driver.balance });
+        emitToDriver(driverId, "no_balance", { balance: driver.balance });
         console.error("🟡❌ DRIVER => NO BALANCE", driverId);
     }
 
@@ -82,7 +82,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("driver_offline", () => {
-        driverStoreRedis.upsert(driverId, { status: "offline" });
+        socket.disconnect();
+        // driverStoreRedis.upsert(driverId, { status: "offline" });
         console.error("🟡🔕 DRIVER => OFFLINE", driverId);
     });
 
@@ -158,7 +159,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     });
 
     socket.on("ride_started", async (data: RideStartedPayload) => {
-        const ride = await updateRideStatus(data.rideId, "started");
+        const ride = await RideRepository.setRideStatus(data.rideId, "started", { by: "driver" })
         if (ride) {
             const sent = emitToUser(ride.userPhoneNumber, "ride_started", data);
             console.log('ride_started', sent);
@@ -209,18 +210,10 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     socket.on("connect_error", (err) =>
         console.error("🟡❌ DRIVER Connection error:", err.message)
     );
-    socket.on("disconnect", () => {
-        console.log("🟡🔴 DRIVER disconnected");
-        const driver = driverStoreRedis.get(driverId);
-        if (!driver) return;
 
-        driverStoreRedis.upsert(driverId, {
-            socketStatus: "disconnected",
-        })
-
+    socket.on("disconnect", async () => {
+        await driverStoreRedis.remove(driverId);
     });
-
-
 };
 
 
@@ -231,6 +224,6 @@ export const asyncemitMissedEvents = async (socket: Socket, driverId: string) =>
     const missedAll = await driverStoreRedis.flushPendingEvents(driverId);
 
     for (const e of missedAll) {
-        socket.emit(e.event, e.data);
+        emitToDriver(driverId, e.event, e.data)
     }
 };

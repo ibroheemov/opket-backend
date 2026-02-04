@@ -22,6 +22,7 @@ export interface IDriverDocument extends Document {
     lastname: string;
     name: string;
     phone: string;
+    appVersion?: string;
 
     carModel?: string;
     carColor?: string;
@@ -51,6 +52,7 @@ export interface IDriverDocument extends Document {
 
     balance: number;
     canReceiveOffers: boolean;
+    blocked?: boolean;
     hasPremiumCar: boolean;
 
     events: {
@@ -78,10 +80,11 @@ const DriverSchema = new Schema<IDriverDocument>(
         firstname: { type: String, required: true },
         lastname: { type: String, required: true },
         name: { type: String, required: true },
+        appVersion: { type: String, required: true },
 
         phone: { type: String, required: true, unique: true, index: true },
 
-        balance: { type: Number, default: 40_000 },
+        balance: { type: Number, default: 20_000 },
 
         carModel: String,
         carNumber: String,
@@ -114,6 +117,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         passport: { type: UploadSchema, default: () => ({}) },
 
         canReceiveOffers: { type: Boolean, default: true },
+        blocked: { type: Boolean, default: false },
         hasPremiumCar: { type: Boolean, default: false },
 
         events: {

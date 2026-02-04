@@ -80,7 +80,6 @@ export const deductFromUser = async (req: AuthRequest, res: Response) => {
     }
 };
 
-
 export const updateDriverBalance = async (driverId: string, amount: number) => {
     const updatedDriver = await DriverModel.findByIdAndUpdate(
         driverId,
@@ -116,3 +115,64 @@ export const updateDriverBalance = async (driverId: string, amount: number) => {
         return false;
     }
 }
+
+
+export const updateAppVersion = async (req: AuthRequest, res: Response) => {
+    try {
+        const { version } = req.body;
+        const driverId = req.driverId;
+
+        // 1️⃣ Validate input
+        if (!version || typeof version !== "string") {
+            return res.status(400).json({
+                success: false,
+                message: "app version is required",
+            });
+        }
+
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "unauthorized",
+            });
+        }
+
+        // 2️⃣ Update driver app version
+        const updatedDriver = await DriverModel.findByIdAndUpdate(
+            driverId,
+            {
+                appVersion: version,
+                // appVersionUpdatedAt: new Date(), // optional but recommended
+            },
+            {
+                new: true,
+                runValidators: true,
+            }
+        );
+
+        // 3️⃣ Handle not found
+        if (!updatedDriver) {
+            return res.status(404).json({
+                success: false,
+                message: "driver not found",
+            });
+        }
+
+        // 4️⃣ Success response
+        return res.status(200).json({
+            success: true,
+            message: "app version updated successfully",
+            data: {
+                driverId: updatedDriver._id,
+                appVersion: updatedDriver.appVersion,
+            },
+        });
+    } catch (error) {
+        console.error("updateDriverBalance error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "internal server error",
+        });
+    }
+};

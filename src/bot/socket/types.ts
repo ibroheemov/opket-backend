@@ -46,6 +46,7 @@ export interface RideCompletedPayload {
     rideId: string;
     distance: string;
     fare: string;
+    pauseSeconds?: number;
 }
 
 

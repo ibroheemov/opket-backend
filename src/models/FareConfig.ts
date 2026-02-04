@@ -20,6 +20,7 @@ export interface FareConfigNew {
     outsidePerKm: number;
     outsideFirstKm: number;
     perMinute: number;
+    minutesBeforeCharge: number;
     services: Service[];
     enabledServices: string[];
 }

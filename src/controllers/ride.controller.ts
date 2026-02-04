@@ -9,6 +9,7 @@ import { AuthRequest } from "../middlewares/auth";
 import { socketIo } from "../gateway/socket.maps";
 import { RideRepository } from "../repositories/ride.repository";
 import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
+import { services } from "../data/fare.database";
 
 export const requestRide = async (req: Request, res: Response) => {
     console.log("RIDE REQUEST RECEIVED");
@@ -78,6 +79,46 @@ export const skipRide = async (req: AuthRequest, res: Response) => {
     }
 };
 
+export const toggleRideOption = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id, add, rideId } = req.body as { id: string; add: boolean; rideId: string };
+
+        if (!rideId) return res.json({ ok: true });
+        if (!id) return res.status(400).json({ error: "service id is required" });
+        if (typeof add !== "boolean") return res.status(400).json({ error: "add must be boolean" });
+
+        const service = services.find((s) => s.id === id);
+        if (!service) return res.status(400).json({ error: `Unknown service id: ${id}` });
+
+        let ride;
+
+        if (add) {
+            // add only if not exists
+            ride = await RideModel.findOneAndUpdate(
+                { _id: rideId, "options.id": { $ne: id } },
+                { $push: { options: { id, charge: service.charge } } },
+                { new: true }
+            );
+            // if it already existed, just return current ride
+            if (!ride) ride = await RideModel.findById(rideId);
+        } else {
+            // remove if exists
+            ride = await RideModel.findOneAndUpdate(
+                { _id: rideId },
+                { $pull: { options: { id } } },
+                { new: true }
+            );
+        }
+
+        if (!ride) return res.status(404).json({ error: "Ride not found" });
+
+        return res.json({ ok: true, ride });
+    } catch (err) {
+        console.error("Error toggling ride option:", err);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+};
+
 export const completeRide = async (req: AuthRequest, res: Response) => {
     try {
         const driverId = req.driverId;
@@ -87,17 +128,29 @@ export const completeRide = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: "driverId is required" });
         }
 
-        if (rideId == '') {
-            await RideService.completeRideGhostRide(driverId, { rideId, distance, fare });
-            return;
-        }
-
         if (!rideId || !distance || !fare) {
             return res.status(400).json({ message: "These are required [rideId, distance, fare]" });
         }
 
-
         await RideService.completeRide(driverId, { rideId, distance, fare });
+
+        return res.status(200).json({ message: "Ride completed successfully" });
+    } catch (err) {
+        console.error('Error completing current ride:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+export const completeGhostRide = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+        const { distance, fare, pauseSeconds } = req.body;
+
+        if (!driverId) {
+            return res.status(400).json({ message: "driverId is required" });
+        }
+
+        await RideService.completeRideGhostRide({ driverId, fare, pauseSeconds, distanceTraveled: distance });
 
         return res.status(200).json({ message: "Ride completed successfully" });
     } catch (err) {

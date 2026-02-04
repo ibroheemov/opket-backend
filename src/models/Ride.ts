@@ -1,6 +1,24 @@
 // src/models/Ride.ts
 import mongoose, { Schema, Document } from "mongoose";
 
+export type RideStatus =
+    | string
+    | "pending"
+    | "offered"
+    | "accepted"
+    | "arrived"
+    | "waiting_for_user"
+    | "started"
+    | "completed"
+    | "cancelled";
+
+export interface IRideStatusEvent {
+    status: RideStatus;
+    at: Date;
+    by?: "system" | "user" | "driver" | "admin";
+    note?: string;
+}
+
 export interface IRide extends Document {
     _id: string;
     userId?: string;
@@ -9,8 +27,10 @@ export interface IRide extends Document {
     driverId?: string | null;
     pickup: { lat: number; lon: number; address?: string };
     dropoff?: { lat: number; lon: number; address?: string };
-    status: string | "pending" | "offered" | "accepted" | "arrived" | "waiting_for_user" | "started" | "completed" | "cancelled";
+    status: RideStatus;
+    statusHistory: IRideStatusEvent[];
     fare: number;
+    pauseSeconds?: number;
     fareEstimate?: number;
     distanceKm?: number;
     createdAt?: Date;
@@ -27,6 +47,10 @@ export interface IRide extends Document {
         lat: Number,
         lon: Number,
     },
+    options?: {
+        id: string;
+        charge: number;
+    }[];
 }
 
 const rideSchema = new Schema<IRide>({
@@ -50,6 +74,17 @@ const rideSchema = new Schema<IRide>({
         enum: ["pending", "offered", "accepted", "arrived", "started", "completed", "cancelled"],
         default: "pending",
     },
+    statusHistory: {
+        type: [
+            {
+                status: { type: String, required: true },
+                at: { type: Date, required: true, default: Date.now },
+                by: { type: String },   // optional
+                note: { type: String }, // optional
+            },
+        ],
+        default: [],
+    },
     type: {
         type: String,
         default: "app",
@@ -59,6 +94,7 @@ const rideSchema = new Schema<IRide>({
         default: "standard",
     },
     fare: { type: Number, default: 2000 },
+    pauseSeconds: { type: Number, default: 0 },
     fareEstimate: Number,
     distanceKm: Number,
     createdAt: { type: Date, default: Date.now },
@@ -72,6 +108,15 @@ const rideSchema = new Schema<IRide>({
     candidateDrivers: { type: [{ driverId: String, distKm: Number }], default: [] },
     offeredTo: String,
     offerExpiresAt: Date,
+    options: {
+        type: [
+            {
+                id: { type: String, required: true },
+                charge: { type: Number, required: true },
+            },
+        ],
+        default: [],
+    },
 });
 
 export const RideModel = mongoose.model<IRide>("Ride", rideSchema);
