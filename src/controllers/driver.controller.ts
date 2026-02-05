@@ -9,6 +9,8 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 import { emitToDriver } from "../gateway/ride.socket";
 import admin from 'firebase-admin';
 import { payfareTransfer } from "../services/payfare.service";
+import { RideModel } from "../models/Ride";
+import { getUtcRange, Period } from "../utils/timeRange";
 
 // import DriverModel from "../models/Driver"; // <- adjust path
 
@@ -51,6 +53,97 @@ export const generateQrLink = async (req: AuthRequest, res: Response) => {
             success: false,
             message: error.message || "Failed to generate QR link",
         });
+    }
+};
+
+export const getMyRides = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+        const period = (req.query.period as Period) ?? "month";
+        const date = (req.query.date as string) ?? new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const tz = (req.query.tz as string) ?? "UTC";
+
+        if (!["day", "week", "month", "year"].includes(period)) {
+            return res.status(400).json({ message: "Invalid period. Use day|week|month|year" });
+        }
+
+        const { startUtc, endUtc } = getUtcRange({ period, date, tz });
+
+        const rides = await RideModel.aggregate([
+            // Rides
+            {
+                $match: {
+                    driverId,
+                    createdAt: { $gte: startUtc, $lte: endUtc },
+                },
+            },
+            { $addFields: { source: "ride" } },
+            {
+                $project: {
+                    _id: 1,
+                    createdAt: 1,
+                    fare: 1,
+                    distanceTraveled: 1,
+                    status: 1,
+                    rideType: 1,
+                    userChatId: 1,
+                    userPhoneNumber: 1,
+                    source: 1,
+                },
+            },
+
+            // Merge GhostRides
+            {
+                $unionWith: {
+                    coll: "ghostrides", // make sure this matches your actual collection name
+                    pipeline: [
+                        {
+                            $match: {
+                                driverId,
+                                createdAt: { $gte: startUtc, $lte: endUtc },
+                            },
+                        },
+                        {
+                            $addFields: {
+                                source: "ghostRide",
+                                status: null,
+                                rideType: null,
+                                userChatId: null,
+                                userPhoneNumber: null,
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 1,
+                                createdAt: 1,
+                                fare: 1,
+                                distanceTraveled: 1,
+                                status: 1,
+                                rideType: 1,
+                                userChatId: 1,
+                                userPhoneNumber: 1,
+                                source: 1,
+                            },
+                        },
+                    ],
+                },
+            },
+
+            { $sort: { createdAt: -1 } },
+        ]);
+
+        return res.json({
+            driverId,
+            period,
+            date,
+            tz,
+            rangeUtc: { start: startUtc.toISOString(), end: endUtc.toISOString() },
+            count: rides.length,
+            rides,
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: "Server error", error: (err as Error).message });
     }
 };
 

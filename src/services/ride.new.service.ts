@@ -17,13 +17,13 @@ import { sendFcm } from "../utils/sendFcm";
 
 const rideSearchControllers = new Map<string, AbortController>();
 
-const OFFER_TTL_MS = 10000;            // driver has 7s to accept
+const OFFER_TTL_MS = 7000;            // driver has 7s to accept
 const MAX_SEARCH_TIME_MS = 60000;     // total 1 minute
 const INITIAL_RADIUS_KM = 0.5;
 const RADIUS_STEP_KM = 0.5;
 const PARALLEL_MAX_DRIVERS = 3;
 const PARALLEL_RADIUS_EXPAND_MS = 15000;
-const STAGE1_2_RADIUS_KM = 0.8;
+const STAGE1_2_RADIUS_KM = 1.5;
 const STAGE3_RADIUS_KM = 1.5;
 const STAGE1_2_WAIT_MS = 5000;
 
@@ -138,7 +138,8 @@ export const RideService = {
         const reserveAndEmit = async (
             candidate: DriverCandidate,
             rideData: Record<string, string>,
-            ttlMs: number
+            ttlMs: number,
+            isSingleOffer: boolean
         ) => {
             const driverId = candidate.driver.driverId;
 
@@ -155,7 +156,7 @@ export const RideService = {
                 return { ok: false as const, driverId };
             }
 
-            const payload = RideService.buildDriverOfferPayload(rideId, rideData, candidate);
+            const payload = RideService.buildDriverOfferPayload(rideId, rideData, candidate, isSingleOffer);
 
             await Promise.all([
                 emitToDriver(driverId, "ride_offer", payload),
@@ -198,7 +199,7 @@ export const RideService = {
             const driverId = next.driver.driverId;
             attemptedDriverIds.add(driverId);
 
-            const { ok } = await reserveAndEmit(next, rideData, OFFER_TTL_MS);
+            const { ok } = await reserveAndEmit(next, rideData, OFFER_TTL_MS, true);
             if (!ok) return null;
 
             const acceptedDriverId = await this.waitForAcceptanceWithFallback(
@@ -208,6 +209,11 @@ export const RideService = {
             );
 
             if (acceptedDriverId) return acceptedDriverId;
+
+            await Promise.all([
+                emitToDriver(driverId, "ride_search_stopped", { rideId }),
+                emitToDriver(`${driverId}-bg`, "ride_search_stopped", { rideId }),
+            ]);
 
             if (!(await redis.get(acceptKey))) {
                 await cleanupOffer(driverId);
@@ -232,7 +238,7 @@ export const RideService = {
             const ttlMs = Math.min(Math.max(remainingMs, 3000), MAX_SEARCH_TIME_MS);
 
             const results = await Promise.all(
-                candidates.map(c => reserveAndEmit(c, rideData, ttlMs))
+                candidates.map(c => reserveAndEmit(c, rideData, ttlMs, false))
             );
 
             const offeredIds = results.filter(r => r.ok).map(r => r.driverId);
@@ -386,6 +392,7 @@ export const RideService = {
             // 4️⃣ Emit offers in parallel
             const rideData = await redis.hGetAll(rideKey);
             console.log(rideData);
+            const isSingleOffer = reservedDrivers.length === 1;
 
             await Promise.all(
                 reservedDrivers.map(candidate => {
@@ -393,7 +400,8 @@ export const RideService = {
                     const payload = RideService.buildDriverOfferPayload(
                         rideId,
                         rideData,
-                        candidate
+                        candidate,
+                        isSingleOffer
                     );
 
                     return Promise.all([
@@ -477,12 +485,15 @@ export const RideService = {
     buildDriverOfferPayload(
         rideId: string,
         rideData: Record<string, string>,
-        candidate: { distKm: number }
+        candidate: { distKm: number },
+        isSingleOffer: boolean
     ) {
         const travelTimeMin = calculateApproxTime(candidate.distKm);
 
         return {
             type: 'ride_request',
+            channelKey: isSingleOffer ? "ride_channel_v7" : "ride_channel_parallel_v7",
+            title: isSingleOffer ? "Sizga yangi buyurtma bor" : "O'rtadagi buyurtma",
             ride_id: rideId,
             phone: rideData.userPhoneNumber ?? '',
             chatId: rideData.userChatId ?? '',

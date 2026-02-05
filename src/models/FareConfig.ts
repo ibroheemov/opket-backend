@@ -23,6 +23,8 @@ export interface FareConfigNew {
     minutesBeforeCharge: number;
     services: Service[];
     enabledServices: string[];
+    smallestDistance: number,
+    smallestDistanceFare: number,
 }
 
 export interface FareByCarType {

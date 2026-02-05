@@ -117,15 +117,32 @@ export const getCarOptions = async (req: AuthRequest, res: Response) => {
         const driverId = req.driverId;
 
         if (!driverId) {
-            return res.status(404).json({ message: "driverId  is required" });
+            return res.status(400).json({ message: "driverId is required" });
         }
 
-        const enabledServices = await driverStoreRedis.getEnabledServices(driverId);
+        const driver = await DriverModel.findById(driverId)
+            .select({ enabledOptions: 1 })
+            .lean();
 
-        return res.json({ services, enabledServices });
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
+        }
+
+        // If old docs might not have enabledOptions yet, provide a safe fallback:
+        const enabledServices =
+            driver.enabledOptions ??
+            services
+                .map(s => s.id)
+                .filter(id => (String(driver.carModel || "").trim().toLowerCase() === "matiz" ? id !== "bagaj" : true))
+                .concat(driver.hasPremiumCar ? ["premium"] : []);
+
+        // remove duplicates just in case
+        const enabledServicesUnique = Array.from(new Set(enabledServices));
+
+        return res.json({ services, enabledServices: enabledServicesUnique });
     } catch (error) {
         console.error("Error fetching services", error);
-        res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ message: "Server error" });
     }
 };
 

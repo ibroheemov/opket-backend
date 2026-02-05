@@ -43,6 +43,8 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         }
     )
 
+    driverStoreRedis.enableServicesForDrivers([driverId], driver.enabledOptions ?? []);
+
     if (driver.blocked) {
         emitToDriver(driverId, "driver_blocked", { reason: "Iltimos sababini bilish uchun Opket rahbariyati bilan bog'laning", })
     }
@@ -78,7 +80,22 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
 
     // 3️⃣ Handle driver availability
     socket.on("driver_online", () => {
-        driverStoreRedis.upsert(driverId, { status: "online" });
+        // 1️⃣ Mark as online
+        driverStoreRedis.upsert(
+            driverId,
+            {
+                socketId: socket.id,
+                status: "online",
+                socketStatus: "connected",
+                fcmToken,
+                location: location,
+                canReceiveOffers,
+                name: driver.name,
+                car: `${driver.carColor}, ${driver.carModel} - ${driver.carNumber}`,
+                phone: driver.phone,
+                hasPremiumCar: driver.hasPremiumCar,
+            }
+        )
     });
 
     socket.on("driver_offline", () => {

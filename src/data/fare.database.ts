@@ -16,6 +16,7 @@ export const services = [
     { id: "platnye_stoyanki", description: "🅿️ Platnye stoyanki", charge: 1000 },
     { id: "zapaska_balon", description: "🛠️ Zapaska balon", charge: 15000 },
 ];
+export const serviceIds = services.map(service => service.id);
 
 export const fareConfigs: Record<string, FareConfig> = {
     default: {
@@ -76,6 +77,8 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         enabledServices: [],
         perMinute: 700,
         minutesBeforeCharge: 1.5,
+        smallestDistance: 500,
+        smallestDistanceFare: 5000,
     },
     comfort: {
         baseFare: 2000,
@@ -87,7 +90,8 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         services: services,
         enabledServices: [],
         minutesBeforeCharge: 1.5,
-
+        smallestDistance: 500,
+        smallestDistanceFare: 5000,
     },
     premium: {
         baseFare: 0,
@@ -99,5 +103,7 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         services: services,
         enabledServices: [],
         minutesBeforeCharge: 1.5,
+        smallestDistance: 500,
+        smallestDistanceFare: 5000,
     }
 };

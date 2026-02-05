@@ -9,6 +9,7 @@ import { emitToDriver } from "../gateway/ride.socket";
 export const sendRideOffer = async (rideOffer: RideOfferPaylod) => {
     const data = {
         type: 'ride_request',
+        channelKey: 'ride_channel_parallel_v5',
         ride_id: rideOffer.id.toString(),
         phone: rideOffer.userPhoneNumber?.toString() ?? '',
         pickup: JSON.stringify(rideOffer.pickup),

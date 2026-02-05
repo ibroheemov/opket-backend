@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import { serviceIds, services } from "../data/fare.database";
 
 export type DriverStatus = "offline" | "available" | "on_trip";
 
@@ -59,6 +60,7 @@ export interface IDriverDocument extends Document {
         event: string;
         data: Record<string, any>;
     }[];
+    enabledOptions?: string[]
 }
 
 
@@ -129,6 +131,7 @@ const DriverSchema = new Schema<IDriverDocument>(
             ],
             default: [],
         },
+        enabledOptions: { type: [String], default: serviceIds },
     },
     { timestamps: true }
 );

@@ -13,7 +13,7 @@ import { fetchFareConfig, fetchFareConfigNew, fetchWorkingAreas } from "../contr
 import { acceptRide, completeGhostRide, completeRide, skipRide, toggleRideOption } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
 import { cancelRideDriver } from "../controllers/userController";
-import { deductFromUser, generateQrLink, updateAppVersion } from "../controllers/driver.controller";
+import { deductFromUser, generateQrLink, getMyRides, updateAppVersion } from "../controllers/driver.controller";
 
 const router = express.Router();
 
@@ -57,5 +57,6 @@ router.post("/deduct-from-user", authenticateDriver, deductFromUser);
 router.get("/car-options", authenticateDriver, getCarOptions);
 router.post("/toggle-ride-option", authenticateDriver, toggleRideOption);
 router.post("/app-version", authenticateDriver, updateAppVersion);
+router.get("/rides", authenticateDriver, getMyRides);
 
 export default router;
