@@ -86,7 +86,7 @@ const DriverSchema = new Schema<IDriverDocument>(
 
         phone: { type: String, required: true, unique: true, index: true },
 
-        balance: { type: Number, default: 20_000 },
+        balance: { type: Number, default: 0 },
 
         carModel: String,
         carNumber: String,
