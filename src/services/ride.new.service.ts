@@ -18,13 +18,13 @@ import { sendFcm } from "../utils/sendFcm";
 const rideSearchControllers = new Map<string, AbortController>();
 
 const OFFER_TTL_MS = 7000;            // driver has 7s to accept
-const MAX_SEARCH_TIME_MS = 60000;     // total 1 minute
+const MAX_SEARCH_TIME_MS = 120000;     // total 1 minute
 const INITIAL_RADIUS_KM = 0.5;
 const RADIUS_STEP_KM = 0.5;
 const PARALLEL_MAX_DRIVERS = 3;
 const PARALLEL_RADIUS_EXPAND_MS = 15000;
-const STAGE1_2_RADIUS_KM = 1.5;
-const STAGE3_RADIUS_KM = 1.5;
+const STAGE1_2_RADIUS_KM = 1.8;
+const STAGE3_RADIUS_KM = 1.8;
 const STAGE1_2_WAIT_MS = 5000;
 
 export const RideService = {

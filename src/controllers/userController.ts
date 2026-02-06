@@ -9,6 +9,7 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 import { redis } from "../redis/redisClient";
 import { RideService } from "../services/ride.new.service";
 import { updateDriverBalance } from "./driver.controller";
+import { RideRepository } from "../repositories/ride.repository";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {
@@ -180,6 +181,8 @@ export const cancelRideDriver = async (req: Request, res: Response) => {
         if (!rideId) {
             return res.status(400).json({ error: "rideId required" });
         }
+
+        await RideRepository.setRideStatus(rideId, "cancelled", { by: "driver" });
 
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
