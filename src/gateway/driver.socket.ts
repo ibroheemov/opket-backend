@@ -229,7 +229,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     );
 
     socket.on("disconnect", async () => {
-        await driverStoreRedis.remove(driverId);
+        // await driverStoreRedis.remove(driverId);
     });
 };
 
