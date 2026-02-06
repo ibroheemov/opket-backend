@@ -77,7 +77,7 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         enabledServices: [],
         perMinute: 700,
         minutesBeforeCharge: 1.5,
-        smallestDistance: 500,
+        smallestDistance: 0.5,
         smallestDistanceFare: 5000,
     },
     comfort: {
@@ -90,7 +90,7 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         services: services,
         enabledServices: [],
         minutesBeforeCharge: 1.5,
-        smallestDistance: 500,
+        smallestDistance: 0.5,
         smallestDistanceFare: 5000,
     },
     premium: {
@@ -103,7 +103,7 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         services: services,
         enabledServices: [],
         minutesBeforeCharge: 1.5,
-        smallestDistance: 500,
+        smallestDistance: 0.5,
         smallestDistanceFare: 5000,
     }
 };
