@@ -82,7 +82,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         firstname: { type: String, required: true },
         lastname: { type: String, required: true },
         name: { type: String, required: true },
-        appVersion: { type: String, required: true },
+        appVersion: { type: String },
 
         phone: { type: String, required: true, unique: true, index: true },
 
