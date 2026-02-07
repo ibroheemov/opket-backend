@@ -16,27 +16,28 @@ import { handleRideCommission } from "../utils/fare.helper";
 import { sendFcm } from "../utils/sendFcm";
 
 const rideSearchControllers = new Map<string, AbortController>();
+const attempts = new Map<string, { lastTs: number; count: number }>();
 
-const OFFER_TTL_MS = 7000;            // driver has 7s to accept
-const MAX_SEARCH_TIME_MS = 120000;     // total 1 minute
+const MAX_SEARCH_TIME_MS = 5 * 60 * 1000; // 300000 ms = 5 minutes
 const INITIAL_RADIUS_KM = 0.5;
 const RADIUS_STEP_KM = 0.5;
 const PARALLEL_MAX_DRIVERS = 3;
 const PARALLEL_RADIUS_EXPAND_MS = 15000;
-const STAGE1_2_RADIUS_KM = 1.8;
-const STAGE3_RADIUS_KM = 1.8;
-const STAGE1_2_WAIT_MS = 5000;
+const OFFERED_SET_EX_SECONDS = 300;
+const OFFER_TTL_MS = 5000;        // wait 7s
+const RADIUS_2KM = 2.0;
+const POLL_MS = 400;              // when no drivers or between loops
+const REOFFER_AFTER_MS = 10_000;  // 
 
 export const RideService = {
+
     async requestRide(input: RideRequestInput) {
         const { phone, chatId, location, dropoff, address, type, rideType, options } = input;
         if (!phone && !chatId) return;
 
-        // 1️⃣ Persist ride in Mongo (history)
         const ride = await RideRepository.createRide(input);
         const rideId = ride._id.toString();
 
-        // 2️⃣ Create authoritativeMAX Redis ride state
         const now = Date.now();
 
         await redis.hSet(RideKeys.ride(ride.id), {
@@ -62,7 +63,6 @@ export const RideService = {
         await redis.expire(RideKeys.ride(ride.id), RideConfig.RIDE_TTL_SECONDS);
         await redis.del(RideKeys.cancel(ride.id));
 
-        // 3️⃣ Acquire distributed search lock
         const lockAcquired = await redis.set(
             RideKeys.searchLock(ride.id),
             "1",
@@ -74,15 +74,14 @@ export const RideService = {
             return { ride_id: rideId };
         }
 
-        // 4️⃣ Start search
         const controller = new AbortController();
         rideSearchControllers.set(rideId, controller);
 
         this.searchForDriversSequential(rideId, location, phone, controller.signal, options).catch((err) => {
-            // Abort is expected on cancel/accept
             if (err?.message === "Aborted") return;
             console.error("Search failed:", err);
-        });;
+        });
+
         return { ride_id: rideId };
     },
 
@@ -98,48 +97,57 @@ export const RideService = {
         const acceptKey = `ride_accept:${rideId}`;
         const startTime = Date.now();
 
-        // Prevent re-offering the same driver across stages
-        const attemptedDriverIds = new Set<string>();
+        // in-memory anti-spam: driverId -> lastAttemptTs
+        const attemptedAt = new Map<string, number>();
+        let lastOfferedDriverId: string | null = null;
 
-        console.log(`🚀 Starting 4-stage sequential escalation for ride ${rideId}`);
+        console.log(`🚀 Nearest-2km sequential loop started for ride ${rideId}`);
 
-        const isExpired = () => Date.now() - startTime >= MAX_SEARCH_TIME_MS;
-
-        const checkStopConditions = async () => {
+        const checkStop = async () => {
             if (signal?.aborted) return true;
 
+            // keep distributed lock alive
             await redis.expire(`ride_search_lock:${rideId}`, 60);
 
-            if (await redis.exists(cancelKey)) {
-                console.log(`🛑 Ride ${rideId} cancelled`);
-                return true;
-            }
+            if (await redis.exists(cancelKey)) return true;
+            if (await redis.get(acceptKey)) return true;
 
-            // someone already accepted?
-            const accepted = await redis.get(acceptKey);
-            if (accepted) return true;
-
-            if (isExpired()) return true;
+            // If you want "dont stop forever", remove this expiry check.
+            // I recommend keeping SOME limit (your ride TTL or MAX_SEARCH_TIME_MS).
+            if (Date.now() - startTime >= MAX_SEARCH_TIME_MS) return true;
 
             return false;
         };
 
-        const fetchCandidates = async (radius: number) => {
+        const fetchCandidates2km = async () => {
             const drivers = await DriverRepository.findAvailableDrivers(
                 pickup.lat,
                 pickup.lon,
-                radius,
+                RADIUS_2KM,
                 options ?? []
             );
-
             return drivers.sort((a, b) => a.distKm - b.distKm);
+        };
+
+        const canAttempt = (driverId: string) => {
+            const a = attempts.get(driverId);
+            if (!a) return true;                 // never tried
+            if (a.count >= 2) return false;      // ✅ already offered twice -> never again
+            return Date.now() - a.lastTs >= REOFFER_AFTER_MS; // cooldown for 2nd offer
+        };
+
+        const markAttempt = (driverId: string) => {
+            const prev = attempts.get(driverId);
+            attempts.set(driverId, {
+                count: (prev?.count ?? 0) + 1,
+                lastTs: Date.now(),
+            });
         };
 
         const reserveAndEmit = async (
             candidate: DriverCandidate,
             rideData: Record<string, string>,
-            ttlMs: number,
-            isSingleOffer: boolean
+            ttlMs: number
         ) => {
             const driverId = candidate.driver.driverId;
 
@@ -152,30 +160,27 @@ export const RideService = {
                 arguments: [driverId, rideId, ttlMs.toString()],
             });
 
-            if (reserved !== 1) {
-                return { ok: false as const, driverId };
-            }
+            if (reserved !== 1) return { ok: false as const, driverId };
 
-            const payload = RideService.buildDriverOfferPayload(rideId, rideData, candidate, isSingleOffer);
+            const payload = RideService.buildDriverOfferPayload(
+                rideId,
+                rideData,
+                candidate,
+                true // single offer UI
+            );
 
             await Promise.all([
                 emitToDriver(driverId, "ride_offer", payload),
                 emitToDriver(`${driverId}-bg`, "ride_offer", payload),
             ]);
 
-            await redis
-                .multi()
-                .sAdd(offeredSetKey, driverId)
-                .expire(offeredSetKey, 300) // or MAX_SEARCH_TIME_MS/1000 rounded up
-                .exec();
+            await redis.multi().sAdd(offeredSetKey, driverId).expire(offeredSetKey, OFFERED_SET_EX_SECONDS).exec();
 
             RideRepository.setRideStatus(rideId, "offered", { by: "system" });
 
             console.log(`🔐 Offered ride ${rideId} to driver ${driverId} (ttl=${ttlMs}ms)`);
             return { ok: true as const, driverId };
         };
-
-
 
         const cleanupOffer = async (driverId: string) => {
             const reservationKey = `ride_reservation:${rideId}:${driverId}`;
@@ -189,112 +194,78 @@ export const RideService = {
             ]);
         };
 
-        const offerOneAndWait = async (radius: number): Promise<string | null> => {
+        // pick the "next nearest after lastOfferedDriverId" (wrap-around)
+        const pickNext = (drivers: DriverCandidate[], lastId: string | null) => {
+            if (!drivers.length) return null;
+
+            // filter by re-offer policy
+            const eligible = drivers.filter(d => canAttempt(d.driver.driverId));
+            if (!eligible.length) return null;
+
+            if (!lastId) return eligible[0];
+
+            const idx = eligible.findIndex(d => d.driver.driverId === lastId);
+            if (idx === -1) return eligible[0];
+
+            return eligible[(idx + 1) % eligible.length];
+        };
+
+        while (!(await checkStop())) {
+            const candidates = await fetchCandidates2km();
+
+            if (!candidates.length) {
+                await sleep(POLL_MS);
+                continue;
+            }
+
+            const next = pickNext(candidates, lastOfferedDriverId);
+            if (!next) {
+                // all are within REOFFER_AFTER_MS cooldown; wait a bit and try again
+                await sleep(POLL_MS);
+                continue;
+            }
+
             const rideData = await redis.hGetAll(rideKey);
-
-            const candidates = await fetchCandidates(radius);
-            const next = candidates.find(c => !attemptedDriverIds.has(c.driver.driverId));
-            if (!next) return null;
-
             const driverId = next.driver.driverId;
-            attemptedDriverIds.add(driverId);
 
-            const { ok } = await reserveAndEmit(next, rideData, OFFER_TTL_MS, true);
-            if (!ok) return null;
+            lastOfferedDriverId = driverId;
+            markAttempt(driverId);
 
-            const acceptedDriverId = await this.waitForAcceptanceWithFallback(
-                rideId,
-                driverId,
-                STAGE1_2_WAIT_MS
-            );
+            const { ok } = await reserveAndEmit(next, rideData, OFFER_TTL_MS);
+            if (!ok) {
+                // could not reserve (busy / already has offer) -> try next tick
+                await sleep(150);
+                continue;
+            }
 
-            if (acceptedDriverId) return acceptedDriverId;
+            // wait 7s for acceptance
+            const acceptedDriverId = await this.waitForAcceptanceWithFallback(rideId, driverId, OFFER_TTL_MS);
+            if (acceptedDriverId) {
+                console.log(`✅ Ride ${rideId} accepted by ${acceptedDriverId}`);
+                return;
+            }
 
-            await Promise.all([
-                emitToDriver(driverId, "ride_search_stopped", { rideId }),
-                emitToDriver(`${driverId}-bg`, "ride_search_stopped", { rideId }),
-            ]);
-
+            // not accepted -> cleanup and move on
             if (!(await redis.get(acceptKey))) {
                 await cleanupOffer(driverId);
             }
 
-            return null;
-        };
-
-
-        const offerAllAndWaitUntilTimeout = async (radius: number): Promise<string | null> => {
-            const rideData = await redis.hGetAll(rideKey);
-
-            const candidates = (await fetchCandidates(radius))
-                .filter(c => !attemptedDriverIds.has(c.driver.driverId));
-
-            if (!candidates.length) return null;
-
-            candidates.forEach(c => attemptedDriverIds.add(c.driver.driverId));
-
-            // TTL should last until the end (cap it so we don't set crazy values)
-            const remainingMs = Math.max(0, MAX_SEARCH_TIME_MS - (Date.now() - startTime));
-            const ttlMs = Math.min(Math.max(remainingMs, 3000), MAX_SEARCH_TIME_MS);
-
-            const results = await Promise.all(
-                candidates.map(c => reserveAndEmit(c, rideData, ttlMs, false))
-            );
-
-            const offeredIds = results.filter(r => r.ok).map(r => r.driverId);
-            if (!offeredIds.length) return null;
-
-            // Wait until overall timeout (or acceptance)
-            const acceptedDriverId = await this.waitForAcceptanceWithFallback(
-                rideId,
-                "*",
-                remainingMs
-            );
-
-            if (acceptedDriverId) return acceptedDriverId;
-
-            if (!(await redis.get(acceptKey))) {
-                await Promise.all(offeredIds.map(cleanupOffer));
-            }
-
-            return null;
-        };
-
-        // --- Stage 1: nearest 1 within 0.8km, wait 5s ---
-        if (!(await checkStopConditions())) {
-            const accepted = await offerOneAndWait(STAGE1_2_RADIUS_KM);
-            if (accepted) return;
+            await sleep(80); // tiny gap between offers
         }
 
-        // --- Stage 2: next nearest 1 within 0.8km, wait 5s ---
-        if (!(await checkStopConditions())) {
-            const accepted = await offerOneAndWait(STAGE1_2_RADIUS_KM);
-            if (accepted) return;
-        }
-
-        // --- Stage 3: ALL drivers within 1.5km at once, wait until overall timeout ---
-        if (!(await checkStopConditions())) {
-            const accepted = await offerAllAndWaitUntilTimeout(STAGE3_RADIUS_KM);
-            if (accepted) return;
-        }
-
-        // Final: expired / cancelled / accepted elsewhere
-        if (await redis.get(acceptKey)) {
-            console.log(`✅ Ride ${rideId} accepted (detected via acceptKey)`);
-            return;
-        }
-
+        // stop reasons
+        if (await redis.get(acceptKey)) return;
         if (await redis.exists(cancelKey)) return;
 
-        console.log(`⏳ Ride ${rideId} expired — no drivers`);
+        console.log(`⏳ Ride ${rideId} expired — no acceptance`);
         await redis.hSet(rideKey, { phase: "expired" });
-        await redis.set(cancelKey, "1", { EX: 60 });
 
         const rideData = await redis.hGetAll(rideKey);
         if (rideData.userPhoneNumber) {
             emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
         }
     },
+
 
     nextDriver(
         drivers: DriverCandidate[],
