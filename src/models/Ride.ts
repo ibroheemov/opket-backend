@@ -1,5 +1,5 @@
 // src/models/Ride.ts
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, ObjectId, Types } from "mongoose";
 
 export type RideStatus =
     | string
@@ -14,6 +14,8 @@ export type RideStatus =
 
 export interface IRideStatusEvent {
     status: RideStatus;
+    driverId?: Types.ObjectId,
+    distKm?: number,
     at: Date;
     by?: "system" | "user" | "driver" | "admin";
     note?: string;
@@ -78,6 +80,8 @@ const rideSchema = new Schema<IRide>({
         type: [
             {
                 status: { type: String, required: true },
+                driverId: { type: Schema.Types.ObjectId, ref: "Driver", required: false },
+                distKm: { type: Number, required: false },
                 at: { type: Date, required: true, default: Date.now },
                 by: { type: String },   // optional
                 note: { type: String }, // optional

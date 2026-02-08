@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { GhostRideModel } from "../models/GhostRide";
 import { RideModel, RideStatus } from "../models/Ride";
 import { GhostRideInput, RideRequestInput } from "../modules/ride/ride.types";
@@ -7,7 +8,12 @@ export const RideRepository = {
     async setRideStatus(
         rideId: string,
         newStatus: RideStatus,
-        meta?: { by?: "system" | "user" | "driver" | "admin"; note?: string }
+        meta?: {
+            by?: "system" | "user" | "driver" | "admin";
+            note?: string,
+            driverId?: Types.ObjectId;
+            distKm?: number;
+        },
     ) {
         if (rideId == "") return;
         const now = new Date();

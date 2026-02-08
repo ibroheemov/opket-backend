@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { RideCompletedPayload } from "../bot/socket/types";
 import { sleep } from "../bot/utils/helpers";
 import { emitToDriver, emitToUser } from "../gateway/ride.socket";
@@ -197,7 +198,8 @@ export const RideService = {
                 .expire(offeredSetKey, OFFERED_SET_EX_SECONDS)
                 .exec();
 
-            RideRepository.setRideStatus(rideId, "offered", { by: "system" });
+            const driverObjectId = new Types.ObjectId(driverId);
+            RideRepository.setRideStatus(rideId, "offered", { by: "system", driverId: driverObjectId, distKm: candidate.distKm });
 
             console.log(`🔐 Offered ride ${rideId} to driver ${driverId} (ttl=${ttlMs}ms)`);
             return { ok: true as const, driverId };
