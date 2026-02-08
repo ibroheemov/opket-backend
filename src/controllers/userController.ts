@@ -126,10 +126,9 @@ export const cancelRide = async (req: Request, res: Response) => {
             return res.status(404).json({ error: `Ride ${rideId} not found` });
         }
 
+        void RideRepository.setRideStatus(rideId, "cancelled", { by: "user" });
+
         const driverId = rideData.driverId;
-
-        console.log("DRIVER IDDDDD", driverId);
-
 
         // 2️⃣ Mark ride as cancelled in Redis
         await redis.hSet(rideKey, { status: "cancelled", phase: "cancelled" });
@@ -178,60 +177,70 @@ export const cancelRide = async (req: Request, res: Response) => {
 export const cancelRideDriver = async (req: Request, res: Response) => {
     try {
         const { rideId } = req.body;
-        if (!rideId) {
-            return res.status(400).json({ error: "rideId required" });
-        }
-
-        await RideRepository.setRideStatus(rideId, "cancelled", { by: "driver" });
+        if (!rideId) return res.status(400).json({ error: "rideId required" });
 
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
-        const cancelKey = `ride_cancel:${rideId}`;
+        // IMPORTANT: do NOT set ride_cancel here if you want search to continue
 
-        // 1️⃣ Fetch ride from Redis first (authoritative state)
         const rideData = await redis.hGetAll(rideKey);
         if (!rideData || Object.keys(rideData).length === 0) {
             return res.status(404).json({ error: `Ride ${rideId} not found` });
         }
 
         const driverId = rideData.driverId;
-
-        // 2️⃣ Mark ride as cancelled in Redis
-        await redis.hSet(rideKey, { status: "cancelled", phase: "cancelled" });
-        await redis.set(cancelKey, "1", { EX: 60 }); // short TTL to signal cancellation
-        await redis.del(acceptKey); // remove acceptance key
-
-        // 3️⃣ Stop ongoing search if any
-        if (RideService.stopSearching) {
-            RideService.stopSearching(rideId);
-        }
-
-
-        // 4️⃣ Clear driver state (make driver available for new offers)
-        if (driverId) {
-            console.log(`${driverId}-bg`);
-
-            const driverKey = `driver:${driverId}`;
-            await redis.hSet(driverKey, { currentRideId: "" });
-            // Optional: also clear driver_offer key in case it exists
-            await redis.del(`driver_offer:${driverId}`);
-
-        }
-
-        // 5️⃣ Update ride status in MongoDB for history
-        RideModel.findOneAndUpdate(
-            { _id: rideId },
-            { status: "cancelled", endedAt: new Date() }
-        );
-
-        // 6️⃣ Notify passenger if online
         const userPhone = rideData.userPhoneNumber;
-        if (userPhone) {
-            emitToUser(Number(userPhone), "ride_cancelled_by_driver", { rideId });
+
+        // 1) Clear acceptance + mark ride as pending again (requeue)
+        await redis
+            .multi()
+            .del(acceptKey)
+            .hSet(rideKey, {
+                status: "pending",
+                phase: "pending",
+                driverId: "",       // important: no longer assigned
+                acceptedAt: "",     // optional cleanup
+            })
+            .exec();
+
+        // 2) Clear driver state (make driver available)
+        if (driverId) {
+            const driverKey = `driver:${driverId}`;
+            await redis
+                .multi()
+                .hSet(driverKey, { currentRideId: "", state: "available" })
+                .del(`driver_offer:${driverId}`)
+                .del(`ride_reservation:${rideId}:${driverId}`)
+                .exec();
         }
 
-        return res.json({ rideId, message: "Buyurtma bekor qilindi" });
+        // 3) Clean up offered-set so previously offered drivers can be offered again (optional)
+        // If you keep it, they may receive "search_stopped" logic etc. from old runs.
+        await redis.del(`ride_offered:${rideId}`);
 
+        // 4) Update Mongo for history (keep a log entry, but don’t end the ride if you’re re-queuing it)
+        // If you set endedAt here, it will look "finished". Better: log a cancellation event instead.
+        void RideRepository.setRideStatus(rideId, "cancelled", { by: "driver" });
+
+        // 5) Notify passenger
+        if (userPhone) {
+            emitToUser(Number(userPhone), "driver_cancelled_searching_new_driver", { rideId });
+        }
+
+        // 6) Restart searching using ride data from Redis
+        const pickup = { lat: Number(rideData.pickupLat), lon: Number(rideData.pickupLon) };
+        const phone = rideData.userPhoneNumber ? Number(rideData.userPhoneNumber) : undefined;
+
+        await RideService.notifyOfferedDriversSearchStopped({
+            rideId,
+            reason: "cancelled",
+            cleanupKeys: true,
+            deleteOfferedSet: true,
+        });
+        // If you store options in ride hash, pass them; otherwise []
+        await RideService.restartSearching(rideId, pickup, phone, []);
+
+        return res.json({ rideId, message: "Driver cancelled, searching again..." });
     } catch (err: unknown) {
         if (err instanceof Error) {
             return res.status(500).json({ error: "Internal server error", details: err.message });
