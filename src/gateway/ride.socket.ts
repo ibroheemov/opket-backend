@@ -7,7 +7,7 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 import { passengerStore } from "../store/passengerStore";
 import { driverSockets, socketIo, userSockets } from "./socket.maps";
 
-const driver_missable_events = ["ride_cancelled", "luggage_confirmed", "luggage_declined", "ride_change_declined", "ride_change_confirmed"];
+const driver_missable_events = ["luggage_confirmed", "luggage_declined", "ride_change_declined", "ride_change_confirmed"];
 const passenger_missable_events = [
     "ride_started",
     "ride_accepted",
