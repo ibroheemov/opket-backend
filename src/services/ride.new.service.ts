@@ -15,6 +15,8 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 import { calculateApproxTime } from "../utils/calculateApproxTime";
 import { handleRideCommission } from "../utils/fare.helper";
 import { sendFcm } from "../utils/sendFcm";
+import { sendToToken } from "./notifications";
+import { PassengerModel } from "../models/PassengerModel";
 
 const rideSearchControllers = new Map<string, AbortController>();
 const attemptsByRide = new Map<string, Map<string, { lastTs: number; count: number }>>();
@@ -719,6 +721,16 @@ export const RideService = {
 
         const driverSession = await driverSessionPromise;
 
+        // Start async work (no await)
+        // const driverPromise = DriverModel.findById(driverId).lean().exec();
+        const passengerPromise = PassengerModel.findOne({ phone: userPhone })
+            .select("fcmToken")
+            .lean()
+            .exec();
+
+
+
+
         DriverModel.findById(driverId)
             .then(driver => {
                 emitToUser(userPhone, "ride_assigned", {
@@ -731,6 +743,27 @@ export const RideService = {
                     location: driverSession?.location,
                     message: "🚗 Your driver is on the way!",
                 });
+
+
+                void passengerPromise
+                    .then((p) => {
+                        const token = p?.fcmToken;
+                        if (!token) return;
+
+                        return sendToToken({
+                            token,
+                            title: `${driver?.carColor}, ${driver?.carModel}, ${driver?.regionCode}${driver?.carNumber}`,
+                            body: "🚗 Haydovchi yo'lda",
+                            data: {
+                                type: "RIDE_ACCEPTED",
+                                rideId,
+                                driverId,
+                            },
+                        });
+                    })
+                    .catch((err) => {
+                        console.error("Passenger lookup / FCM send failed:", err);
+                    });
             })
             .catch(err => console.error("Failed to fetch driver info:", err));
 

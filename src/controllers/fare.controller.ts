@@ -58,14 +58,14 @@ export const fetchFareConfigNew = async (req: AuthRequest, res: Response) => {
 
 export const fetchWorkingAreas = async (req: AuthRequest, res: Response) => {
     try {
-        const driverId = req.driverId;
-        console.log(driverId);
+        // const driverId = req.driverId;
+        // console.log(driverId);
 
-        const driver = await DriverModel.findById(driverId)
+        // const driver = await DriverModel.findById(driverId)
 
-        if (!driver) {
-            return res.status(404).json({ message: "Driver not found" });
-        }
+        // if (!driver) {
+        //     return res.status(404).json({ message: "Driver not found" });
+        // }
 
         const areas = await service.getAll();
 

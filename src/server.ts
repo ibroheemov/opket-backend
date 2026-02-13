@@ -9,6 +9,7 @@ import userRoutes from "./routes/user";
 import adminRoutes from "./routes/admin";
 import paynetRoutes from "./routes/paynet";
 import driverRoutes from "./routes/driver";
+import restaurantRoutes from "./routes/restaurant.routes";
 import cors from "cors";
 import admin from 'firebase-admin';
 import { config } from "./bot/config/env";
@@ -43,6 +44,7 @@ async function startServer() {
     app.use("/user", userRoutes);
     app.use("/admin", adminRoutes);
     app.use("/driver", driverRoutes);
+    app.use("/restaurant", restaurantRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
 
     // -------------------------------

@@ -6,6 +6,8 @@ import { getPassenger } from "../controllers/passenger/getPassenger";
 import { payfare } from "../controllers/passenger/payFare";
 import { getPassengerBalance } from "../controllers/passenger/getPassengerBalance";
 import { fetchFareConfigUser } from "../controllers/fare.user.controller";
+import { authenticateDriver } from "../middlewares/auth";
+import { registerPassengerFcm } from "../controllers/general.passenger.controller";
 
 const router = express.Router();
 
@@ -20,5 +22,6 @@ router.post("/decline-luggage", declineLuggage);
 router.post("/create", createPassengerApp);
 router.post("/create-bot", createPassengerBot);
 router.get("/fare/config", fetchFareConfigUser);
+router.post("/:phone/registerFcm", registerPassengerFcm);
 
 export default router;

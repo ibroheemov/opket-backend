@@ -5,6 +5,7 @@ import { config } from "../bot/config/env";
 
 export interface AuthRequest extends Request {
     driverId?: string;
+    id?: string;
 }
 
 export const authenticateDriver = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -16,6 +17,7 @@ export const authenticateDriver = (req: AuthRequest, res: Response, next: NextFu
     try {
         const decoded = jwt.verify(token, config.jwtSecret) as { id: string };
         req.driverId = decoded.id;
+        req.id = decoded.id;
         next();
     } catch (err) {
         return res.status(401).json({ error: "Invalid or expired token" });

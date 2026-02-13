@@ -95,8 +95,8 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
     },
     premium: {
         baseFare: 0,
-        perKm: 3300,
-        firstKm: 8500,
+        perKm: 2800,
+        firstKm: 8300,
         outsidePerKm: 3500,
         outsideFirstKm: 7000,
         perMinute: 1500,

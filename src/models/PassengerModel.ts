@@ -6,6 +6,7 @@ export interface IPassengerDocument extends Document {
     phone: number;
     balance: number;
     currentRideId?: string;
+    fcmToken?: string;
     events: {
         event: string;
         data: Record<string, any>;
@@ -16,6 +17,7 @@ const PassengerSchema = new Schema<IPassengerDocument>(
     {
         chatId: { type: Number },
         phone: { type: Number },
+        fcmToken: { type: String, required: false },
         balance: { type: Number, default: 5_000 },
         currentRideId: { type: String },
         events: {

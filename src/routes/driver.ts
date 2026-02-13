@@ -37,7 +37,7 @@ router.get("/:id/balance", authenticateDriver, getDriverBalance);
 router.get("/balance", authenticateDriver, getDriverBalanceNew);
 router.post("/pay-change", authenticateDriver, payChange);
 router.post("/dashboard", driverDashboard);
-router.get("/working-areas", authenticateDriver, fetchWorkingAreas);
+router.get("/working-areas", fetchWorkingAreas);
 router.post(
     "/register",
     upload.fields([
