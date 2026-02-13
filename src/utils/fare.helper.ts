@@ -13,7 +13,7 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 export const handleRideCommission = async (
     driverId: string,
     fare: number,
-    commissionRate = 0.10
+    commissionRate = 0.14
 ) => {
     // const ride = await RideModel.findById(rideId);
     // if (!ride) throw new Error("Ride not found");

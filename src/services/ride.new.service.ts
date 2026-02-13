@@ -846,7 +846,7 @@ export const RideService = {
 
         // Notify driver about commission update if FCM token exists
         if (updatedDriver?.fcmToken) {
-            sendFcm(updatedDriver.fcmToken, commission);
+            // sendFcm(updatedDriver.fcmToken, commission);
         }
     },
 
