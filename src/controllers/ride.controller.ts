@@ -112,6 +112,11 @@ export const toggleRideOption = async (req: AuthRequest, res: Response) => {
 
         if (!ride) return res.status(404).json({ error: "Ride not found" });
 
+        const userPhone = Number(ride.userPhoneNumber);
+        const title = `${service.description}, ${service.charge} UZS qo'shildi`;
+        const body = `Haydovchi yo'l haqqiga qo'shimcha summa kiritdi: ${service.description}, ${service.charge}`;
+
+        RideService.sendPassengerMessage({ userPhone, title, body });
         return res.json({ ok: true, ride });
     } catch (err) {
         console.error("Error toggling ride option:", err);

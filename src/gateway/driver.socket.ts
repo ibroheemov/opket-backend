@@ -185,6 +185,12 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
                 { phone: ride.userPhoneNumber },
                 { $pull: { events: { event: "driver_location_update_ack" } } }
             );
+
+            const userPhone = Number(ride.userPhoneNumber);
+            const title = 'Haydovchi taksometrni yoqdi';
+            const body = 'Taksometr pul yozishni boshladi';
+
+            RideService.sendPassengerMessage({ userPhone, title, body });
         };
     });
 

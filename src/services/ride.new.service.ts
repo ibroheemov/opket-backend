@@ -723,10 +723,7 @@ export const RideService = {
 
         // Start async work (no await)
         // const driverPromise = DriverModel.findById(driverId).lean().exec();
-        const passengerPromise = PassengerModel.findOne({ phone: userPhone })
-            .select("fcmToken")
-            .lean()
-            .exec();
+
 
 
 
@@ -744,30 +741,38 @@ export const RideService = {
                     message: "🚗 Your driver is on the way!",
                 });
 
-
-                void passengerPromise
-                    .then((p) => {
-                        const token = p?.fcmToken;
-                        if (!token) return;
-
-                        return sendToToken({
-                            token,
-                            title: `${driver?.carColor}, ${driver?.carModel}, ${driver?.regionCode}${driver?.carNumber}`,
-                            body: "🚗 Haydovchi yo'lda",
-                            data: {
-                                type: "RIDE_ACCEPTED",
-                                rideId,
-                                driverId,
-                            },
-                        });
-                    })
-                    .catch((err) => {
-                        console.error("Passenger lookup / FCM send failed:", err);
-                    });
+                const title = `${driver?.carColor}, ${driver?.carModel}, ${driver?.regionCode}${driver?.carNumber}`;
+                const body = "🚗 Haydovchi yo'lda";
+                this.sendPassengerMessage({ userPhone, title, body })
             })
             .catch(err => console.error("Failed to fetch driver info:", err));
 
         return { success: true, rideId, driverId };
+    },
+
+    async sendPassengerMessage(params: { userPhone: number, title: string, body: string }) {
+        const { userPhone, title, body } = params;
+
+        const passengerPromise = PassengerModel.findOne({ phone: userPhone })
+            .select("fcmToken")
+            .lean()
+            .exec();
+
+        void passengerPromise
+            .then((p) => {
+                const token = p?.fcmToken;
+                if (!token) return;
+
+                return sendToToken({
+                    token,
+                    title,
+                    body,
+                    data: {}
+                });
+            })
+            .catch((err) => {
+                console.error("Passenger lookup / FCM send failed:", err);
+            });
     },
 
     async notifyOfferedDriversSearchStopped(params: {
@@ -912,14 +917,19 @@ export const RideService = {
         }
 
         // 7️⃣ Notify passenger that ride is completed
-        const userPhoneNumber = rideData.userPhoneNumber;
-        if (userPhoneNumber) {
-            emitToUser(Number(userPhoneNumber), "ride_completed", {
+        const userPhone = Number(rideData.userPhoneNumber);
+        if (userPhone) {
+            emitToUser(userPhone, "ride_completed", {
                 rideId,
                 distance,
                 fare,
                 driverId,
             });
+
+            const title = 'Safar yakunlandi';
+            const body = `${fare} UZS, ${distance} KM`;
+
+            this.sendPassengerMessage({ userPhone, title, body })
         }
 
         return {

@@ -10,6 +10,7 @@ import { redis } from "../redis/redisClient";
 import { RideService } from "../services/ride.new.service";
 import { updateDriverBalance } from "./driver.controller";
 import { RideRepository } from "../repositories/ride.repository";
+import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {
@@ -57,18 +58,22 @@ export const createPassengerApp = async (req: Request, res: Response) => {
         }
 
         if (existing) {
-            return res.json({ message: "User with this Chatid/phone already exists" });
+            const accessToken = generateAccessToken({ id: existing._id, role: "CONSUMER" });
+            const refreshToken = generateRefreshToken({ id: existing._id, role: "CONSUMER" });
+
+            return res.status(200).json({ message: "User with this Chatid/phone already exists", accessToken, refreshToken });
         }
 
         const passenger = await PassengerModel.create({ phone });
-        console.log("referralCode:", referralCode);
 
+        const accessToken = generateAccessToken({ id: passenger._id, role: "CONSUMER" });
+        const refreshToken = generateRefreshToken({ id: passenger._id, role: "CONSUMER" });
 
         if (referralCode) {
             updateDriverBalance(referralCode, 0);
         }
 
-        return res.json({ phone, message: "Passenger created" });
+        return res.json({ phone, accessToken, refreshToken });
     } catch (err: any) {
         console.error("createUser error:", err);
         return res.status(500).json({ error: "Internal error" });

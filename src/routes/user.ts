@@ -6,11 +6,12 @@ import { getPassenger } from "../controllers/passenger/getPassenger";
 import { payfare } from "../controllers/passenger/payFare";
 import { getPassengerBalance } from "../controllers/passenger/getPassengerBalance";
 import { fetchFareConfigUser } from "../controllers/fare.user.controller";
-import { authenticateDriver } from "../middlewares/auth";
 import { registerPassengerFcm } from "../controllers/general.passenger.controller";
+import { verifyPassenger } from "../controllers/passenger/verifyPassenger";
 
 const router = express.Router();
 
+router.get("/verify-passenger/:phone", verifyPassenger);
 router.get("/:id/get-passenger", getPassenger);
 router.get("/:id/balance", getPassengerBalance);
 router.post("/:id/pay-fare", payfare);

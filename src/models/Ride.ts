@@ -97,7 +97,7 @@ const rideSchema = new Schema<IRide>({
         type: String,
         default: "standard",
     },
-    fare: { type: Number, default: 2000 },
+    fare: { type: Number, default: 0 },
     pauseSeconds: { type: Number, default: 0 },
     fareEstimate: Number,
     distanceKm: Number,
