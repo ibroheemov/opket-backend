@@ -234,7 +234,7 @@ export const RideService = {
                 if ((await runStage({ radiusKm: 3, ttlMs: 8000, mode: "single" })).acceptedDriverId) return;
                 await sleep(LOOP_GAP_MS);
 
-                if ((await runStage({ radiusKm: 1, ttlMs: 8000, mode: "all" })).acceptedDriverId) return;
+                if ((await runStage({ radiusKm: 0.7, ttlMs: 8000, mode: "all" })).acceptedDriverId) return;
                 await sleep(LOOP_GAP_MS);
 
                 if ((await runStage({ radiusKm: 3, ttlMs: 25000, mode: "all" })).acceptedDriverId) return;
@@ -554,9 +554,6 @@ export const RideService = {
 
         // Start async work (no await)
         // const driverPromise = DriverModel.findById(driverId).lean().exec();
-
-
-
 
 
         DriverModel.findById(driverId)

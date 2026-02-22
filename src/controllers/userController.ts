@@ -140,6 +140,8 @@ export const cancelRide = async (req: Request, res: Response) => {
         await redis.set(cancelKey, "1", { EX: 60 }); // short TTL to signal cancellation
         await redis.del(acceptKey); // remove acceptance key
 
+        RideService.notifyOfferedDriversSearchStopped({ rideId, reason: "cancelled" });
+
         // 3️⃣ Stop ongoing search if any
         if (RideService.stopSearching) {
             RideService.stopSearching(rideId);
