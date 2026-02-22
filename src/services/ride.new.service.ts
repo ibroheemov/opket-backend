@@ -18,26 +18,22 @@ import { sendFcm } from "../utils/sendFcm";
 import { sendToToken } from "./notifications";
 import { PassengerModel } from "../models/PassengerModel";
 
+type StageMode = "single" | "all";
+
+type StageSpec = {
+    radiusKm: number;
+    ttlMs: number;
+    mode: StageMode;
+    uiSingleOffer?: boolean; // optional: controls isSingleOfferUi
+};
+
 const rideSearchControllers = new Map<string, AbortController>();
 const attemptsByRide = new Map<string, Map<string, { lastTs: number; count: number }>>();
 
 const MAX_SEARCH_TIME_MS = 3 * 60 * 1000;
-const INITIAL_RADIUS_KM = 0.5;
-const RADIUS_STEP_KM = 0.5;
-const PARALLEL_MAX_DRIVERS = 3;
-const PARALLEL_RADIUS_EXPAND_MS = 15000;
 const OFFERED_SET_EX_SECONDS = 300;
-const OFFER_TTL_MS = 8000;        // wait 7s
-const RADIUS_2KM = 2.0;
-const POLL_MS = 400;              // when no drivers or between loops
 const REOFFER_AFTER_MS = 10_000;  // 
-const SEQ_OFFER_COUNT = 2;
-const SEQ_OFFER_TTL_MS = 8000;      // 8 seconds each driver
-const BROADCAST_RADIUS_KM = 3.0;
-const BROADCAST_WAIT_MS = 25000;    // 15 seconds
 const LOOP_GAP_MS = 250;            // small pause between phases
-const STAGE1_PARALLEL_DRIVERS = 5;
-const STAGE1_TTL_MS = 8000;
 const MAX_OFFERS_PER_DRIVER = 2;
 
 export const RideService = {
@@ -219,160 +215,30 @@ export const RideService = {
             ]);
         };
 
-        const pickNextEligible = (drivers: DriverCandidate[], lastId: string | null) => {
-            const eligible = drivers.filter(d => canAttempt(d.driver.driverId));
-            if (!eligible.length) return null;
-            if (!lastId) return eligible[0];
-
-            const idx = eligible.findIndex(d => d.driver.driverId === lastId);
-            if (idx === -1) return eligible[0];
-            return eligible[(idx + 1) % eligible.length];
-        };
-
         // ✅ CHANGE #2: Wrap the whole loop so "Aborted" exits quietly (no "expired")
         try {
-            // =========================
-            // MAIN CYCLE LOOP
-            // =========================
+            const runStage = this.createStageRunner({
+                rideId,
+                rideKey,
+                acceptKey,
+                signal,
+                checkStop,
+                fetchCandidatesInRadius,
+                canAttempt,
+                markAttempt,
+                reserveAndEmit,
+                cleanupOffer,
+            });
+
             while (!(await checkStop())) {
-                // 1) Offer 2 drivers sequentially (8s each)
-                // 1) Stage 1: Offer to top 5 drivers in parallel for 8s
-                {
-                    if (await checkStop()) return;
-
-                    const candidates = await fetchCandidatesInRadius(BROADCAST_RADIUS_KM);
-                    if (!candidates.length) {
-                        await sleep(POLL_MS);
-                        continue;
-                    }
-
-                    // Only eligible drivers (cooldown + max attempts)
-                    const eligible = candidates
-                        .filter(d => canAttempt(d.driver.driverId))
-                        .slice(0, STAGE1_PARALLEL_DRIVERS);
-
-                    if (!eligible.length) {
-                        await sleep(POLL_MS);
-                        continue;
-                    }
-
-                    const rideData = await redis.hGetAll(rideKey);
-
-                    // Reserve first (so we don’t spam drivers who are already reserved elsewhere)
-                    const reservedDriverIds: string[] = [];
-                    const reservedCandidates: DriverCandidate[] = [];
-
-                    for (const cand of eligible) {
-                        const driverId = cand.driver.driverId;
-
-                        // mark attempt early to avoid hammering same drivers in tight loops
-
-                        const { ok } = await reserveAndEmit(
-                            cand,
-                            rideData,
-                            STAGE1_TTL_MS,
-                            false // parallel UI (unless you want single-offer UI)
-                        );
-
-                        if (ok) {
-                            markAttempt(driverId);
-                            reservedDriverIds.push(driverId);
-                            reservedCandidates.push(cand);
-                        }
-                    }
-
-                    if (!reservedDriverIds.length) {
-                        await sleep(POLL_MS);
-                        continue;
-                    }
-
-                    // Wait for FIRST acceptance among them
-                    const acceptedStage1 = await this.waitForAcceptanceWithFallback(
-                        rideId,
-                        "*",
-                        STAGE1_TTL_MS,
-                        signal
-                    );
-
-                    if (acceptedStage1) {
-                        console.log(`✅ Ride ${rideId} accepted in stage 1 by ${acceptedStage1}`);
-                        return;
-                    }
-
-                    // Nobody accepted within TTL -> cleanup stage 1 reservations
-                    if (!(await redis.get(acceptKey))) {
-                        await Promise.all(reservedDriverIds.map(id => cleanupOffer(id)));
-                    }
-
-                    await sleep(LOOP_GAP_MS);
-                }
-
-                if (await checkStop()) return;
-
+                if ((await runStage({ radiusKm: 3, ttlMs: 8000, mode: "single" })).acceptedDriverId) return;
                 await sleep(LOOP_GAP_MS);
 
-                // 2) Broadcast to ALL drivers within 2km, wait 15s
-                const broadcastCandidates = await fetchCandidatesInRadius(BROADCAST_RADIUS_KM);
-
-                if (!broadcastCandidates.length) {
-                    await sleep(POLL_MS);
-                    continue;
-                }
-
-                // Only those we are allowed to attempt (your policy: max 2 offers per driver total)
-                const broadcastEligible = broadcastCandidates.filter(d => canAttempt(d.driver.driverId));
-
-                if (!broadcastEligible.length) {
-                    // everyone is in cooldown / maxed -> wait a bit and repeat cycle
-                    await sleep(POLL_MS);
-                    continue;
-                }
-
-                const rideData = await redis.hGetAll(rideKey);
-
-                // Reserve+emit for everyone we can reserve
-                const reservedDriverIds: string[] = [];
-                const reservedCandidates: DriverCandidate[] = [];
-
-                await Promise.all(
-                    broadcastEligible.map(async (cand) => {
-                        const driverId = cand.driver.driverId;
-
-                        // mark attempt BEFORE reserve to avoid hammering same driver in rapid cycles
-
-                        const { ok } = await reserveAndEmit(cand, rideData, BROADCAST_WAIT_MS, false);
-                        if (ok) {
-                            markAttempt(driverId);
-                            reservedDriverIds.push(driverId);
-                            reservedCandidates.push(cand);
-                        }
-                    })
-                );
-
-                if (!reservedDriverIds.length) {
-                    await sleep(POLL_MS);
-                    continue;
-                }
-
-                const acceptedBroadcast = await this.waitForAcceptanceWithFallback(
-                    rideId,
-                    "*",
-                    BROADCAST_WAIT_MS,
-                    signal
-                );
-
-                if (acceptedBroadcast) {
-                    console.log(`✅ Ride ${rideId} accepted by ${acceptedBroadcast}`);
-                    return;
-                }
-
-                // Broadcast timed out -> cleanup all
-                if (!(await redis.get(acceptKey))) {
-                    await Promise.all(reservedDriverIds.map(id => cleanupOffer(id)));
-                }
-
+                if ((await runStage({ radiusKm: 1, ttlMs: 8000, mode: "all" })).acceptedDriverId) return;
                 await sleep(LOOP_GAP_MS);
-                // loop repeats
+
+                if ((await runStage({ radiusKm: 3, ttlMs: 25000, mode: "all" })).acceptedDriverId) return;
+                await sleep(LOOP_GAP_MS);
             }
 
             // stop reasons
@@ -413,136 +279,101 @@ export const RideService = {
         return drivers[(idx + 1) % drivers.length];
     },
 
-    async searchForDriversParallel(
-        rideId: string,
-        pickup: { lat: number; lon: number },
-        phone?: number,
-        signal?: AbortSignal,
-        options?: string[]
-    ) {
-        const rideKey = `ride:${rideId}`;
-        const cancelKey = `ride_cancel:${rideId}`;
-        const acceptKey = `ride_accept:${rideId}`;
-        const startTime = Date.now();
+    createStageRunner(ctx: {
+        rideId: string;
+        rideKey: string;
+        acceptKey: string;
+        signal?: AbortSignal;
 
-        let radiusKm = INITIAL_RADIUS_KM;
-        let lastRadiusExpand = Date.now();
+        checkStop: () => Promise<boolean>;
+        fetchCandidatesInRadius: (radiusKm: number) => Promise<DriverCandidate[]>;
+        canAttempt: (driverId: string, now?: number) => boolean;
+        markAttempt: (driverId: string, now?: number) => void;
 
-        console.log(`🚀 Parallel search started for ride ${rideId}`);
+        reserveAndEmit: (
+            candidate: DriverCandidate,
+            rideData: Record<string, string>,
+            ttlMs: number,
+            isSingleOfferUi: boolean
+        ) => Promise<{ ok: boolean; driverId: string }>;
 
-        while (Date.now() - startTime < MAX_SEARCH_TIME_MS) {
-            if (signal?.aborted) return;
+        cleanupOffer: (driverId: string) => Promise<void>;
+    }) {
+        let cachedRideData: Record<string, string> | undefined;
 
-            if (await redis.exists(cancelKey)) return;
+        const getRideData = async () => {
+            if (!cachedRideData) cachedRideData = await redis.hGetAll(ctx.rideKey);
+            return cachedRideData;
+        };
 
-            // 🔁 Expand radius every 15s
-            if (Date.now() - lastRadiusExpand >= PARALLEL_RADIUS_EXPAND_MS) {
-                radiusKm += RADIUS_STEP_KM;
-                lastRadiusExpand = Date.now();
-                console.log(`📡 Expanding radius to ${radiusKm}km`);
-            }
+        return async function runStage(spec: StageSpec): Promise<{
+            acceptedDriverId: string | null;
+        }> {
+            if (await ctx.checkStop()) return { acceptedDriverId: null };
 
-            // 1️⃣ Fetch candidates
-            const drivers = await DriverRepository.findAvailableDrivers(
-                pickup.lat,
-                pickup.lon,
-                radiusKm,
-                options ?? [],
-            );
+            const candidates = await ctx.fetchCandidatesInRadius(spec.radiusKm);
+            if (!candidates.length) return { acceptedDriverId: null };
 
-            if (!drivers.length) {
-                await sleep(500);
-                continue;
-            }
+            const eligible =
+                spec.mode === "single"
+                    ? (() => {
+                        const nearest = candidates.find(c => ctx.canAttempt(c.driver.driverId));
+                        return nearest ? [nearest] : [];
+                    })()
+                    : candidates.filter(c => ctx.canAttempt(c.driver.driverId));
 
-            // 2️⃣ Pick closest N drivers
-            const selected = drivers
-                .sort((a, b) => a.distKm - b.distKm)
-                .slice(0, PARALLEL_MAX_DRIVERS);
+            if (!eligible.length) return { acceptedDriverId: null };
 
-            // 3️⃣ Try reserving all of them
-            const reservedDrivers: DriverCandidate[] = [];
+            const rideData = await getRideData();
 
-            for (const candidate of selected) {
-                const driverId = candidate.driver.driverId;
+            const reservedDriverIds: string[] = [];
 
-                const ok = await redis.eval(RESERVE_RIDE_LUA, {
-                    keys: [
-                        `ride_reservation:${rideId}:${driverId}`,
-                        `driver_offer:${driverId}`,
-                    ],
-                    arguments: [
-                        driverId,
-                        rideId,
-                        OFFER_TTL_MS.toString(),
-                    ],
-                });
-
-                if (ok === 1) {
-                    reservedDrivers.push(candidate);
-                }
-            }
-
-            if (!reservedDrivers.length) {
-                await sleep(300);
-                continue;
-            }
-
-            // 4️⃣ Emit offers in parallel
-            const rideData = await redis.hGetAll(rideKey);
-            console.log(rideData);
-            const isSingleOffer = reservedDrivers.length === 1;
-
-            await Promise.all(
-                reservedDrivers.map(candidate => {
-                    const driverId = candidate.driver.driverId;
-                    const payload = RideService.buildDriverOfferPayload(
-                        rideId,
-                        rideData,
-                        candidate,
-                        isSingleOffer
-                    );
-
-                    return Promise.all([
-                        emitToDriver(driverId, "ride_offer", payload),
-                        emitToDriver(`${driverId}-bg`, "ride_offer", payload),
-                    ]);
-                })
-            );
-
-            // 5️⃣ Wait for FIRST acceptance
-            const acceptedDriverId =
-                await this.waitForAcceptanceWithFallback(
-                    rideId,
-                    "*",
-                    OFFER_TTL_MS,
-                    signal
+            if (spec.mode === "single") {
+                const cand = eligible[0];
+                const { ok, driverId } = await ctx.reserveAndEmit(
+                    cand,
+                    rideData,
+                    spec.ttlMs,
+                    spec.uiSingleOffer ?? true
                 );
-
-            if (acceptedDriverId) {
-                console.log(`✅ Ride accepted by ${acceptedDriverId}`);
-                return;
+                if (!ok) return { acceptedDriverId: null };
+                ctx.markAttempt(driverId);
+                reservedDriverIds.push(driverId);
+            } else {
+                await Promise.all(
+                    eligible.map(async (cand) => {
+                        const { ok, driverId } = await ctx.reserveAndEmit(
+                            cand,
+                            rideData,
+                            spec.ttlMs,
+                            spec.uiSingleOffer ?? false
+                        );
+                        if (ok) {
+                            ctx.markAttempt(driverId);
+                            reservedDriverIds.push(driverId);
+                        }
+                    })
+                );
+                if (!reservedDriverIds.length) return { acceptedDriverId: null };
             }
 
-            // 6️⃣ Cleanup timed-out offers
-            await Promise.all(
-                reservedDrivers.map(c => {
-                    const driverId = c.driver.driverId;
-                    return Promise.all([
-                        redis.del(`ride_reservation:${rideId}:${driverId}`),
-                        // redis.del(`driver_offer:${driverId}`), TODO: delete expiration only if there are no other drivers. and if this driver presses skip  let it expire
-                        emitToDriver(driverId, "ride_already_taken", { rideId }),
-                    ]);
-                })
+            const acceptedDriverId = await RideService.waitForAcceptanceWithFallback(
+                ctx.rideId,
+                "*",
+                spec.ttlMs,
+                ctx.signal
             );
 
-            await sleep(300);
-        }
+            if (acceptedDriverId) return { acceptedDriverId };
 
-        console.log(`❌ Ride ${rideId} expired`);
-        await redis.hSet(rideKey, { phase: "expired" });
+            // cleanup if timed out
+            if (!(await redis.get(ctx.acceptKey))) {
+                await Promise.all(reservedDriverIds.map(id => ctx.cleanupOffer(id)));
+            }
+
+            return { acceptedDriverId: null };
+        };
     },
-
 
     async restartSearching(rideId: string, pickup: { lat: number; lon: number }, phone?: number, options?: string[]) {
         // Stop any in-memory loop (if running)
