@@ -231,6 +231,8 @@ export const RideService = {
             });
 
             while (!(await checkStop())) {
+                console.log("Searching");
+
                 if ((await runStage({ radiusKm: 3, ttlMs: 8000, mode: "single" })).acceptedDriverId) return;
                 await sleep(LOOP_GAP_MS);
 
@@ -375,7 +377,11 @@ export const RideService = {
         };
     },
 
-    async restartSearching(rideId: string, pickup: { lat: number; lon: number }, phone?: number, options?: string[]) {
+    async restartSearching(data: { rideId: string, pickup: { lat: number; lon: number }, phone?: number, options?: string[], driverId: string }) {
+        const { rideId, pickup, phone, options, driverId } = data;
+
+        const attempts = this.getAttempts(rideId);
+
         // Stop any in-memory loop (if running)
         this.stopSearching(rideId);
 
@@ -388,6 +394,11 @@ export const RideService = {
         // Start again
         const controller = new AbortController();
         rideSearchControllers.set(rideId, controller);
+
+        attempts.set(driverId, {
+            count: 2,
+            lastTs: Date.now(),
+        });
 
         this.searchForDriversSequential(rideId, pickup, phone, controller.signal, options)
             .catch(err => {
@@ -487,6 +498,28 @@ export const RideService = {
         };
     },
 
+    // RideService.ts
+    async clearDriverRideState(rideId: string, event: string) {
+        const rideKey = `ride:${rideId}`;
+
+        const rideData = await redis.hGetAll(rideKey);
+        if (!rideData || Object.keys(rideData).length === 0) {
+            const err = new Error(`Ride ${rideId} not found`);
+            (err as any).statusCode = 404; // or use a proper HttpError class
+            throw err;
+        }
+
+        const driverId = rideData.driverId;
+
+        emitToDriver(driverId, event, { rideId });
+        emitToDriver(`${driverId}-bg`, event, { rideId });
+
+        const driverKey = `driver:${driverId}`;
+        await redis.hSet(driverKey, { currentRideId: "" });
+        await redis.del(`driver_offer:${driverId}`);
+    },
+
+
     async acceptRide(rideId: string, driverId: string) {
         const offeredSetKey = `ride_offered:${rideId}`;
         const rideKey = `ride:${rideId}`;
@@ -519,7 +552,6 @@ export const RideService = {
 
         await this.notifyOfferedDriversSearchStopped({
             rideId,
-            reason: "accepted",
             winnerDriverId: driverId,
             cleanupKeys: true,
             deleteOfferedSet: true,
@@ -605,14 +637,12 @@ export const RideService = {
 
     async notifyOfferedDriversSearchStopped(params: {
         rideId: string;
-        reason: "accepted" | "cancelled" | "expired";
         winnerDriverId?: string;        // present when accepted
         cleanupKeys?: boolean;          // default true
         deleteOfferedSet?: boolean;     // default true
     }) {
         const {
             rideId,
-            reason,
             winnerDriverId,
             cleanupKeys = true,
             deleteOfferedSet = true,
@@ -639,7 +669,6 @@ export const RideService = {
 
                 const payload = {
                     rideId,
-                    reason,
                     ...(winnerDriverId ? { winnerDriverId } : {}),
                 };
 
@@ -656,10 +685,18 @@ export const RideService = {
     },
 
 
-    stopSearching(rideId: string) {
+    async stopSearching(rideId: string) {
+        const acceptKey = `ride_accept:${rideId}`;
+        const cancelKey = `ride_cancel:${rideId}`;
+
         const controller = rideSearchControllers.get(rideId);
         controller?.abort();
         rideSearchControllers.delete(rideId);
+
+        await redis.set(cancelKey, "1", { EX: 60 }); // short TTL to signal cancellation
+        await redis.del(acceptKey);
+
+        this.notifyOfferedDriversSearchStopped({ rideId });
     },
 
     async completeRideGhostRide(data: GhostRideInput) {

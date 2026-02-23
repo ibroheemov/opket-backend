@@ -11,6 +11,8 @@ import admin from 'firebase-admin';
 import { payfareTransfer } from "../services/payfare.service";
 import { RideModel } from "../models/Ride";
 import { getUtcRange, Period } from "../utils/timeRange";
+import { RideService } from "../services/ride.new.service";
+import { RideRepository } from "../repositories/ride.repository";
 
 // import DriverModel from "../models/Driver"; // <- adjust path
 
@@ -53,6 +55,23 @@ export const generateQrLink = async (req: AuthRequest, res: Response) => {
             success: false,
             message: error.message || "Failed to generate QR link",
         });
+    }
+};
+
+export const cancelRide = async (req: Request, res: Response) => {
+    try {
+        const { rideId } = req.body;
+        if (!rideId) return res.status(400).json({ error: "rideId required" });
+
+        RideService.stopSearching(rideId);
+        await RideService.clearDriverRideState(rideId, "");
+        await RideRepository.setRideStatus(rideId, "cancelled", { by: "driver" });
+
+        return res.json({ rideId, message: "Buyurtma bekor qilindi" });
+    } catch (err: any) {
+        const status = err?.statusCode ?? 500;
+        const msg = status === 500 ? "Internal server error" : err.message;
+        return res.status(status).json({ error: msg });
     }
 };
 

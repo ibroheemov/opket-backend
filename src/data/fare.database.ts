@@ -69,10 +69,10 @@ export const fareConfigs: Record<string, FareConfig> = {
 export const fareConfigsNew: Record<string, FareConfigNew> = {
     standard: {
         baseFare: 0,
-        perKm: 2000,
+        perKm: 2200,
         firstKm: 7000,
-        outsidePerKm: 2300,
-        outsideFirstKm: 7000,
+        outsidePerKm: 2400,
+        outsideFirstKm: 7500,
         services: services,
         enabledServices: [],
         perMinute: 700,
@@ -105,5 +105,18 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         minutesBeforeCharge: 1.5,
         smallestDistance: 0.5,
         smallestDistanceFare: 5000,
-    }
+    },
+    ghost: {
+        baseFare: 1000,
+        perKm: 2500,
+        firstKm: 8500,
+        outsidePerKm: 2500,
+        outsideFirstKm: 8500,
+        perMinute: 1500,
+        services: services,
+        enabledServices: [],
+        minutesBeforeCharge: 1.5,
+        smallestDistance: 0.5,
+        smallestDistanceFare: 5000,
+    },
 };

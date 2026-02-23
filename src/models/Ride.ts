@@ -10,6 +10,7 @@ export type RideStatus =
     | "waiting_for_user"
     | "started"
     | "completed"
+    | "skipped"
     | "cancelled";
 
 export interface IRideStatusEvent {

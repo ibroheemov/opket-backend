@@ -10,10 +10,10 @@ import { payChange } from "../controllers/driver/payChange";
 import { heartbeat } from "../controllers/driver/heartbeat";
 import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchFareConfigNew, fetchWorkingAreas } from "../controllers/fare.controller";
-import { acceptRide, completeGhostRide, completeRide, skipRide, toggleRideOption } from "../controllers/ride.controller";
+import { acceptRide, completeGhostRide, completeRide, toggleRideOption } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
-import { cancelRideDriver } from "../controllers/userController";
-import { deductFromUser, generateQrLink, getMyRides, updateAppVersion } from "../controllers/driver.controller";
+import { cancelRide, deductFromUser, generateQrLink, getMyRides, updateAppVersion } from "../controllers/driver.controller";
+import { skipRide } from "../controllers/userController";
 
 const router = express.Router();
 
@@ -48,11 +48,12 @@ router.post(
     registerDriver
 );
 router.post("/accept-ride/:id", authenticateDriver, acceptRide);
-router.post("/skip-ride/:id", authenticateDriver, skipRide);
+// router.post("/skip-ride/:id", authenticateDriver, skipRide);
 router.get("/generate-qr-link", authenticateDriver, generateQrLink);
 router.post("/complete-ride", authenticateDriver, completeRide);
 router.post("/complete-ghost-ride", authenticateDriver, completeGhostRide);
-router.post("/cancel-ride", authenticateDriver, cancelRideDriver);
+router.post("/skip-ride", authenticateDriver, skipRide);
+router.post("/cancel-ride", authenticateDriver, cancelRide);
 router.post("/deduct-from-user", authenticateDriver, deductFromUser);
 router.get("/car-options", authenticateDriver, getCarOptions);
 router.post("/toggle-ride-option", authenticateDriver, toggleRideOption);
