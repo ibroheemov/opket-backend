@@ -107,8 +107,8 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
         smallestDistanceFare: 5000,
     },
     ghost: {
-        baseFare: 1000,
-        perKm: 2500,
+        baseFare: 0,
+        perKm: 2300,
         firstKm: 8500,
         outsidePerKm: 2500,
         outsideFirstKm: 8500,
