@@ -14,12 +14,20 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 
 export const updateLocation = async (req: AuthRequest, res: Response) => {
     const { lat, lon } = req.body;
+    const driverId = req.driverId;
+
+    if (!driverId) return res.status(400).json({ error: "driverId required" });
+
     if (!lat || !lon) return res.status(400).json({ error: "lat/lon required" });
-    const driver = await DriverModel.findOneAndUpdate(
-        { id: req.driverId },
-        { location: { lat, lon } },
-        { new: true }
-    );
+
+    const driver = await driverStoreRedis.get(driverId);
+    await driverStoreRedis.updateLocation(driverId, { lat, lon })
+
+    // const driver = await DriverModel.findOneAndUpdate(
+    //     { id: req.driverId },
+    //     { location: { lat, lon } },
+    //     { new: true }
+    // );
     if (!driver) return res.status(404).json({ error: "Driver not found" });
 
     // ✅ Broadcast driver movement if on an active ride

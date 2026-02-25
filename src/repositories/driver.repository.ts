@@ -1,3 +1,4 @@
+import { redis } from "../redis/redisClient";
 import { DriverSession, driverStore } from "../store/driverStore";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { haversineDistanceKm } from "../utils/haversine";
@@ -38,5 +39,34 @@ export const DriverRepository = {
         driversWithDistance.sort((a, b) => a.distKm - b.distKm);
 
         return driversWithDistance;
+    },
+
+
+    async findAvailableDriversNew(
+        pickupLat: number,
+        pickupLon: number,
+        maxKm = 2,
+        options: string[]
+    ) {
+        const nearbyDriverIds = await redis.geoSearch(
+            "drivers:geo",
+            {
+                longitude: pickupLon,
+                latitude: pickupLat,
+            },
+            {
+                radius: maxKm,
+                unit: "km",
+            }
+        );
+
+        if (!nearbyDriverIds.length) return [];
+
+        // Now fetch only nearby drivers
+        const multi = redis.multi();
+        nearbyDriverIds.forEach((id) => multi.hGetAll(`driver:${id}`));
+        const results = await multi.exec();
+
+        // Then apply filters like you already do
     }
 };
