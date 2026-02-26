@@ -17,6 +17,7 @@ import { attachHandlers, userBot } from "./bot/PassengerBot";
 import { PaynetCallbackController } from "./controllers/paynet.controller";
 import { connectRedis } from "./redis/redisClient";
 import "./services/rideEvents";
+import { startDriverCleanupJob } from "./services/driverCleanup.job";
 
 const app = express();
 app.use(bodyParser.json());
@@ -35,6 +36,7 @@ async function startServer() {
     }
     await connectDB();
     await connectRedis();
+    await startDriverCleanupJob();
     const server = http.createServer(app);
     initSocketServer(server);
 
@@ -90,3 +92,4 @@ async function startServer() {
 }
 
 startServer();
+

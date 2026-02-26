@@ -276,6 +276,7 @@ export class DriverStore {
         }
     }
 
+
     /* ----------------- Location ----------------- */
 
     async updateLocation(driverId: string, location: DriverLocation) {
@@ -377,6 +378,7 @@ export class DriverStore {
     async remove(driverId: string) {
         await redis.del(this.key(driverId));
         await redis.sRem(ONLINE_DRIVERS_KEY, driverId);
+        await redis.zRem("drivers:geo", driverId); // IMPORTANT
         await redis.del(this.pendingKey(driverId));
         await this.clearOffer(driverId);
     }

@@ -46,35 +46,71 @@ export const createPassengerBot = async (req: Request, res: Response) => {
 
 export const createPassengerApp = async (req: Request, res: Response) => {
     try {
-        const { phone, referralCode } = req.body;
+        const { phone, referralCode, existingPhone } = req.body;
 
         if (!phone) {
             return res.status(400).json({ error: "phone is required" });
         }
 
-        let existing: IPassengerDocument | null = null;
-        // Prevent duplicate phone registrations
-        if (phone) {
-            existing = await PassengerModel.findOne({ phone });
+        /**
+         * CASE 1: User wants to replace phone
+         */
+        if (existingPhone) {
+            const userToUpdate = await PassengerModel.findOne({ phone: existingPhone });
+
+            if (!userToUpdate) {
+                return res.status(404).json({ error: "User with existing phone not found" });
+            }
+
+            // Prevent changing to a phone that already exists
+            const phoneAlreadyUsed = await PassengerModel.findOne({ phone });
+            if (phoneAlreadyUsed) {
+                return res.status(400).json({ error: "New phone already in use" });
+            }
+
+            userToUpdate.phone = phone;
+            await userToUpdate.save();
+
+            const accessToken = generateAccessToken({ id: userToUpdate._id, role: "CONSUMER" });
+            const refreshToken = generateRefreshToken({ id: userToUpdate._id, role: "CONSUMER" });
+
+            return res.json({
+                message: "Phone updated successfully",
+                accessToken,
+                refreshToken,
+            });
         }
+
+        /**
+         * CASE 2: Prevent duplicate registrations
+         */
+        const existing = await PassengerModel.findOne({ phone });
 
         if (existing) {
             const accessToken = generateAccessToken({ id: existing._id, role: "CONSUMER" });
             const refreshToken = generateRefreshToken({ id: existing._id, role: "CONSUMER" });
 
-            return res.status(200).json({ message: "User with this Chatid/phone already exists", accessToken, refreshToken });
+            return res.status(200).json({
+                message: "User already exists",
+                accessToken,
+                refreshToken,
+            });
         }
 
+        /**
+         * CASE 3: Create new passenger
+         */
         const passenger = await PassengerModel.create({ phone });
-
-        const accessToken = generateAccessToken({ id: passenger._id, role: "CONSUMER" });
-        const refreshToken = generateRefreshToken({ id: passenger._id, role: "CONSUMER" });
 
         if (referralCode) {
             updateDriverBalance(referralCode, 0);
         }
 
+        const accessToken = generateAccessToken({ id: passenger._id, role: "CONSUMER" });
+        const refreshToken = generateRefreshToken({ id: passenger._id, role: "CONSUMER" });
+
         return res.json({ phone, accessToken, refreshToken });
+
     } catch (err: any) {
         console.error("createUser error:", err);
         return res.status(500).json({ error: "Internal error" });
