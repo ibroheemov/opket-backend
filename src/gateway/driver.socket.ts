@@ -62,7 +62,7 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
     socket.on("driver_location", async ({ lat, lon, bearing }) => {
         if (!lat || !lon) return;
         // console.error("🟡📍 DRIVER => LOCATION UPDATE", driverId);
-        driverStoreRedis.updateLocation(driverId, { lat, lon, bearing });
+        driverStoreRedis.updateLocation(driverId, lon, lat, bearing);
 
         const driverSession = await driverStoreRedis.get(driverId);
         if (driverSession?.currentRideId) {

@@ -279,17 +279,57 @@ export class DriverStore {
 
     /* ----------------- Location ----------------- */
 
-    async updateLocation(driverId: string, location: DriverLocation) {
+    async updateLocation(driverId: string,
+        lon: number,
+        lat: number,
+        bearing: number
+    ) {
+        const enabledServices = await this.getEnabledServices(driverId);
+
         await redis.hSet(this.key(driverId), {
-            location: JSON.stringify(location),
+            location: JSON.stringify({ lon, lat, bearing }),
             lastUpdated: Date.now().toString(),
         });
 
-        await redis.geoAdd("drivers:geo", {
-            longitude: location.lon,
-            latitude: location.lat,
+        const multi = redis.multi();
+
+        // remove old
+        multi.zRem("drivers:geo:premium", driverId);
+        multi.zRem("drivers:geo:comfort", driverId);
+
+        // always add to main
+        multi.geoAdd("drivers:geo", {
+            longitude: lon,
+            latitude: lat,
             member: driverId,
         });
+
+        // premium
+        if (enabledServices.includes("premium")) {
+            multi.geoAdd("drivers:geo:premium", {
+                longitude: lon,
+                latitude: lat,
+                member: driverId,
+            });
+
+            // premium can also accept comfort
+            multi.geoAdd("drivers:geo:comfort", {
+                longitude: lon,
+                latitude: lat,
+                member: driverId,
+            });
+        }
+
+        // comfort
+        else if (enabledServices.includes("comfort")) {
+            multi.geoAdd("drivers:geo:comfort", {
+                longitude: lon,
+                latitude: lat,
+                member: driverId,
+            });
+        }
+
+        await multi.exec();
     }
 
     /* ----------------- Reads ----------------- */
@@ -477,6 +517,61 @@ export class DriverStore {
         return JSON.parse(raw as string) as string[];
     }
 
+    getGeoIndexFromOptions(options: string[]): string {
+        if (options.includes("premium")) {
+            return "drivers:geo:premium";
+        }
+
+        if (options.includes("comfort")) {
+            return "drivers:geo:comfort";
+        }
+
+        return "drivers:geo"; // default = standard
+    }
+
+    async filterAvailableDrivers(
+        ids: string[]
+    ): Promise<{ driverId: string }[]> {
+        const now = Date.now();
+
+        if (!ids.length) return [];
+
+        const multi = redis.multi();
+        ids.forEach(id => multi.hmGet(this.key(id), [
+            "driverId",
+            "canReceiveOffers",
+            "currentRideId",
+            "lastUpdated",
+        ]));
+
+        const sessions = await multi.exec();
+        if (!sessions) return [];
+
+        const available: { driverId: string }[] = [];
+
+        for (const raw of sessions) {
+            const data = raw as unknown as (string | null)[];
+
+            const driverId = data[0];
+            const canReceiveOffers = data[1];
+            const currentRideId = data[2];
+            const lastUpdated = Number(data[3]);
+
+            if (
+                !driverId ||
+                canReceiveOffers !== "1" ||
+                currentRideId
+                // || lastUpdated + this.maxStaleMs < now  // optional stale check
+            ) {
+                continue;
+            }
+
+            available.push({ driverId });
+        }
+
+        return available;
+    }
+
     /** Optional: read enabled services */
     async getEnabledServices(driverId: string): Promise<string[]> {
         const raw = await redis.hGet(this.key(driverId), ENABLED_SERVICES_KEY);
@@ -488,6 +583,7 @@ export class DriverStore {
             return [];
         }
     }
+
 
     async enableServicesForDrivers(driverIds: string[], serviceIds: string[]) {
         if (!driverIds.length) return;

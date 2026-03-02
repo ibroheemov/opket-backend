@@ -41,32 +41,49 @@ export const DriverRepository = {
         return driversWithDistance;
     },
 
-
     async findAvailableDriversNew(
         pickupLat: number,
         pickupLon: number,
-        maxKm = 2,
-        options: string[]
-    ) {
-        const nearbyDriverIds = await redis.geoSearch(
-            "drivers:geo",
-            {
-                longitude: pickupLon,
-                latitude: pickupLat,
-            },
-            {
-                radius: maxKm,
-                unit: "km",
-            }
+        radiusKm: number,
+        options: string[],
+        limit = 50
+    ): Promise<{ driverId: string; distKm: number }[]> {
+        console.log("RideType: ", options);
+
+
+        const geoIndex = driverStoreRedis.getGeoIndexFromOptions(options);
+
+        const raw = await redis.sendCommand([
+            "GEORADIUS",
+            geoIndex,
+            pickupLon.toString(),
+            pickupLat.toString(),
+            radiusKm.toString(),
+            "km",
+            "WITHDIST",
+            "ASC",
+            "COUNT",
+            limit.toString()
+        ]);
+
+
+        if (!Array.isArray(raw) || raw.length === 0) {
+            return [];
+        }
+
+        const availableDrivers = await driverStoreRedis.filterAvailableDrivers(
+            raw.map(r => r[0]) // just driver IDs
         );
 
-        if (!nearbyDriverIds.length) return [];
+        const availableSet = new Set(availableDrivers.map(d => d.driverId));
 
-        // Now fetch only nearby drivers
-        const multi = redis.multi();
-        nearbyDriverIds.forEach((id) => multi.hGetAll(`driver:${id}`));
-        const results = await multi.exec();
+        const final = raw
+            .filter(r => availableSet.has(r[0]))
+            .map(r => ({
+                driverId: r[0],
+                distKm: Number(r[1]),
+            }));
 
-        // Then apply filters like you already do
+        return final;
     }
 };

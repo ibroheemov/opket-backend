@@ -8,10 +8,12 @@ import { getPassengerBalance } from "../controllers/passenger/getPassengerBalanc
 import { fetchFareConfigUser } from "../controllers/fare.user.controller";
 import { registerPassengerFcm } from "../controllers/general.passenger.controller";
 import { verifyPassenger } from "../controllers/passenger/verifyPassenger";
+import { updateAppVersionPassenger } from "../controllers/passenger/updateAppVersionPassenger";
 
 const router = express.Router();
 
 router.get("/verify-passenger/:phone", verifyPassenger);
+router.post("/app-version/:phone", updateAppVersionPassenger);
 router.get("/:id/get-passenger", getPassenger);
 router.get("/:id/balance", getPassengerBalance);
 router.post("/:id/pay-fare", payfare);

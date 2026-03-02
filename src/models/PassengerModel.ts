@@ -8,6 +8,8 @@ export interface IPassengerDocument extends Document {
     currentRideId?: string;
     fcmToken?: string;
     verified?: boolean;
+    appVersion?: string;
+    notificationEnabled?: boolean;
     events: {
         event: string;
         data: Record<string, any>;
@@ -22,6 +24,8 @@ const PassengerSchema = new Schema<IPassengerDocument>(
         balance: { type: Number, default: 0 },
         currentRideId: { type: String },
         verified: { type: Boolean, default: true },
+        notificationEnabled: { type: Boolean, default: false },
+        appVersion: { type: String },
         events: {
             type: [
                 {

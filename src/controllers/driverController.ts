@@ -13,7 +13,7 @@ import { services } from "../data/fare.database";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 
 export const updateLocation = async (req: AuthRequest, res: Response) => {
-    const { lat, lon } = req.body;
+    const { lat, lon, bearing } = req.body;
     const driverId = req.driverId;
 
     if (!driverId) return res.status(400).json({ error: "driverId required" });
@@ -21,7 +21,7 @@ export const updateLocation = async (req: AuthRequest, res: Response) => {
     if (!lat || !lon) return res.status(400).json({ error: "lat/lon required" });
 
     const driver = await driverStoreRedis.get(driverId);
-    await driverStoreRedis.updateLocation(driverId, { lat, lon })
+    await driverStoreRedis.updateLocation(driverId, lon, lat, bearing)
 
     // const driver = await DriverModel.findOneAndUpdate(
     //     { id: req.driverId },

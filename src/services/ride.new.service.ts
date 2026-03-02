@@ -37,7 +37,6 @@ const LOOP_GAP_MS = 250;            // small pause between phases
 const MAX_OFFERS_PER_DRIVER = 2;
 
 export const RideService = {
-
     getAttempts(rideId: string) {
         if (!attemptsByRide.has(rideId)) attemptsByRide.set(rideId, new Map());
         return attemptsByRide.get(rideId)!;
@@ -89,7 +88,7 @@ export const RideService = {
         const controller = new AbortController();
         rideSearchControllers.set(rideId, controller);
 
-        this.searchForDriversSequential(rideId, location, phone, controller.signal, options).catch((err) => {
+        this.searchForDriversSequential(rideId, rideType, location, phone, controller.signal, options).catch((err) => {
             if (err?.message === "Aborted") return;
             console.error("Search failed:", err);
         });
@@ -99,16 +98,23 @@ export const RideService = {
 
     async searchForDriversSequential(
         rideId: string,
+        requestedRideType: string,
         pickup: { lat: number; lon: number },
         phone?: number,
         signal?: AbortSignal,
-        options?: string[]
+        options?: string[],
     ) {
         const rideKey = `ride:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
         const startTime = Date.now();
         const attempts = this.getAttempts(rideId);
+        const TIER_PRIORITY = ["premium", "comfort", "standard"];
+
+        let currentRideType = requestedRideType || "standard";
+        let optionsNew = options ?? [];
+        const startIndex = TIER_PRIORITY.indexOf(currentRideType);
+        const fallbackTiers = TIER_PRIORITY.slice(startIndex);
 
         const MAX_ATTEMPT_ENTRIES = 10_000;
         if (attempts.size > MAX_ATTEMPT_ENTRIES) attempts.clear();
@@ -130,11 +136,11 @@ export const RideService = {
         };
 
         const fetchCandidatesInRadius = async (radiusKm: number) => {
-            const drivers = await DriverRepository.findAvailableDrivers(
+            const drivers = await DriverRepository.findAvailableDriversNew(
                 pickup.lat,
                 pickup.lon,
                 radiusKm,
-                options ?? []
+                optionsNew,
             );
             return drivers.sort((a, b) => a.distKm - b.distKm);
         };
@@ -165,7 +171,7 @@ export const RideService = {
             ttlMs: number,
             isSingleOfferUi: boolean
         ) => {
-            const driverId = candidate.driver.driverId;
+            const driverId = candidate.driverId;
 
             const reservationKey = `ride_reservation:${rideId}:${driverId}`;
             const driverOfferKey = `driver_offer:${driverId}`;
@@ -217,47 +223,71 @@ export const RideService = {
 
         // ✅ CHANGE #2: Wrap the whole loop so "Aborted" exits quietly (no "expired")
         try {
-            const runStage = this.createStageRunner({
-                rideId,
-                rideKey,
-                acceptKey,
-                signal,
-                checkStop,
-                fetchCandidatesInRadius,
-                canAttempt,
-                markAttempt,
-                reserveAndEmit,
-                cleanupOffer,
-            });
+            for (const tier of fallbackTiers) {
 
-            while (!(await checkStop())) {
-                console.log("Searching");
+                // 🔎 Check if drivers exist in this tier
+                const exists = await DriverRepository.findAvailableDriversNew(
+                    pickup.lat,
+                    pickup.lon,
+                    3,
+                    [tier],
+                    1 // only need to know if at least 1 exists
+                );
+
+                if (!exists.length) {
+                    console.log(`❌ No ${tier} drivers available`);
+                    continue; // fallback to next tier
+                }
+
+                // 🟢 If tier changed → update rideType + pricing
+                if (tier !== currentRideType) {
+                    console.log(`🔄 Fallback rideType: ${currentRideType} → ${tier}`);
+
+                    optionsNew = optionsNew.map(t => t === currentRideType ? tier : t);
+                    currentRideType = tier;
+
+                    // 1️⃣ Update Redis
+                    await redis.hSet(rideKey, { rideType: tier });
+
+                    // 2️⃣ Update DB
+                    // await RideRepository.updateRideType(rideId, tier);
+                }
+
+                // 🚀 Run stages for this tier
+                const runStage = this.createStageRunner({
+                    rideId,
+                    rideKey,
+                    acceptKey,
+                    signal,
+                    checkStop,
+                    fetchCandidatesInRadius: (radiusKm: number) =>
+                        fetchCandidatesInRadius(radiusKm),
+                    canAttempt,
+                    markAttempt,
+                    reserveAndEmit,
+                    cleanupOffer,
+                });
 
                 if ((await runStage({ radiusKm: 3, ttlMs: 8000, mode: "single" })).acceptedDriverId) return;
+
                 await sleep(LOOP_GAP_MS);
 
                 if ((await runStage({ radiusKm: 0.7, ttlMs: 8000, mode: "all" })).acceptedDriverId) return;
+
                 await sleep(LOOP_GAP_MS);
 
                 if ((await runStage({ radiusKm: 3, ttlMs: 25000, mode: "all" })).acceptedDriverId) return;
-                await sleep(LOOP_GAP_MS);
             }
 
-            // stop reasons
-            if (await redis.get(acceptKey)) return;
-            if (await redis.exists(cancelKey)) return;
-
+            // If none of the tiers result in an accepted ride
             console.log(`⏳ Ride ${rideId} expired — no acceptance`);
             await redis.hSet(rideKey, { phase: "expired" });
-
             const rideData = await redis.hGetAll(rideKey);
             if (rideData.userPhoneNumber) {
                 emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
             }
-            // 🧹 cleanup per-ride attempt tracking
-            attemptsByRide.delete(rideId);
         } catch (err: any) {
-            if (err?.message === "Aborted") return; // ✅ abort/restart => do not expire
+            if (err?.message === "Aborted") return; // abort silently
             throw err;
         }
     },
@@ -272,7 +302,7 @@ export const RideService = {
         if (!lastDriverId) return drivers[0];
 
         const idx = drivers.findIndex(
-            d => d.driver.driverId === lastDriverId
+            d => d.driverId === lastDriverId
         );
 
         // if last driver not found (e.g. driver list changed)
@@ -319,10 +349,10 @@ export const RideService = {
             const eligible =
                 spec.mode === "single"
                     ? (() => {
-                        const nearest = candidates.find(c => ctx.canAttempt(c.driver.driverId));
+                        const nearest = candidates.find(c => ctx.canAttempt(c.driverId));
                         return nearest ? [nearest] : [];
                     })()
-                    : candidates.filter(c => ctx.canAttempt(c.driver.driverId));
+                    : candidates.filter(c => ctx.canAttempt(c.driverId));
 
             if (!eligible.length) return { acceptedDriverId: null };
 
@@ -377,8 +407,8 @@ export const RideService = {
         };
     },
 
-    async restartSearching(data: { rideId: string, pickup: { lat: number; lon: number }, phone?: number, options?: string[], driverId: string }) {
-        const { rideId, pickup, phone, options, driverId } = data;
+    async restartSearching(data: { rideId: string, pickup: { lat: number; lon: number }, phone?: number, options?: string[], driverId: string, rideType: string; }) {
+        const { rideId, pickup, phone, options, driverId, rideType } = data;
 
         const attempts = this.getAttempts(rideId);
 
@@ -400,7 +430,7 @@ export const RideService = {
             lastTs: Date.now(),
         });
 
-        this.searchForDriversSequential(rideId, pickup, phone, controller.signal, options)
+        this.searchForDriversSequential(rideId, rideType, pickup, phone, controller.signal, options)
             .catch(err => {
                 if (err?.message === "Aborted") return;
                 console.error("Restart search failed:", err);

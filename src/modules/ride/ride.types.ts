@@ -4,9 +4,7 @@ export enum RideSearchMode {
 }
 
 export type DriverCandidate = {
-    driver: {
-        driverId: string;
-    };
+    driverId: string;
     distKm: number;
 };
 

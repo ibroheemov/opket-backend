@@ -12,6 +12,7 @@ import { updateDriverBalance } from "./driver.controller";
 import { RideRepository } from "../repositories/ride.repository";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
 import { Types } from "mongoose";
+import { PassengerService } from "../services/passenger.service";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {
@@ -52,65 +53,13 @@ export const createPassengerApp = async (req: Request, res: Response) => {
             return res.status(400).json({ error: "phone is required" });
         }
 
-        /**
-         * CASE 1: User wants to replace phone
-         */
-        if (existingPhone) {
-            const userToUpdate = await PassengerModel.findOne({ phone: existingPhone });
+        const result = await PassengerService.createOrUpdatePassenger({
+            phone,
+            referralCode,
+            existingPhone,
+        });
 
-            if (!userToUpdate) {
-                return res.status(404).json({ error: "User with existing phone not found" });
-            }
-
-            // Prevent changing to a phone that already exists
-            const phoneAlreadyUsed = await PassengerModel.findOne({ phone });
-            if (phoneAlreadyUsed) {
-                return res.status(400).json({ error: "New phone already in use" });
-            }
-
-            userToUpdate.phone = phone;
-            await userToUpdate.save();
-
-            const accessToken = generateAccessToken({ id: userToUpdate._id, role: "CONSUMER" });
-            const refreshToken = generateRefreshToken({ id: userToUpdate._id, role: "CONSUMER" });
-
-            return res.json({
-                message: "Phone updated successfully",
-                accessToken,
-                refreshToken,
-            });
-        }
-
-        /**
-         * CASE 2: Prevent duplicate registrations
-         */
-        const existing = await PassengerModel.findOne({ phone });
-
-        if (existing) {
-            const accessToken = generateAccessToken({ id: existing._id, role: "CONSUMER" });
-            const refreshToken = generateRefreshToken({ id: existing._id, role: "CONSUMER" });
-
-            return res.status(200).json({
-                message: "User already exists",
-                accessToken,
-                refreshToken,
-            });
-        }
-
-        /**
-         * CASE 3: Create new passenger
-         */
-        const passenger = await PassengerModel.create({ phone });
-
-        if (referralCode) {
-            updateDriverBalance(referralCode, 0);
-        }
-
-        const accessToken = generateAccessToken({ id: passenger._id, role: "CONSUMER" });
-        const refreshToken = generateRefreshToken({ id: passenger._id, role: "CONSUMER" });
-
-        return res.json({ phone, accessToken, refreshToken });
-
+        return res.json(result);
     } catch (err: any) {
         console.error("createUser error:", err);
         return res.status(500).json({ error: "Internal error" });
@@ -160,7 +109,7 @@ export const skipRide = async (req: Request, res: Response) => {
         const phone = rideData.userPhoneNumber ? Number(rideData.userPhoneNumber) : undefined;
 
         // If you store options in ride hash, pass them; otherwise []
-        await RideService.restartSearching({ rideId, pickup, phone, options: [], driverId });
+        await RideService.restartSearching({ rideId, pickup, phone, options: [], driverId, rideType: rideData.rideType });
 
         await RideService.clearDriverRideState(rideId, "");
 

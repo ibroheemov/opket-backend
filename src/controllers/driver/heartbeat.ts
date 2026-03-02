@@ -15,7 +15,7 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
     if (!driverId) {
         return res.status(400).json({ error: "driverId required" });
     }
-    await driverStoreRedis.updateLocation(driverId, { lat, lon, bearing });
+    await driverStoreRedis.updateLocation(driverId, lon, lat, bearing);
 
     const driverSession = await driverStoreRedis.get(driverId);
     const rideId = driverSession?.currentRideId;
