@@ -54,7 +54,7 @@ export const DriverRepository = {
         const geoIndex = driverStoreRedis.getGeoIndexFromOptions(options);
 
         const raw = await redis.sendCommand([
-            "GEOSEARCH",
+            "GEORADIUS",
             geoIndex,
             pickupLon.toString(),
             pickupLat.toString(),
