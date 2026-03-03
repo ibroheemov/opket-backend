@@ -224,21 +224,6 @@ export const RideService = {
         // ✅ CHANGE #2: Wrap the whole loop so "Aborted" exits quietly (no "expired")
         try {
             for (const tier of fallbackTiers) {
-
-                // 🔎 Check if drivers exist in this tier
-                const exists = await DriverRepository.findAvailableDriversNew(
-                    pickup.lat,
-                    pickup.lon,
-                    3,
-                    [tier],
-                    1 // only need to know if at least 1 exists
-                );
-
-                if (!exists.length) {
-                    console.log(`❌ No ${tier} drivers available`);
-                    continue; // fallback to next tier
-                }
-
                 // 🟢 If tier changed → update rideType + pricing
                 if (tier !== currentRideType) {
                     console.log(`🔄 Fallback rideType: ${currentRideType} → ${tier}`);
