@@ -1,6 +1,6 @@
 import express from "express";
 // import { markArrived, startRide, endRide } from "../controllers/rideController";
-import { cancelRide, confirmLuggage, createPassengerApp, createPassengerBot, declineLuggage } from "../controllers/userController";
+import { cancelRide, confirmLuggage, createPassengerApp, createPassengerBot, declineLuggage, deleteAccount } from "../controllers/userController";
 import { currentRide, requestRide } from "../controllers/ride.controller";
 import { getPassenger } from "../controllers/passenger/getPassenger";
 import { payfare } from "../controllers/passenger/payFare";
@@ -25,6 +25,7 @@ router.post("/decline-luggage", declineLuggage);
 router.post("/create", createPassengerApp);
 router.post("/create-bot", createPassengerBot);
 router.get("/fare/config", fetchFareConfigUser);
+router.post("/delete-account", deleteAccount);
 router.post("/:phone/registerFcm", registerPassengerFcm);
 
 export default router;

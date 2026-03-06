@@ -52,6 +52,7 @@ export interface IDriverDocument extends Document {
     passport?: IUploadMeta;
 
     balance: number;
+    commissionRate?: number;
     canReceiveOffers: boolean;
     blocked?: boolean;
     hasPremiumCar: boolean;
@@ -87,6 +88,7 @@ const DriverSchema = new Schema<IDriverDocument>(
         phone: { type: String, required: true, unique: true, index: true },
 
         balance: { type: Number, default: 0 },
+        commissionRate: { type: Number, default: 8 },
 
         carModel: String,
         carNumber: String,

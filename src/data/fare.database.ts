@@ -83,9 +83,9 @@ export const fareConfigsNew: Record<string, FareConfigNew> = {
     comfort: {
         baseFare: 0,
         perKm: 2200,
-        firstKm: 6500,
-        outsidePerKm: 2500,
-        outsideFirstKm: 6500,
+        firstKm: 8000,
+        outsidePerKm: 2400,
+        outsideFirstKm: 8500,
         perMinute: 700,
         services: services,
         enabledServices: [],

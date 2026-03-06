@@ -66,6 +66,25 @@ export const createPassengerApp = async (req: Request, res: Response) => {
     }
 };
 
+export const deleteAccount = async (req: Request, res: Response) => {
+    try {
+        const { phone } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ error: "phone is required" });
+        }
+
+        await PassengerModel.findOneAndDelete({ phone });
+
+        await RideService.sendPassengerMessage({ userPhone: phone, title: "Akkaunt o'chirildi", body: "Sizning akkauntingiz butunlay o'chirildi. Taksiyimiz uhcun taklif yok shikoytingiz bo'lsa Qo'llab quvvatlash xizmatimizga yozib qoldiring" })
+
+        return res.json({ success: true });
+    } catch (err: any) {
+        console.error("createUser error:", err);
+        return res.status(500).json({ error: "Internal error" });
+    }
+};
+
 
 export const cancelRide = async (req: Request, res: Response) => {
     try {
