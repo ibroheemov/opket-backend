@@ -726,7 +726,14 @@ export const RideService = {
             { new: true }
         );
 
-        const commissionResult = await handleRideCommission(driverId, Number(data.fare), updatedDriver?.commissionRate);
+        var driverCommission;
+
+
+        if (updatedDriver?.commissionRate) {
+            driverCommission = updatedDriver?.commissionRate / 100;
+        }
+
+        const commissionResult = await handleRideCommission(driverId, Number(data.fare), driverCommission);
         const { balance, commission } = commissionResult;
 
         // Notify driver about commission update if FCM token exists
