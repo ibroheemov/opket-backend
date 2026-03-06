@@ -726,7 +726,7 @@ export const RideService = {
             { new: true }
         );
 
-        var driverCommission;
+        var driverCommission = 0.14;
 
 
         if (updatedDriver?.commissionRate) {
@@ -793,6 +793,12 @@ export const RideService = {
             { new: true }
         );
 
+        var driverCommission = 0.14;
+
+
+        if (updatedDriver?.commissionRate) {
+            driverCommission = updatedDriver?.commissionRate / 100;
+        }
 
         // 6️⃣ Deduct commission & update driver balance
         const commissionResult = await handleRideCommission(driverId, Number(data.fare));
