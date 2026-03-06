@@ -497,7 +497,7 @@ export const RideService = {
 
         return {
             type: 'ride_request',
-            channelKey: isSingleOffer ? "ride_channel_v7" : "ride_channel_v7",
+            channelKey: isSingleOffer ? "ride_channel_v7" : "ride_channel_parallel_v7",
             title: isSingleOffer ? "Sizga yangi buyurtma bor" : "O'rtadagi buyurtma",
             ride_id: rideId,
             phone: rideData.userPhoneNumber ?? '',
