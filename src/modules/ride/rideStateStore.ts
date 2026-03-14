@@ -20,7 +20,7 @@ export class RideStateStore {
     }
 
     buildInitialState(input: RideRequestInput): RideState {
-        const { phone, chatId, location, dropoff, address, type, rideType } = input;
+        const { phone, chatId, pickup, dropoff, address, type, rideType } = input;
         const now = Date.now();
         const expiresAt = now + RideConfig.RIDE_TTL_SECONDS * 1000;
 
@@ -32,8 +32,8 @@ export class RideStateStore {
             userChatId: chatId ? String(chatId) : "",
             userPhoneNumber: phone ? String(phone) : "",
 
-            pickupLat: String(location.lat),
-            pickupLon: String(location.lon),
+            pickupLat: String(pickup.lat),
+            pickupLon: String(pickup.lon),
             pickupAddress: address ?? "",
 
             dropoffLat: dropoff?.lat != null ? String(dropoff.lat) : "",

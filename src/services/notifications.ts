@@ -38,7 +38,7 @@ export interface MulticastResult {
     failed: FailedToken[];
 }
 
-function stringifyData(data: DataPayload = {}): Record<string, string> {
+export function stringifyData(data: DataPayload = {}): Record<string, string> {
     // FCM "data" must be string:string
     return Object.fromEntries(
         Object.entries(data).map(([k, v]) => [k, String(v)])

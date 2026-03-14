@@ -7,6 +7,8 @@ import { setSocketServer } from "./socket.maps";
 import { driverStore } from "../store/driverStore";
 import { registerPassengerHandlersMobile } from "./passenger.socket";
 import { registerDriverBGHandler } from "./driver.socket.bg";
+import { registerRestaurantHandlers } from "./restaurant.socket";
+import { registerRestaurantBGHandler } from "./restaurant.socket.bg";
 
 export let socketIo: Server;
 
@@ -46,6 +48,10 @@ export const initSocketServer = (server: http.Server) => {
         } else if (auth.phone) {
             registerPassengerHandlersMobile({ socket, phone: auth.phone });
             // socket.emit('ride_accepted', { test: true });
+        } else if (auth.restaurantId && auth.isBackground) {
+            registerRestaurantBGHandler({ socket, restaurantId: auth.restaurantId })
+        } else if (auth.restaurantId) {
+            registerRestaurantHandlers({ socket, restaurantId: auth.restaurantId })
         }
     });
     return socketIo;

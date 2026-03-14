@@ -43,12 +43,12 @@ export const RideRepository = {
     },
 
     async createRide(data: RideRequestInput) {
-        const { phone, chatId, location, dropoff, address, type, rideType } = data;
+        const { phone, chatId, pickup, dropoff, address, type, rideType } = data;
 
         const mongoData = {
             userChatId: chatId,
             userPhoneNumber: phone,
-            pickup: { lat: location.lat, lon: location.lon, address },
+            pickup: { lat: pickup.lat, lon: pickup.lon, address },
             dropoff: dropoff
                 ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
                 : undefined,

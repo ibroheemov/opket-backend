@@ -151,7 +151,7 @@ export const RideService = {
     },
 
     async requestRide(input: RideRequestInput) {
-        const { phone, chatId, location, dropoff, address, type } = input;
+        const { phone, chatId, pickup, dropoff, address, type } = input;
         if (!phone && !chatId) return;
 
         // 1️⃣ Create ride in MongoDB (persistent)
@@ -169,8 +169,8 @@ export const RideService = {
             type: type ?? "",                    // default empty string if undefined
             userChatId: chatId?.toString() ?? "", // convert number|undefined to string
             userPhoneNumber: phone?.toString() ?? "",
-            pickupLat: location.lat.toString(),
-            pickupLon: location.lon.toString(),
+            pickupLat: pickup.lat.toString(),
+            pickupLon: pickup.lon.toString(),
             pickupAddress: address ?? "",
             dropoffLat: dropoff?.lat.toString() ?? "",
             dropoffLon: dropoff?.lon.toString() ?? "",
@@ -187,7 +187,7 @@ export const RideService = {
         const controller = new AbortController();
         rideSearchControllers.set(rideId, controller);
 
-        this.searchForDrivers(rideId, location, phone, controller.signal)
+        this.searchForDrivers(rideId, pickup, phone, controller.signal)
             .catch((err) => console.error("Background search failed:", err));
 
         return { ride_id: rideId };

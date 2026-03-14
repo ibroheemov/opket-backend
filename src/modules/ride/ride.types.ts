@@ -11,12 +11,49 @@ export type DriverCandidate = {
 export interface RideRequestInput {
     phone: number;
     rideType: string;
-    location: { lat: number; lon: number };
+    pickup: { lat: number; lon: number };
     options: string[];
     chatId?: number;
     dropoff?: { lat: number; lon: number; address?: string };
     address?: string;
     type?: string;
+    delivery?: DeliveryData;
+    isDelivery: boolean;
+}
+
+export interface DeliveryData {
+    orderId: string;
+    orderNumber: number;
+    pickup: Location;
+    dropOff: Location;
+    pricing: DeliveryPricing;
+    items: DeliveryItems[];
+    consumerPhone: number;
+    restaurantPhone: number;
+    restaurantName: string;
+    restaurantId: string;
+}
+
+export interface DeliveryPricing {
+    itemsSubtotal: number;
+    deliveryFee: number;
+    tax: number;
+    discount: number;
+    total: number;
+}
+
+
+export interface DeliveryItems {
+    menuItemId: string;
+    name: string;
+    quantity: number;
+    subtotal: number;
+    price: number;
+}
+
+export interface Location {
+    lat: number;
+    lon: number;
 }
 
 export interface GhostRideInput {

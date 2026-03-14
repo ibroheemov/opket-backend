@@ -1,13 +1,13 @@
 import { Types } from "mongoose";
 import { RideCompletedPayload } from "../bot/socket/types";
 import { sleep } from "../bot/utils/helpers";
-import { emitToDriver, emitToUser } from "../gateway/ride.socket";
+import { emitToDriver, emitToRestaurant, emitToUser } from "../gateway/ride.socket";
 import { DriverModel } from "../models/DriverModel";
 import { RideModel } from "../models/Ride";
 import { RideConfig } from "../modules/ride/ride.config";
 import { RideKeys } from "../modules/ride/ride.keys";
 import { ACCEPT_RIDE_LUA, RESERVE_RIDE_LUA } from "../modules/ride/ride.lua";
-import { DriverCandidate, GhostRideInput, RideRequestInput, RideSearchMode } from "../modules/ride/ride.types";
+import { DeliveryData, DriverCandidate, GhostRideInput, RideRequestInput, RideSearchMode } from "../modules/ride/ride.types";
 import { redis } from "../redis/redisClient";
 import { DriverRepository } from "../repositories/driver.repository";
 import { RideRepository } from "../repositories/ride.repository";
@@ -17,6 +17,8 @@ import { handleRideCommission } from "../utils/fare.helper";
 import { sendFcm } from "../utils/sendFcm";
 import { sendToToken } from "./notifications";
 import { PassengerModel } from "../models/PassengerModel";
+import { FcmService } from "./fcm.service";
+import { OrderModel } from "../models/OrderModel";
 
 type StageMode = "single" | "all";
 
@@ -43,7 +45,7 @@ export const RideService = {
     },
 
     async requestRide(input: RideRequestInput) {
-        const { phone, chatId, location, dropoff, address, type, rideType, options } = input;
+        const { phone, chatId, pickup, dropoff, address, type, rideType, options, delivery, isDelivery } = input;
         if (!phone && !chatId) return;
 
         const ride = await RideRepository.createRide(input);
@@ -59,8 +61,8 @@ export const RideService = {
             userChatId: chatId?.toString() ?? "",
             userPhoneNumber: phone?.toString() ?? "",
 
-            pickupLat: location.lat.toString(),
-            pickupLon: location.lon.toString(),
+            pickupLat: pickup.lat.toString(),
+            pickupLon: pickup.lon.toString(),
             pickupAddress: address ?? "",
 
             dropoffLat: dropoff?.lat?.toString() ?? "",
@@ -69,6 +71,9 @@ export const RideService = {
 
             type: type ?? "",
             rideType: rideType ?? "standard",
+
+            isDelivery: isDelivery ? "1" : "0",
+            deliveryData: delivery ? JSON.stringify(delivery) : "",
         });
 
         await redis.expire(RideKeys.ride(ride.id), RideConfig.RIDE_TTL_SECONDS);
@@ -88,7 +93,7 @@ export const RideService = {
         const controller = new AbortController();
         rideSearchControllers.set(rideId, controller);
 
-        this.searchForDriversSequential(rideId, rideType, location, phone, controller.signal, options).catch((err) => {
+        this.searchForDriversSequential(rideId, rideType, pickup, phone, controller.signal, options).catch((err) => {
             if (err?.message === "Aborted") return;
             console.error("Search failed:", err);
         });
@@ -495,6 +500,11 @@ export const RideService = {
     ) {
         const travelTimeMin = calculateApproxTime(candidate.distKm);
 
+        const isDelivery = rideData.isDelivery === "1";
+        const delivery = isDelivery && rideData.deliveryData
+            ? JSON.parse(rideData.deliveryData)
+            : null;
+
         return {
             type: 'ride_request',
             channelKey: isSingleOffer ? "ride_channel_v7" : "ride_channel_parallel_v7",
@@ -510,6 +520,9 @@ export const RideService = {
             travelDistance: candidate.distKm.toFixed(2),
             travelTime: travelTimeMin.toString(),
             rideType: rideData.rideType ?? "standard",
+
+            isDelivery,
+            delivery,
         };
     },
 
@@ -603,8 +616,22 @@ export const RideService = {
         // const driverPromise = DriverModel.findById(driverId).lean().exec();
 
 
+
         DriverModel.findById(driverId)
-            .then(driver => {
+            .then(async driver => {
+                const rideData = await redis.hGetAll(`ride:${rideId}`);
+
+                let restaurantId: string | undefined;
+
+                if (rideData.isDelivery === "1" && rideData.deliveryData) {
+                    const delivery: DeliveryData = JSON.parse(rideData.deliveryData);
+                    restaurantId = delivery.restaurantId;
+                    const driverObjectId = new Types.ObjectId(driverId);
+                    console.log("ORDER ID:", delivery.orderId);
+                    const updated = await OrderModel.findByIdAndUpdate(delivery.orderId, { courierId: driverObjectId });
+                    console.log("ORDER ID:", updated?.courierId);
+                }
+
                 emitToUser(userPhone, "ride_assigned", {
                     rideId, driverId, driver,
                     location: driverSession?.location,
@@ -616,9 +643,19 @@ export const RideService = {
                     message: "🚗 Your driver is on the way!",
                 });
 
+                if (restaurantId) {
+                    const emitted = emitToRestaurant(restaurantId, 'driver_accepted_order', {});
+                    console.log(emitted);
+
+                }
+
                 const title = `${driver?.carColor}, ${driver?.carModel}, ${driver?.regionCode}${driver?.carNumber}`;
                 const body = "🚗 Haydovchi yo'lda";
                 this.sendPassengerMessage({ userPhone, title, body })
+                console.log('RESTAURANT FCM: ', restaurantId);
+
+                if (restaurantId) FcmService.sendRestaurantMessage({ id: restaurantId, title, body });
+
             })
             .catch(err => console.error("Failed to fetch driver info:", err));
 

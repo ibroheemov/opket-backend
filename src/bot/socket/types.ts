@@ -2,6 +2,12 @@ import { Socket } from "socket.io";
 import { IDriverDocument } from "../../models/DriverModel";
 import { DriverLocation } from "../../types/location";
 
+
+export interface RestaurantSocketConnectionPayload {
+    socket: Socket;
+    restaurantId: string;
+}
+
 export interface DriverSocketConnectionPayload {
     socket: Socket;
     driverId: string;

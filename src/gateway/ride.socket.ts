@@ -5,7 +5,7 @@ import { RideModel } from "../models/Ride";
 import { driverStore } from "../store/driverStore";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { passengerStore } from "../store/passengerStore";
-import { driverSockets, socketIo, userSockets } from "./socket.maps";
+import { driverSockets, restaurantSockets, socketIo, userSockets } from "./socket.maps";
 
 const driver_missable_events = ["luggage_confirmed", "luggage_declined", "ride_change_declined", "ride_change_confirmed"];
 const passenger_missable_events = [
@@ -62,6 +62,17 @@ export const emitToDriver = async (driverId: string, event: string, data: any) =
 
     console.log("isOnline:", isOnline, event);
 
+
+    if (socketId) {
+        socketIo.to(socketId).emit(event, data);
+        return true;
+    }
+    return false;
+};
+
+
+export const emitToRestaurant = async (restaurantId: string, event: string, data: any) => {
+    const socketId = restaurantSockets.get(restaurantId);
 
     if (socketId) {
         socketIo.to(socketId).emit(event, data);
