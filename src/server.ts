@@ -10,6 +10,7 @@ import adminRoutes from "./routes/admin";
 import paynetRoutes from "./routes/paynet";
 import driverRoutes from "./routes/driver";
 import restaurantRoutes from "./routes/restaurant.routes";
+import foodRoutes from "./routes/food.routes";
 import cors from "cors";
 import admin from 'firebase-admin';
 import { config } from "./bot/config/env";
@@ -36,7 +37,7 @@ async function startServer() {
     }
     await connectDB();
     await connectRedis();
-    await startDriverCleanupJob();
+    startDriverCleanupJob();
     const server = http.createServer(app);
     initSocketServer(server);
 
@@ -47,6 +48,7 @@ async function startServer() {
     app.use("/admin", adminRoutes);
     app.use("/driver", driverRoutes);
     app.use("/restaurant", restaurantRoutes);
+    app.use("/food", foodRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
 
     // -------------------------------

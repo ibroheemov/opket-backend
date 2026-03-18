@@ -226,58 +226,69 @@ export const RideService = {
             ]);
         };
 
-        // ✅ CHANGE #2: Wrap the whole loop so "Aborted" exits quietly (no "expired")
         try {
-            for (const tier of fallbackTiers) {
-                // 🟢 If tier changed → update rideType + pricing
-                if (tier !== currentRideType) {
-                    console.log(`🔄 Fallback rideType: ${currentRideType} → ${tier}`);
+            while (Date.now() - startTime < MAX_SEARCH_TIME_MS) {
 
-                    optionsNew = optionsNew.map(t => t === currentRideType ? tier : t);
-                    currentRideType = tier;
+                for (const tier of fallbackTiers) {
 
-                    // 1️⃣ Update Redis
-                    await redis.hSet(rideKey, { rideType: tier });
+                    if (await checkStop()) return;
 
-                    // 2️⃣ Update DB
-                    // await RideRepository.updateRideType(rideId, tier);
+                    // 🔄 change ride type if tier changed
+                    if (tier !== currentRideType) {
+                        console.log(`🔄 Fallback rideType: ${currentRideType} → ${tier}`);
+
+                        optionsNew = optionsNew.map(t =>
+                            t === currentRideType ? tier : t
+                        );
+
+                        currentRideType = tier;
+
+                        await redis.hSet(rideKey, { rideType: tier });
+                    }
+
+                    const runStage = this.createStageRunner({
+                        rideId,
+                        rideKey,
+                        acceptKey,
+                        signal,
+                        checkStop,
+                        fetchCandidatesInRadius: (radiusKm: number) =>
+                            fetchCandidatesInRadius(radiusKm),
+                        canAttempt,
+                        markAttempt,
+                        reserveAndEmit,
+                        cleanupOffer,
+                    });
+
+                    if ((await runStage({ radiusKm: 3, ttlMs: 8000, mode: "single" })).acceptedDriverId) return;
+
+                    await sleep(LOOP_GAP_MS);
+
+                    if ((await runStage({ radiusKm: 0.7, ttlMs: 8000, mode: "all" })).acceptedDriverId) return;
+
+                    await sleep(LOOP_GAP_MS);
+
+                    if ((await runStage({ radiusKm: 3, ttlMs: 25000, mode: "all" })).acceptedDriverId) return;
+
+                    await sleep(LOOP_GAP_MS);
                 }
 
-                // 🚀 Run stages for this tier
-                const runStage = this.createStageRunner({
-                    rideId,
-                    rideKey,
-                    acceptKey,
-                    signal,
-                    checkStop,
-                    fetchCandidatesInRadius: (radiusKm: number) =>
-                        fetchCandidatesInRadius(radiusKm),
-                    canAttempt,
-                    markAttempt,
-                    reserveAndEmit,
-                    cleanupOffer,
-                });
-
-                if ((await runStage({ radiusKm: 3, ttlMs: 8000, mode: "single" })).acceptedDriverId) return;
-
-                await sleep(LOOP_GAP_MS);
-
-                if ((await runStage({ radiusKm: 0.7, ttlMs: 8000, mode: "all" })).acceptedDriverId) return;
-
-                await sleep(LOOP_GAP_MS);
-
-                if ((await runStage({ radiusKm: 3, ttlMs: 25000, mode: "all" })).acceptedDriverId) return;
+                // small pause before restarting tier cycle
+                await sleep(500);
             }
 
-            // If none of the tiers result in an accepted ride
             console.log(`⏳ Ride ${rideId} expired — no acceptance`);
+
             await redis.hSet(rideKey, { phase: "expired" });
+
             const rideData = await redis.hGetAll(rideKey);
+
             if (rideData.userPhoneNumber) {
                 emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
             }
+
         } catch (err: any) {
-            if (err?.message === "Aborted") return; // abort silently
+            if (err?.message === "Aborted") return;
             throw err;
         }
     },
@@ -507,7 +518,7 @@ export const RideService = {
 
         return {
             type: 'ride_request',
-            channelKey: isSingleOffer ? "ride_channel_v7" : "ride_channel_parallel_v7",
+            channelKey: isSingleOffer ? "ride_channel_v7" : "ride_channel_v7",
             title: isSingleOffer ? "Sizga yangi buyurtma bor" : "O'rtadagi buyurtma",
             ride_id: rideId,
             phone: rideData.userPhoneNumber ?? '',

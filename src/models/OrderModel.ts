@@ -138,7 +138,7 @@ const statusHistorySchema = new Schema(
 const orderSchema = new Schema<OrderModelDoc>(
     {
         restaurantId: { type: Schema.Types.ObjectId, required: true, ref: "Restaurant", index: true },
-        courierId: { type: Schema.Types.ObjectId, required: false, ref: "Courier", default: null, index: true },
+        courierId: { type: Schema.Types.ObjectId, required: false, ref: "Driver", default: null, index: true },
         consumerId: { type: Schema.Types.ObjectId, required: true, ref: "User", index: true },
         consumerPhone: { type: Number, required: true },
 
