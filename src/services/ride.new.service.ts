@@ -140,6 +140,35 @@ export const RideService = {
             return false;
         };
 
+        const startLiveCandidateEmitter = async () => {
+            while (true) {
+                if (signal?.aborted) break;
+
+                const isCancelled = await redis.exists(cancelKey);
+                const isAccepted = await redis.get(acceptKey);
+
+                if (isCancelled || isAccepted) break;
+
+                try {
+                    const drivers = await DriverRepository.findAvailableDriversNew(
+                        pickup.lat,
+                        pickup.lon,
+                        3, // or dynamic radius if you want
+                        optionsNew
+                    );
+
+                    emitToUser(phone, "candidate_drivers", { drivers });
+
+                } catch (err) {
+                    console.error("Emitter error:", err);
+                }
+
+                await sleep(1000); // ⏱ every 1 second
+            }
+
+            console.log(`🛑 Stopped live candidate emitter for ride ${rideId}`);
+        };
+
         const fetchCandidatesInRadius = async (radiusKm: number) => {
             const drivers = await DriverRepository.findAvailableDriversNew(
                 pickup.lat,
@@ -147,6 +176,7 @@ export const RideService = {
                 radiusKm,
                 optionsNew,
             );
+
             return drivers.sort((a, b) => a.distKm - b.distKm);
         };
 
@@ -225,6 +255,8 @@ export const RideService = {
                 emitToDriver(`${driverId}-bg`, "ride_already_taken", { rideId }),
             ]);
         };
+
+        startLiveCandidateEmitter();
 
         try {
             while (Date.now() - startTime < MAX_SEARCH_TIME_MS) {
@@ -556,6 +588,8 @@ export const RideService = {
         const driverKey = `driver:${driverId}`;
         await redis.hSet(driverKey, { currentRideId: "" });
         await redis.del(`driver_offer:${driverId}`);
+
+        await FcmService.sendDriverMessage({ id: driverId, title: "Mijoz buyurtmani bekor qildi", body: "" });
     },
 
 
@@ -690,7 +724,9 @@ export const RideService = {
                     token,
                     title,
                     body,
-                    data: {}
+                    data: {},
+                    sound: "taxi_ringtone_parallel",
+                    channelId: "default_channel",
                 });
             })
             .catch((err) => {

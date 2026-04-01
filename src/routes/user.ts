@@ -18,7 +18,7 @@ router.get("/:id/get-passenger", getPassenger);
 router.get("/:id/balance", getPassengerBalance);
 router.post("/:id/pay-fare", payfare);
 router.post("/request-ride", requestRide);
-router.post("/:id/current-ride", currentRide);
+router.get("/:id/current-ride", currentRide);
 router.post("/cancel-ride", cancelRide);
 router.post("/confirm-luggage", confirmLuggage);
 router.post("/decline-luggage", declineLuggage);

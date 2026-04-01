@@ -70,6 +70,19 @@ class AuthService {
         };
     }
 
+    async loginFake(phone: string) {
+
+        const accessToken = generateAccessToken({ id: "test" });
+        const refreshToken = generateRefreshToken({ id: "test" });
+
+        return {
+            accessToken,
+            refreshToken,
+            driverId: "test",
+            driver: {},
+        };
+    }
+
     /** Step 4 — Register new driver (optional) */
     async registerDriver(reqBody: any, files: any) {
         const dto = await this.createDriverDto(reqBody);

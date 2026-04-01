@@ -15,7 +15,7 @@ export type RideStatus =
 
 export interface IRideStatusEvent {
     status: RideStatus;
-    driverId?: Types.ObjectId,
+    driverId?: Schema.Types.ObjectId,
     distKm?: number,
     at: Date;
     by?: "system" | "user" | "driver" | "admin";
@@ -27,7 +27,7 @@ export interface IRide extends Document {
     userId?: string;
     userPhoneNumber?: number;
     userChatId: number;                // Telegram chat id for the user
-    driverId?: string | null;
+    driverId?: Types.ObjectId | null;
     pickup: { lat: number; lon: number; address?: string };
     dropoff?: { lat: number; lon: number; address?: string };
     status: RideStatus;
@@ -60,7 +60,7 @@ const rideSchema = new Schema<IRide>({
     userId: String,
     userChatId: Number,
     userPhoneNumber: Number,
-    driverId: { type: String },
+    driverId: { type: Types.ObjectId, ref: "Driver" },
     luggage: { type: Boolean, default: false },
     pickup: {
         lat: Number,

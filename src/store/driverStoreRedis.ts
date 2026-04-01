@@ -182,6 +182,31 @@ export class DriverStore {
         await redis.sRem(ACTIVE_OFFERS_KEY, driverId);
     }
 
+    async getDriverLocation(driverId: string): Promise<DriverLocation | null> {
+        const data = await redis.hmGet(this.key(driverId), [
+            "location",
+            "lastUpdated",
+        ]);
+
+        const [locationRaw, lastUpdatedRaw] = data;
+
+        if (!locationRaw) return null;
+
+        // Optional: protect against stale location
+        const lastUpdated = Number(lastUpdatedRaw);
+        const now = Date.now();
+
+        if (!lastUpdated || lastUpdated + this.maxStaleMs < now) {
+            return null; // stale location
+        }
+
+        try {
+            return JSON.parse(locationRaw);
+        } catch {
+            return null;
+        }
+    }
+
     /* ----------------- Upserts ----------------- */
 
     // NEW: push missed event into driver memory (Redis LIST)

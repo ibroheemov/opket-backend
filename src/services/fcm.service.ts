@@ -1,9 +1,37 @@
+import { DriverModel } from "../models/DriverModel";
 import { PassengerModel } from "../models/PassengerModel";
 import { RestaurantModel } from "../models/Restaurant";
 import { sendToToken, SendToTokenInput, stringifyData } from "./notifications";
 import admin from 'firebase-admin';
 
 export const FcmService = {
+    async sendDriverMessage(params: { id: string, title: string, body: string }) {
+        const { id, title, body } = params;
+
+        const promise = DriverModel.findByIdAndUpdate(id)
+            .select("fcmToken")
+            .lean()
+            .exec();
+
+        void promise
+            .then(async (p) => {
+                const token = p?.fcmToken;
+                if (!token) return;
+
+                const messageId = await this.sendToToken({
+                    token,
+                    title,
+                    body,
+                    data: {},
+                    channelId: "default_channel",
+                });
+                console.log('FCM message id: ', messageId);
+            })
+            .catch((err) => {
+                console.error("FCM send failed:", err);
+            });
+    },
+
     async sendRestaurantMessage(params: { id: string, title: string, body: string }) {
         const { id, title, body } = params;
         console.log(title);
@@ -27,7 +55,9 @@ export const FcmService = {
                     token,
                     title,
                     body,
-                    data: {}
+                    data: {},
+                    sound: "taxi_ringtone_parallel",
+                    channelId: "default_channel",
                 });
 
                 console.log('FCM message id: ', messageId);
@@ -62,7 +92,9 @@ export const FcmService = {
                     token,
                     title,
                     body,
-                    data: {}
+                    data: {},
+                    sound: "taxi_ringtone_parallel",
+                    channelId: "default_channel",
                 });
 
                 console.log('FCM message id: ', messageId);
@@ -75,7 +107,7 @@ export const FcmService = {
 
 
     async sendToToken(input: SendToTokenInput): Promise<string> {
-        const { token, title, body, data } = input;
+        const { token, title, body, data, sound, channelId } = input;
 
         const message = {
             token,
@@ -84,7 +116,6 @@ export const FcmService = {
             android: {
                 notification: {
                     sound: "taxi_ringtone_parallel",
-                    // channelId is important on Android 8+ (see section 3)
                     channelId: "default_channel",
                 },
             },

@@ -15,21 +15,21 @@ export const authenticateSocket = (socket: Socket): {
 } | null => {
     const { token, isBackground, fcmToken, userChatId, phone, location, driverId, restaurantId } = socket.handshake.auth || {};
 
-    try {
-        const decoded = jwt.verify(token, config.jwtSecret) as SocketAuthPayload;
-        const role = decoded.role;
-        const id = decoded.id;
+    // try {
+    //     const decoded = jwt.verify(token, config.jwtSecret) as SocketAuthPayload;
+    //     const role = decoded.role;
+    //     const id = decoded.id;
 
-        console.log("ROLE: ", decoded.role, "ID:", decoded.id);
+    //     console.log("ROLE: ", decoded.role, "ID:", decoded.id);
 
-        if (role == "RESTAURANT_OWNER") {
-            return { restaurantId: id, isBackground };
-        }
+    //     if (role == "RESTAURANT_OWNER") {
+    //         return { restaurantId: id, isBackground };
+    //     }
 
-    } catch (error) {
-        console.warn("❌ Invalid driver token");
-        return null;
-    }
+    // } catch (error) {
+    //     console.warn("❌ Invalid driver token");
+    //     return null;
+    // }
 
 
     if (token && isBackground) {

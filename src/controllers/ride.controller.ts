@@ -10,6 +10,8 @@ import { socketIo } from "../gateway/socket.maps";
 import { RideRepository } from "../repositories/ride.repository";
 import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 import { services } from "../data/fare.database";
+import { DriverLocation } from "../types/location";
+import { driverStoreRedis } from "../store/driverStoreRedis";
 
 export const requestRide = async (req: Request, res: Response) => {
     console.log("RIDE REQUEST RECEIVED");
@@ -159,6 +161,8 @@ export const completeRide = async (req: AuthRequest, res: Response) => {
 
 export const completeGhostRide = async (req: AuthRequest, res: Response) => {
     try {
+        return res.status(200).json({ message: "Ride completed successfully" });
+
         const driverId = req.driverId;
         const { distance, fare, pauseSeconds } = req.body;
 
@@ -166,7 +170,7 @@ export const completeGhostRide = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: "driverId is required" });
         }
 
-        await RideService.completeRideGhostRide({ driverId, fare, pauseSeconds, distanceTraveled: distance });
+        // await RideService.completeRideGhostRide({ driverId, fare, pauseSeconds, distanceTraveled: distance });
 
         return res.status(200).json({ message: "Ride completed successfully" });
     } catch (err) {
@@ -211,34 +215,33 @@ export const currentRide = async (req: Request, res: Response) => {
 
         // Find the ride and populate the driver with selected fields
         const ride = await RideModel.findById(id)
+            .populate({
+                path: "driverId",
+                select: "_id name phone carModel carColor carNumber regionCode",
+            })
             .lean();
+
 
         if (!ride) {
             return res.status(404).json({ error: 'Ride not found' });
         }
-
-        const transactions = await TransactionModel.find({ rideId: ride._id })
-            .sort({ createdAt: 1 });
+        var driver_location: DriverLocation | null;
 
 
-        const driver = await DriverModel.findById(
-            ride.driverId,
-            "name phone carModel carColor carNumber selfie"
-        ).lean();
+        if (ride.driverId) {
+            const driverId = ride.driverId._id.toString();
 
-        if (!driver) {
-            return res.status(404).json({ error: 'Driver not found' });
+            driver_location = await driverStoreRedis.getDriverLocation(driverId);
+
+        } else {
+            return res.status(404).json({ error: 'Driver not attached' });
         }
 
-        // Construct the response
-        const result = {
-            fare: ride.fare,
-            driverId: ride.driverId,
-            driver,
-            transactions
-        };
+        if (!driver_location) {
+            return res.status(404).json({ error: 'No Driver location found' });
+        }
 
-        return res.status(200).json(result);
+        return res.status(200).json({ ...ride, driver_location });
     } catch (err) {
         console.error('Error fetching current ride:', err);
         return res.status(500).json({ error: 'Internal server error' });

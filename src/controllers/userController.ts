@@ -13,6 +13,7 @@ import { RideRepository } from "../repositories/ride.repository";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
 import { Types } from "mongoose";
 import { PassengerService } from "../services/passenger.service";
+import { FcmService } from "../services/fcm.service";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {

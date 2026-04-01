@@ -8,6 +8,8 @@ export interface SendToTokenInput {
     token: string;
     title: string;
     body: string;
+    sound?: string;
+    channelId: string;
     data?: DataPayload;
 }
 

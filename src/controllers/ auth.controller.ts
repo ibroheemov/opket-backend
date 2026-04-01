@@ -40,7 +40,7 @@ class AuthController {
         try {
             const { phone } = req.body;
 
-            const login = await authService.login(phone);
+            const login = await authService.loginFake(phone);
 
             return res.json(login);
         } catch (err) {

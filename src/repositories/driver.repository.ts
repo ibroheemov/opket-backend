@@ -47,10 +47,7 @@ export const DriverRepository = {
         radiusKm: number,
         options: string[],
         limit = 50
-    ): Promise<{ driverId: string; distKm: number }[]> {
-        console.log("RideType: ", options);
-
-
+    ): Promise<{ driverId: string; distKm: number; lon: number, lat: number }[]> {
         const geoIndex = driverStoreRedis.getGeoIndexFromOptions(options);
 
         const raw = await redis.sendCommand([
@@ -61,6 +58,7 @@ export const DriverRepository = {
             radiusKm.toString(),
             "km",
             "WITHDIST",
+            "WITHCOORD",
             "ASC",
             "COUNT",
             limit.toString()
@@ -82,6 +80,8 @@ export const DriverRepository = {
             .map(r => ({
                 driverId: r[0],
                 distKm: Number(r[1]),
+                lon: Number(r[2][0]),
+                lat: Number(r[2][1]),
             }));
 
         return final;
