@@ -22,16 +22,16 @@ class AuthController {
         try {
             return res.json({ exists: true });
 
-            const { phone } = req.body;
+            // const { phone } = req.body;
 
-            if (!phone) return res.status(400).json({ message: "Phone is required" });
+            // if (!phone) return res.status(400).json({ message: "Phone is required" });
 
-            const exists = await authService.checkDriver(phone);
+            // const exists = await authService.checkDriver(phone);
 
-            if (!exists)
-                return res.status(404).json({ message: "Driver not found" });
+            // if (!exists)
+            //     return res.status(404).json({ message: "Driver not found" });
 
-            return res.json({ exists: true });
+            // return res.json({ exists: true });
         } catch (err) {
             console.error("checkDriver error:", err);
             return res.status(500).json({ message: "Server error" });
