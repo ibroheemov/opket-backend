@@ -4,7 +4,6 @@ import { driverSessions } from "../sessions";
 import { initDriverSocket } from "../socket/driverSocket";
 import { showMainMenu } from "./menuHandler";
 import { config } from "../config/env";
-import { driverBot } from "../DriverBot";
 
 interface Driver {
     _id: string;
@@ -32,7 +31,6 @@ export function setupAuthHandlers(bot: TelegramBot, backendUrl: string) {
         const chatId = msg.chat.id;
         driverSessions[chatId] = { messagesToDelete: [] };
         const session = driverSessions[chatId];
-        driverBot.deleteMessage(chatId, msg.message_id);
 
         if (session?.token) return showMainMenu(bot, chatId);
 

@@ -13,7 +13,6 @@ import { payfareTransfer } from "../services/payfare.service";
 import { Socket } from "socket.io";
 import { RideRepository } from "../repositories/ride.repository";
 
-
 export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
     const driver = await DriverModel.findById(driverId);
 

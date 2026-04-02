@@ -13,6 +13,9 @@ import { RideModel } from "../models/Ride";
 import { getUtcRange, Period } from "../utils/timeRange";
 import { RideService } from "../services/ride.new.service";
 import { RideRepository } from "../repositories/ride.repository";
+import { DriverService } from "../services/driver.service";
+import { DriverLoginRequestBody } from "../types/driver.types";
+import { da } from "zod/v4/locales";
 
 // import DriverModel from "../models/Driver"; // <- adjust path
 
@@ -286,5 +289,35 @@ export const updateAppVersion = async (req: AuthRequest, res: Response) => {
             success: false,
             message: "internal server error",
         });
+    }
+};
+
+export const registerDriverNew = async (req: Request, res: Response) => {
+    try {
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+        const driver_license = files?.driverLicense?.[0];
+
+        const result = await DriverService.registerDriver({
+            ...req.body,
+            driver_license,
+        });
+
+        res.status(200).json({ message: "Driver registered", ...result });
+    } catch (err: any) {
+        res.status(400).json({ message: err.message });
+    }
+};
+
+
+export const loginDriverNew = async (req: Request, res: Response) => {
+    try {
+        const data: DriverLoginRequestBody = req.body;
+
+        const login = await DriverService.login(data);
+
+        return res.json(login);
+    } catch (err: any) {
+        console.error("login error:", err);
+        return res.status(500).json({ message: err?.message });
     }
 };

@@ -8,7 +8,7 @@ import { connectDB } from "./utils/db";
 import userRoutes from "./routes/user";
 import adminRoutes from "./routes/admin";
 import paynetRoutes from "./routes/paynet";
-import driverRoutes from "./routes/driver";
+import driverRoutes from "./routes/driver.routes";
 import restaurantRoutes from "./routes/restaurant.routes";
 import foodRoutes from "./routes/food.routes";
 import cors from "cors";
@@ -17,6 +17,7 @@ import { config } from "./bot/config/env";
 import { attachHandlers, userBot } from "./bot/PassengerBot";
 import { PaynetCallbackController } from "./controllers/paynet.controller";
 import { connectRedis } from "./redis/redisClient";
+// import "./supabase/supabase";
 import "./services/rideEvents";
 import { startDriverCleanupJob } from "./services/driverCleanup.job";
 
