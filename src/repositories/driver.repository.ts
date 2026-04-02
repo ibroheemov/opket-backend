@@ -1,42 +1,42 @@
 import { redis } from "../redis/redisClient";
 import { DriverSession, driverStore } from "../store/driverStore";
 import { driverStoreRedis } from "../store/driverStoreRedis";
-import { supabase } from "../supabase/supabase";
+// import { supabase } from "../supabase/supabase";
 import { Driver } from "../types/driver.types";
 import { haversineDistanceKm } from "../utils/haversine";
 
 export const DriverRepository = {
-    async findByPhone(phone: string): Promise<Driver | null> {
-        const { data, error } = await supabase
-            .from("drivers")
-            .select("*")
-            .eq("phone", phone)
-            .maybeSingle();
+    // async findByPhone(phone: string): Promise<Driver | null> {
+    //     const { data, error } = await supabase
+    //         .from("drivers")
+    //         .select("*")
+    //         .eq("phone", phone)
+    //         .maybeSingle();
 
-        if (error) throw error;
-        return data;
-    },
+    //     if (error) throw error;
+    //     return data;
+    // },
 
-    async create(driver: Partial<Driver>): Promise<Driver> {
-        const { data, error } = await supabase
-            .from("drivers")
-            .insert(driver)
-            .select()
-            .single();
-        if (error) throw error;
-        return data;
-    },
+    // async create(driver: Partial<Driver>): Promise<Driver> {
+    //     const { data, error } = await supabase
+    //         .from("drivers")
+    //         .insert(driver)
+    //         .select()
+    //         .single();
+    //     if (error) throw error;
+    //     return data;
+    // },
 
-    async update(id: string, updates: Partial<Driver>): Promise<Driver> {
-        const { data, error } = await supabase
-            .from("drivers")
-            .update(updates)
-            .eq("id", id)
-            .select()
-            .single();
-        if (error) throw error;
-        return data;
-    },
+    // async update(id: string, updates: Partial<Driver>): Promise<Driver> {
+    //     const { data, error } = await supabase
+    //         .from("drivers")
+    //         .update(updates)
+    //         .eq("id", id)
+    //         .select()
+    //         .single();
+    //     if (error) throw error;
+    //     return data;
+    // },
 
     async findAvailableDrivers(
         pickupLat: number,
