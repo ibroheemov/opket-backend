@@ -12,7 +12,7 @@ import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchFareConfigNew, fetchWorkingAreas } from "../controllers/fare.controller";
 import { acceptRide, completeGhostRide, completeRide, toggleRideOption } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
-import { cancelRide, deductFromUser, generateQrLink, getMyRides, registerDriverNew, updateAppVersion } from "../controllers/driver.controller";
+import { cancelRide, deductFromUser, generateQrLink, getMyRides, updateAppVersion } from "../controllers/driver.controller";
 import { skipRide } from "../controllers/userController";
 
 const router = express.Router();
