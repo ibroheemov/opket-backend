@@ -1,8 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
-import { config } from "../bot/config/env";
+// import { createClient } from "@supabase/supabase-js";
+// import { config } from "../bot/config/env";
 
-export const supabase = createClient(
-    config.SUPABASE_URL,
-    config.SUPABASE_SECRET_KEY
-);
+// export const supabase = createClient(
+//     config.SUPABASE_URL,
+//     config.SUPABASE_SECRET_KEY
+// );
 
