@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
 import http from "http";
-import { authenticateSocket } from "./socket.auth";
+import { authenticateSocket, SocketClient } from "./socket.auth";
 import { registerDriverHandlers } from "./driver.socket";
 import { registerUserHandlers } from "./user.socket";
 import { setSocketServer } from "./socket.maps";
@@ -9,6 +9,7 @@ import { registerPassengerHandlersMobile } from "./passenger.socket";
 import { registerDriverBGHandler } from "./driver.socket.bg";
 import { registerRestaurantHandlers } from "./restaurant.socket";
 import { registerRestaurantBGHandler } from "./restaurant.socket.bg";
+import { Socket } from "socket.io";
 
 export let socketIo: Server;
 
@@ -21,37 +22,24 @@ export const initSocketServer = (server: http.Server) => {
 
     // Save reference globally
     setSocketServer(socketIo);
-
     socketIo.on("connection", (socket) => {
-        const auth = authenticateSocket(socket);
-        if (!auth) {
-            console.warn("❌ Unauthorized connection, disconnecting");
+        const client = authenticateSocket(socket);
+
+        if (!client) {
             socket.disconnect(true);
             return;
         }
 
-        if (auth.driverId && auth.fcmToken && auth.location) {
-            registerDriverHandlers({
-                socket,
-                driverId: auth.driverId,
-                fcmToken: auth.fcmToken,
-                location: auth.location
-            });
-        } else if (auth.driverId && auth.isBackground) {
-            registerDriverBGHandler({
-                socket,
-                driverId: auth.driverId,
-            });
-        }
-        else if (auth.userChatId) {
-            registerUserHandlers(socket, auth.userChatId);
-        } else if (auth.phone) {
-            registerPassengerHandlersMobile({ socket, phone: auth.phone });
-            // socket.emit('ride_accepted', { test: true });
-        } else if (auth.restaurantId && auth.isBackground) {
-            registerRestaurantBGHandler({ socket, restaurantId: auth.restaurantId })
-        } else if (auth.restaurantId) {
-            registerRestaurantHandlers({ socket, restaurantId: auth.restaurantId })
+        switch (client.type) {
+            case "driver":
+                registerDriverHandlers({ socket, driverId: client.id });
+                break;
+            case "restaurant":
+                registerRestaurantHandlers({ socket, restaurantId: client.id });
+                break;
+            case "passenger":
+                registerPassengerHandlersMobile({ socket, id: client.id });
+                break;
         }
     });
     return socketIo;

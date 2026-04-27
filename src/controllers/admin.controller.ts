@@ -26,17 +26,17 @@ export const enableServices = async (req: Request, res: Response) => {
                 : [...DEFAULT_SERVICE_IDS];
 
         // IMPORTANT: await it
-        const result = await driverStoreRedis.enableServicesForOnlineDrivers(serviceIds);
+        // const result = await driverStoreRedis.enableServicesForOnlineDrivers(serviceIds);
 
         // result might be undefined if your store method doesn't return anything
         // (in my earlier version it returns [{driverId, enabledServices}] )
-        res.status(200).json({
-            ok: true,
-            scope: "onlineDrivers",
-            serviceIds,
-            updatedDrivers: Array.isArray(result) ? result.length : undefined,
-            result, // you can remove this if it’s too verbose
-        });
+        // res.status(200).json({
+        //     ok: true,
+        //     scope: "onlineDrivers",
+        //     serviceIds,
+        //     updatedDrivers: Array.isArray(result) ? result.length : undefined,
+        //     result, // you can remove this if it’s too verbose
+        // });
     } catch (err) {
         console.error("enableServices error:", err);
         res.status(500).json({

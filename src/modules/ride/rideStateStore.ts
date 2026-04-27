@@ -19,35 +19,35 @@ export class RideStateStore {
         };
     }
 
-    buildInitialState(input: RideRequestInput): RideState {
-        const { phone, chatId, pickup, dropoff, address, type, rideType } = input;
-        const now = Date.now();
-        const expiresAt = now + RideConfig.RIDE_TTL_SECONDS * 1000;
+    // buildInitialState(input: RideRequestInput): RideState {
+    //     const { phone, pickup, dropoff, address, rideType } = input;
+    //     const now = Date.now();
+    //     const expiresAt = now + RideConfig.RIDE_TTL_SECONDS * 1000;
 
-        return {
-            phase: "pending",
-            createdAt: String(now),
-            expiresAt: String(expiresAt),
+    //     return {
+    //         phase: "pending",
+    //         createdAt: String(now),
+    //         expiresAt: String(expiresAt),
 
-            userChatId: chatId ? String(chatId) : "",
-            userPhoneNumber: phone ? String(phone) : "",
+    //         userChatId: chatId ? String(chatId) : "",
+    //         userPhoneNumber: phone ? String(phone) : "",
 
-            pickupLat: String(pickup.lat),
-            pickupLon: String(pickup.lon),
-            pickupAddress: address ?? "",
+    //         pickupLat: String(pickup.lat),
+    //         pickupLon: String(pickup.lon),
+    //         pickupAddress: address ?? "",
 
-            dropoffLat: dropoff?.lat != null ? String(dropoff.lat) : "",
-            dropoffLon: dropoff?.lon != null ? String(dropoff.lon) : "",
-            dropoffAddress: dropoff?.address ?? "",
+    //         dropoffLat: dropoff?.lat != null ? String(dropoff.lat) : "",
+    //         dropoffLon: dropoff?.lon != null ? String(dropoff.lon) : "",
+    //         dropoffAddress: dropoff?.address ?? "",
 
-            type: type ?? "",
-            rideType: rideType ?? "standard",
-        };
-    }
+    //         type: type ?? "",
+    //         rideType: rideType ?? "standard",
+    //     };
+    // }
 
     async initRide(rideId: string, input: RideRequestInput) {
         const k = this.keys(rideId);
-        await redis.hSet(k.ride, this.buildInitialState(input));
+        // await redis.hSet(k.ride, this.buildInitialState(input));
         await redis.expire(k.ride, RideConfig.RIDE_TTL_SECONDS);
         await redis.del(k.cancel);
     }

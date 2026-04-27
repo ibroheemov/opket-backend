@@ -1,6 +1,7 @@
 // src/services/auth.service.ts
 import { config } from "../bot/config/env";
 import { DriverModel } from "../models/DriverModel";
+import { DriverLoginRequestBody } from "../types/driver.types";
 import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt";
 import fileUploadService from "./fileUpload.service";
 import jwt from "jsonwebtoken";
@@ -52,22 +53,33 @@ class AuthService {
 
 
     /** Step 3 — Login driver & return JWT */
-    async login(phone: string) {
+    async login(data: DriverLoginRequestBody) {
+        const { phone, password, verified } = data;
+
         const driver = await DriverModel.findOne({ phone });
 
         if (!driver) {
-            throw new Error("Driver not found");
+            throw new Error("Bu telefon raqam orqali ro'yxatdan o'tgan haydovchi topilmadi");
         }
 
-        const accessToken = generateAccessToken({ id: driver._id });
-        const refreshToken = generateRefreshToken({ id: driver._id });
+        const accessToken = generateAccessToken({ id: driver._id, role: "DRIVER" });
+        const refreshToken = generateRefreshToken({ id: driver._id, role: "DRIVER" });
 
-        return {
+        const response = {
             accessToken,
             refreshToken,
-            driverId: driver._id,
             driver,
-        };
+        }
+
+        if (verified) return response;
+
+        if (!driver.password) throw new Error("Sizda parol mavjud emas, iltimos sms kod orqali akkauntga kiring");
+
+        if (driver.password != password) {
+            throw new Error("Parol notog'ri");
+        }
+
+        return response;
     }
 
     async loginFake(phone: string) {

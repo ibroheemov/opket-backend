@@ -11,6 +11,7 @@ import { socketIo } from "../gateway/socket.maps";
 import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt";
 import { services } from "../data/fare.database";
 import { driverStoreRedis } from "../store/driverStoreRedis";
+import { driverCapabilityStore } from "../store/driver.capability.store";
 
 export const updateLocation = async (req: AuthRequest, res: Response) => {
     const { lat, lon, bearing } = req.body;
@@ -21,7 +22,7 @@ export const updateLocation = async (req: AuthRequest, res: Response) => {
     if (!lat || !lon) return res.status(400).json({ error: "lat/lon required" });
 
     const driver = await driverStoreRedis.get(driverId);
-    await driverStoreRedis.updateLocation(driverId, lon, lat, bearing)
+    // await driverStoreRedis.updateLocation({ driverId, lon, lat, bearing })
 
     // const driver = await DriverModel.findOneAndUpdate(
     //     { id: req.driverId },
@@ -136,20 +137,81 @@ export const getCarOptions = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ message: "Driver not found" });
         }
 
-        // If old docs might not have enabledOptions yet, provide a safe fallback:
         const enabledServices =
-            driver.enabledOptions ??
-            services
-                .map(s => s.id)
-                .filter(id => (String(driver.carModel || "").trim().toLowerCase() === "matiz" ? id !== "bagaj" : true))
-                .concat(driver.hasPremiumCar ? ["premium"] : []);
+            driver.enabledOptions ?? []
 
-        // remove duplicates just in case
-        const enabledServicesUnique = Array.from(new Set(enabledServices));
-
-        return res.json({ services, enabledServices: enabledServicesUnique });
+        return res.json(enabledServices);
     } catch (error) {
         console.error("Error fetching services", error);
+        return res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const toggleCarOption = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+        const { option } = req.body;
+
+        if (!driverId) {
+            return res.status(400).json({ message: "driverId is required" });
+        }
+
+        if (!option || typeof option !== "string") {
+            return res.status(400).json({ message: "option is required" });
+        }
+
+        const driver = await DriverModel.findById(driverId)
+            .select({ enabledOptions: 1 });
+
+        if (!driver) {
+            return res.status(404).json({ message: "Driver not found" });
+        }
+
+        const enabledOptions = driver.enabledOptions ?? [];
+
+        let updatedOptions;
+        let action: "added" | "removed";
+
+        if (enabledOptions.includes(option)) {
+            // Remove from Mongo
+            updatedOptions = enabledOptions.filter(
+                item => item !== option
+            );
+
+            driver.enabledOptions = updatedOptions;
+            await driver.save();
+
+            // Remove from Redis
+            await driverCapabilityStore.removeDriver(
+                driverId,
+                [option]
+            );
+
+            action = "removed";
+        } else {
+            // Add to Mongo
+            updatedOptions = [...enabledOptions, option];
+
+            driver.enabledOptions = updatedOptions;
+            await driver.save();
+
+            // Add to Redis
+            await driverCapabilityStore.addDriver(
+                driverId,
+                [option]
+            );
+
+            action = "added";
+        }
+
+        driver.enabledOptions = updatedOptions;
+        await driver.save();
+        await driverCapabilityStore.addDriver(driverId, updatedOptions);
+
+        return res.json(updatedOptions);
+
+    } catch (error) {
+        console.error("Error toggling car option", error);
         return res.status(500).json({ message: "Server error" });
     }
 };
@@ -215,7 +277,7 @@ export const driverDashboard = async (req: AuthRequest, res: Response) => {
 
 export const registerDriver = async (req: AuthRequest, res: Response) => {
     try {
-        const { firstname, lastname, phone, carNumber, carModel, carColor, regionCode } = req.body;
+        const { firstname, lastname, phone, carNumber, carModel, carColor, regionCode, password } = req.body;
 
         if (!firstname || !lastname || !phone) {
             return res.status(400).json({ message: "firstname, lastname and phone are required" });
@@ -241,6 +303,7 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
             firstname,
             lastname,
             phone,
+            password,
             vehicle,
             regionCode,
             carColor,
@@ -280,8 +343,8 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
         /**
          * 3️⃣ Tokens & response
          */
-        const accessToken = generateAccessToken({ id: newDriver._id });
-        const refreshToken = generateRefreshToken({ id: newDriver._id });
+        const accessToken = generateAccessToken({ id: newDriver._id, role: "DRIVER" });
+        const refreshToken = generateRefreshToken({ id: newDriver._id, role: "DRIVER" });
 
         return res.status(200).json({
             message: "Driver registered",

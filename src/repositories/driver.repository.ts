@@ -1,90 +1,59 @@
 import { redis } from "../redis/redisClient";
-import { DriverSession, driverStore } from "../store/driverStore";
+import { driverSessionStore } from "../store/driver.session.store";
+import { DriverSession } from "../store/driverStore";
 import { driverStoreRedis } from "../store/driverStoreRedis";
-// import { supabase } from "../supabase/supabase";
-import { Driver } from "../types/driver.types";
+import { DriverRedisKeys } from "../utils/enums";
 import { haversineDistanceKm } from "../utils/haversine";
 
+const filterDriversLua = `
+-- KEYS:
+-- 1 = drivers:available
+-- 2..N = capability sets
+
+local availableKey = KEYS[1]
+local result = {}
+
+for i = 1, #ARGV do
+    local driverId = ARGV[i]
+
+    if redis.call("SISMEMBER", availableKey, driverId) == 1 then
+
+        local ok = true
+
+        for j = 2, #KEYS do
+            if redis.call("SISMEMBER", KEYS[j], driverId) == 0 then
+                ok = false
+                break
+            end
+        end
+
+        if ok then
+            table.insert(result, driverId)
+        end
+    end
+end
+
+return result
+`;
+
+
 export const DriverRepository = {
-    // async findByPhone(phone: string): Promise<Driver | null> {
-    //     const { data, error } = await supabase
-    //         .from("drivers")
-    //         .select("*")
-    //         .eq("phone", phone)
-    //         .maybeSingle();
-
-    //     if (error) throw error;
-    //     return data;
-    // },
-
-    // async create(driver: Partial<Driver>): Promise<Driver> {
-    //     const { data, error } = await supabase
-    //         .from("drivers")
-    //         .insert(driver)
-    //         .select()
-    //         .single();
-    //     if (error) throw error;
-    //     return data;
-    // },
-
-    // async update(id: string, updates: Partial<Driver>): Promise<Driver> {
-    //     const { data, error } = await supabase
-    //         .from("drivers")
-    //         .update(updates)
-    //         .eq("id", id)
-    //         .select()
-    //         .single();
-    //     if (error) throw error;
-    //     return data;
-    // },
-
-    async findAvailableDrivers(
-        pickupLat: number,
-        pickupLon: number,
-        maxKm = 2,
-        options: string[],
-    ) {
-        const onlineDrivers = await driverStoreRedis.getOnlineDrivers();
-
-        const driversWithDistance = onlineDrivers
-            .map((driver) => {
-                if (!driver.location) return null;
-                // if options are required, driver must have enabledServices and contain them
-                if (options.length !== 0) {
-                    const enabled = driver.enabledServices ?? [];
-
-                    const hasAllOptions = options.every((opt) => enabled.includes(opt));
-                    if (!hasAllOptions) return null;
-                }
-
-                let dist = haversineDistanceKm(
-                    pickupLat,
-                    pickupLon,
-                    driver.location.lat,
-                    driver.location.lon
-                );
-                if (dist > maxKm) return null;
-
-                return { driver, distKm: dist };
-            })
-            .filter(Boolean) as { driver: DriverSession; distKm: number }[];
-
-        // sort nearest → farthest
-        driversWithDistance.sort((a, b) => a.distKm - b.distKm);
-
-        return driversWithDistance;
-    },
-
     async findAvailableDriversNew(
         pickupLat: number,
         pickupLon: number,
         radiusKm: number,
         options: string[],
         limit = 50
-    ): Promise<{ driverId: string; distKm: number; lon: number, lat: number }[]> {
-        const geoIndex = driverStoreRedis.getGeoIndexFromOptions(options);
+    ) {
+        const filterDriversSha = await redis.scriptLoad(filterDriversLua);
 
-        const raw = await redis.sendCommand([
+        // 1️⃣ GEO index
+        const geoIndex = options.includes("comfort")
+            ? "drivers:geo:comfort"
+            : "drivers:geo:standard";
+
+        // 2️⃣ GEO search
+        const rawReply = await redis.sendCommand([
             "GEORADIUS",
             geoIndex,
             pickupLon.toString(),
@@ -97,27 +66,50 @@ export const DriverRepository = {
             "COUNT",
             limit.toString()
         ]);
-
-
-        if (!Array.isArray(raw) || raw.length === 0) {
+        if (!Array.isArray(rawReply) || rawReply.length === 0) {
             return [];
         }
 
-        const availableDrivers = await driverStoreRedis.filterAvailableDrivers(
-            raw.map(r => r[0]) // just driver IDs
+        const raw = rawReply as any[];
+
+        const driverIds = raw.map(r => r[0]);
+
+        // 3️⃣ Build KEYS (availability + capabilities)
+        const capabilityKeys = options
+            .filter(o => o !== "comfort" && o !== "standard")
+            .map(o => `drivers:capability:${o}`);
+
+        const keys = [
+            DriverRedisKeys.AVAILABLE_DRIVERS,
+            ...capabilityKeys
+        ];
+
+        const result = await redis.evalSha(
+            filterDriversSha,
+            {
+                keys,
+                arguments: driverIds
+            }
         );
 
-        const availableSet = new Set(availableDrivers.map(d => d.driverId));
 
-        const final = raw
-            .filter(r => availableSet.has(r[0]))
+        if (!Array.isArray(result)) {
+            return [];
+        }
+
+        const filteredIds: string[] = result
+            .filter((x): x is string => typeof x === "string");
+
+        const filteredSet = new Set(filteredIds);
+
+        // 5️⃣ Final mapping (ONLY formatting, no filtering)
+        return raw
+            .filter(r => filteredSet.has(r[0]))
             .map(r => ({
                 driverId: r[0],
                 distKm: Number(r[1]),
-                lon: Number(r[2][0]),
-                lat: Number(r[2][1]),
+                longitude: Number(r[2][0]),
+                latitude: Number(r[2][1]),
             }));
-
-        return final;
     }
 };

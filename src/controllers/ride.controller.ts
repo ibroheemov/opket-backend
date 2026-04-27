@@ -12,49 +12,20 @@ import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 import { services } from "../data/fare.database";
 import { DriverLocation } from "../types/location";
 import { driverStoreRedis } from "../store/driverStoreRedis";
+import { CompleteGhostRideRequestBody } from "../types/driver.types";
+import { GhostRideModel } from "../models/GhostRide";
+import { RideRequestInput } from "../modules/ride/ride.types";
+import { emitToUser } from "../gateway/ride.socket";
 
 export const requestRide = async (req: Request, res: Response) => {
-    console.log("RIDE REQUEST RECEIVED");
-
     try {
-        const { phone, chatId, location, dropoff, address, isPremium, type, rideType, options, isDelivery, delivery } = req.body;
+        const data: RideRequestInput = req.body;
 
-        let optionsReplaced = options;
-        let rideTypeReplaced = rideType;
-
-        if (isPremium && !rideType) {
-            optionsReplaced = ["premium", ...options];
-            rideTypeReplaced = "premium";
-        }
-
-        if (
-            !location ||
-            typeof location.lat !== "number" ||
-            typeof location.lon !== "number"
-        ) {
-            return res.status(400).json({ error: "[location] is required or invalid location coordinates" });
-        }
-
-        if (!phone && !chatId) {
-            return res.status(400).json({ error: "[phone] or [chatId] is required" });
-        }
-
-        const result = await RideService.requestRide({
-            phone,
-            chatId,
-            pickup: location,
-            dropoff,
-            address,
-            type,
-            options: optionsReplaced,
-            rideType: rideTypeReplaced,
-            isDelivery,
-            delivery,
-        });
+        const result = await RideService.requestRide(data);
         return res.status(200).json(result);
     } catch (err) {
         // logger.error("requestRide error:", err);
-        return res.status(500).json({ error: "Internal server error" });
+        return res.status(500).json({ error: `Internal server error: ${err}` });
     }
 };
 
@@ -123,13 +94,33 @@ export const toggleRideOption = async (req: AuthRequest, res: Response) => {
             );
         }
 
+        if (ride?.userPhoneNumber) {
+            const userPhone = Number(ride?.userPhoneNumber);
+            const title = `${service.description}, ${service.charge} UZS qo'shildi`;
+            const body = `Haydovchi yo'l haqqiga qo'shimcha summa kiritdi: ${service.description}, ${service.charge}`;
+
+            RideService.sendPassengerMessage({ userPhone, title, body });
+        }
+
+        if (!ride && add) {
+            // add only if not exists
+            ride = await GhostRideModel.findOneAndUpdate(
+                { _id: rideId, "options.id": { $ne: id } },
+                { $push: { options: { id, charge: service.charge } } },
+                { new: true }
+            );
+            // if it already existed, just return current ride
+            if (!ride) ride = await RideModel.findById(rideId);
+        } else if (!ride && !add) {
+            ride = await GhostRideModel.findOneAndUpdate(
+                { _id: rideId },
+                { $pull: { options: { id } } },
+                { new: true }
+            );
+        }
+
         if (!ride) return res.status(404).json({ error: "Ride not found" });
 
-        const userPhone = Number(ride.userPhoneNumber);
-        const title = `${service.description}, ${service.charge} UZS qo'shildi`;
-        const body = `Haydovchi yo'l haqqiga qo'shimcha summa kiritdi: ${service.description}, ${service.charge}`;
-
-        RideService.sendPassengerMessage({ userPhone, title, body });
         return res.json({ ok: true, ride });
     } catch (err) {
         console.error("Error toggling ride option:", err);
@@ -140,7 +131,7 @@ export const toggleRideOption = async (req: AuthRequest, res: Response) => {
 export const completeRide = async (req: AuthRequest, res: Response) => {
     try {
         const driverId = req.driverId;
-        const { rideId, distance, fare } = req.body;
+        const { rideId, distance, fare, userPhoneNumber } = req.body;
 
         if (!driverId) {
             return res.status(400).json({ message: "driverId is required" });
@@ -150,7 +141,12 @@ export const completeRide = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: "These are required [rideId, distance, fare]" });
         }
 
-        await RideService.completeRide(driverId, { rideId, distance, fare });
+        await RideService.completeRide({ driverId, rideId, distance, fare });
+
+        const emitted = emitToUser(userPhoneNumber, "ride_completed", {});
+
+        console.log("EMITTED", emitted);
+
 
         return res.status(200).json({ message: "Ride completed successfully" });
     } catch (err) {
@@ -161,16 +157,14 @@ export const completeRide = async (req: AuthRequest, res: Response) => {
 
 export const completeGhostRide = async (req: AuthRequest, res: Response) => {
     try {
-        return res.status(200).json({ message: "Ride completed successfully" });
-
         const driverId = req.driverId;
-        const { distance, fare, pauseSeconds } = req.body;
+        const data: CompleteGhostRideRequestBody = req.body;
 
         if (!driverId) {
             return res.status(400).json({ message: "driverId is required" });
         }
 
-        // await RideService.completeRideGhostRide({ driverId, fare, pauseSeconds, distanceTraveled: distance });
+        await RideService.completeRideGhostRide({ driverId, data });
 
         return res.status(200).json({ message: "Ride completed successfully" });
     } catch (err) {

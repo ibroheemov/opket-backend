@@ -54,13 +54,13 @@ export const emitToUser = async (id: number | undefined, event: string, data: an
 export const emitToDriver = async (driverId: string, event: string, data: any) => {
 
     const socketId = driverSockets.get(driverId);
-    const isOnline = await driverStoreRedis.isSocketConnected(driverId);
+    // const isOnline = await driverStoreRedis.isSocketConnected(driverId);
 
-    if (!isOnline && driver_missable_events.includes(event)) {
-        driverStoreRedis.pushPendingEvent(driverId, event, data);
-    }
+    // if (!isOnline && driver_missable_events.includes(event)) {
+    //     driverStoreRedis.pushPendingEvent(driverId, event, data);
+    // }
 
-    console.log("isOnline:", isOnline, event);
+    // console.log("isOnline:", isOnline, event);
 
 
     if (socketId) {

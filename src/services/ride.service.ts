@@ -120,7 +120,7 @@ export const RideService = {
                 }
 
                 console.log(`🔍 Searching drivers near (${pickup.lat}, ${pickup.lon})`);
-                const drivers = await DriverRepository.findAvailableDrivers(
+                const drivers = await DriverRepository.findAvailableDriversNew(
                     pickup.lat,
                     pickup.lon,
                     2,
@@ -136,10 +136,10 @@ export const RideService = {
 
                 await RideRepository.updateRide(rideId, {
                     candidateDrivers: drivers.map(d => ({
-                        driverId: d.driver.driverId,
+                        driverId: d.driverId,
                         distKm: d.distKm,
                     })),
-                    driverId: nearest.driver.driverId,
+                    driverId: nearest.driverId,
                 });
 
                 sendOfferToDrivers(rideId);
@@ -150,48 +150,48 @@ export const RideService = {
         });
     },
 
-    async requestRide(input: RideRequestInput) {
-        const { phone, chatId, pickup, dropoff, address, type } = input;
-        if (!phone && !chatId) return;
+    // async requestRide(input: RideRequestInput) {
+    //     const { phone, chatId, pickup, dropoff, address, type } = input;
+    //     if (!phone && !chatId) return;
 
-        // 1️⃣ Create ride in MongoDB (persistent)
-        const ride = await RideRepository.createRide(input);
+    //     // 1️⃣ Create ride in MongoDB (persistent)
+    //     const ride = await RideRepository.createRide(input);
 
-        if (!ride) return;
+    //     if (!ride) return;
 
-        const rideId = ride._id.toString();
-        const rideKey = `ride:${rideId}`;
-        const rideOffersKey = `ride_offers:${rideId}`;
+    //     const rideId = ride._id.toString();
+    //     const rideKey = `ride:${rideId}`;
+    //     const rideOffersKey = `ride_offers:${rideId}`;
 
-        // 2️⃣ Save ride in Redis
-        await redis.hSet(rideKey, {
-            status: "pending",
-            type: type ?? "",                    // default empty string if undefined
-            userChatId: chatId?.toString() ?? "", // convert number|undefined to string
-            userPhoneNumber: phone?.toString() ?? "",
-            pickupLat: pickup.lat.toString(),
-            pickupLon: pickup.lon.toString(),
-            pickupAddress: address ?? "",
-            dropoffLat: dropoff?.lat.toString() ?? "",
-            dropoffLon: dropoff?.lon.toString() ?? "",
-            dropoffAddress: dropoff?.address ?? "",
-        });
+    //     // 2️⃣ Save ride in Redis
+    //     await redis.hSet(rideKey, {
+    //         status: "pending",
+    //         type: type ?? "",                    // default empty string if undefined
+    //         userChatId: chatId?.toString() ?? "", // convert number|undefined to string
+    //         userPhoneNumber: phone?.toString() ?? "",
+    //         pickupLat: pickup.lat.toString(),
+    //         pickupLon: pickup.lon.toString(),
+    //         pickupAddress: address ?? "",
+    //         dropoffLat: dropoff?.lat.toString() ?? "",
+    //         dropoffLon: dropoff?.lon.toString() ?? "",
+    //         dropoffAddress: dropoff?.address ?? "",
+    //     });
 
-        // Optional: expire ride in Redis after 3-5 minutes
-        await redis.expire(rideKey, 300);
+    //     // Optional: expire ride in Redis after 3-5 minutes
+    //     await redis.expire(rideKey, 300);
 
-        // 3️⃣ Initialize ride_offers set (empty initially)
-        await redis.del(rideOffersKey); // ensure clean slate
+    //     // 3️⃣ Initialize ride_offers set (empty initially)
+    //     await redis.del(rideOffersKey); // ensure clean slate
 
-        // 4️⃣ Start background driver search
-        const controller = new AbortController();
-        rideSearchControllers.set(rideId, controller);
+    //     // 4️⃣ Start background driver search
+    //     const controller = new AbortController();
+    //     rideSearchControllers.set(rideId, controller);
 
-        this.searchForDrivers(rideId, pickup, phone, controller.signal)
-            .catch((err) => console.error("Background search failed:", err));
+    //     this.searchForDrivers(rideId, pickup, phone, controller.signal)
+    //         .catch((err) => console.error("Background search failed:", err));
 
-        return { ride_id: rideId };
-    },
+    //     return { ride_id: rideId };
+    // },
 
     async acceptRide(
         rideId: string,
@@ -306,7 +306,7 @@ export const RideService = {
             );
 
         // 4. Deduct commission & update balance
-        const [commissionErr, commissionResult] = await safeAsync(() =>
+        const [commissionErr, commission] = await safeAsync(() =>
             handleRideCommission(driverId, Number(data.fare))
         );
         if (commissionErr)
@@ -314,8 +314,8 @@ export const RideService = {
                 `Failed to process commission for ride ${rideId}: ${commissionErr.message}`
             );
 
-        const { balance, commission } = commissionResult!;
-        if (updatedDriver?.fcmToken) sendFcm(updatedDriver?.fcmToken, commission);
+        // const { balance, commission } = commissionResult!;
+        if (updatedDriver?.fcmToken) sendFcm(updatedDriver?.fcmToken, commission!);
 
         // 6. Notify user (if online)
         emitToUser(ride.userPhoneNumber, "ride_completed", data);

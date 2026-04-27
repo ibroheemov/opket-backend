@@ -22,6 +22,11 @@ export interface IRideStatusEvent {
     note?: string;
 }
 
+export interface IRideOption {
+    id: string;
+    charge: number,
+}
+
 export interface IRide extends Document {
     _id: string;
     userId?: string;
@@ -33,6 +38,7 @@ export interface IRide extends Document {
     status: RideStatus;
     statusHistory: IRideStatusEvent[];
     fare: number;
+    commission?: number;
     pauseSeconds?: number;
     fareEstimate?: number;
     distanceKm?: number;
@@ -50,10 +56,7 @@ export interface IRide extends Document {
         lat: Number,
         lon: Number,
     },
-    options?: {
-        id: string;
-        charge: number;
-    }[];
+    options?: IRideOption[];
 }
 
 const rideSchema = new Schema<IRide>({
@@ -99,6 +102,7 @@ const rideSchema = new Schema<IRide>({
         default: "standard",
     },
     fare: { type: Number, default: 0 },
+    commission: { type: Number, required: false },
     pauseSeconds: { type: Number, default: 0 },
     fareEstimate: Number,
     distanceKm: Number,

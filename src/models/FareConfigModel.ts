@@ -9,10 +9,7 @@ const FareConfigSchema = new Schema(
             enum: ["standard", "comfort", "ghost", "delivery"]
         },
 
-        rating: { type: Number, required: true },
-
         baseFare: { type: Number, required: true, default: 0 },
-
         perKm: { type: Number, required: true },
         firstKm: { type: Number, required: true },
 
@@ -26,9 +23,7 @@ const FareConfigSchema = new Schema(
         smallestDistanceFare: { type: Number, required: true },
 
         city: { type: String, default: "tashkent", index: true },
-        isActive: { type: Boolean, default: true },
-
-        isMandatory: { type: Boolean, default: false }
+        isActive: { type: Boolean, default: true }
     },
     { timestamps: true }
 );

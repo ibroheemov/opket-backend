@@ -91,11 +91,15 @@ export const cancelRide = async (req: Request, res: Response) => {
     try {
         const { rideId } = req.body;
         if (!rideId) return res.status(400).json({ error: "rideId required" });
+        const ride = await RideModel.findById(rideId);
 
+        if (ride?.status == "completed") {
+            return res.json({ rideId, message: "Buyurtma bekor qilindi" });
+        }
         // If stopSearching is async, await it too
         RideService.stopSearching(rideId);
-        await RideService.clearDriverRideState(rideId, "ride_cancelled");
-        await RideRepository.setRideStatus(rideId, "cancelled", { by: "user" });
+        RideService.clearDriverRideState(rideId, "ride_cancelled");
+        RideRepository.setRideStatus(rideId, "cancelled", { by: "user" });
 
         return res.json({ rideId, message: "Buyurtma bekor qilindi" });
     } catch (err: any) {
@@ -125,7 +129,7 @@ export const skipRide = async (req: Request, res: Response) => {
         void RideRepository.setRideStatus(rideId, "skipped", { by: "driver", driverId: driverObjectId });
 
         // 6) Restart searching using ride data from Redis
-        const pickup = { lat: Number(rideData.pickupLat), lon: Number(rideData.pickupLon) };
+        const pickup = { latitude: Number(rideData.pickupLat), longitude: Number(rideData.pickupLon) };
         const phone = rideData.userPhoneNumber ? Number(rideData.userPhoneNumber) : undefined;
 
         // If you store options in ride hash, pass them; otherwise []

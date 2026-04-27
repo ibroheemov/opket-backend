@@ -1,6 +1,6 @@
 // src/services/fareService.ts
 import { fareConfigs, fareConfigsNew } from "../data/fare.database";
-import { FareConfig, FareConfigNew } from "../models/FareConfig";
+// import { FareConfig, FareConfigNew } from "../models/FareConfig";
 
 export interface FareParamsType {
     isPremium: boolean;
@@ -9,7 +9,7 @@ export interface FareParamsType {
 }
 
 
-export const getFareByCity = async (cityId: string, isPremium = false): Promise<FareConfig> => {
+export const getFareByCity = async (cityId: string, isPremium = false): Promise<any> => {
     const fare = fareConfigs[cityId] || fareConfigs["default"];
 
     if (!fare) {
@@ -28,7 +28,7 @@ export const getFareByCity = async (cityId: string, isPremium = false): Promise<
 };
 
 
-export const getFareByCityNew = async (rideType: string): Promise<FareConfigNew> => {
+export const getFareByCityNew = async (rideType: string): Promise<any> => {
     const fare = fareConfigsNew[rideType];
 
     if (!fare) {

@@ -3,6 +3,7 @@ import { GhostRideModel } from "../models/GhostRide";
 import { RideModel, RideStatus } from "../models/Ride";
 import { GhostRideInput, RideRequestInput } from "../modules/ride/ride.types";
 import { logger } from "../utils/logger";
+import { CompleteGhostRideRequestBody } from "../types/driver.types";
 
 export const RideRepository = {
     async setRideStatus(
@@ -14,6 +15,7 @@ export const RideRepository = {
             driverId?: Types.ObjectId;
             distKm?: number;
         },
+        data?: Object,
     ) {
         if (rideId == "") return;
         const now = new Date();
@@ -21,14 +23,14 @@ export const RideRepository = {
         return RideModel.findOneAndUpdate(
             { _id: rideId },
             {
-                $set: { status: newStatus },
+                $set: { status: newStatus, ...data },
                 $push: { statusHistory: { status: newStatus, at: now, ...meta } },
             },
             { new: true }
         );
     },
 
-    async createGostRide(data: GhostRideInput) {
+    async createGostRide(data: CompleteGhostRideRequestBody) {
         try {
             const ride = await GhostRideModel.create(data);
             return ride;
@@ -37,27 +39,26 @@ export const RideRepository = {
                 error: err,
                 data,
             });
-
             throw new Error("RIDE_CREATE_FAILED");
         }
     },
 
     async createRide(data: RideRequestInput) {
-        const { phone, chatId, pickup, dropoff, address, type, rideType } = data;
+        const { phone, pickup, dropoff, address, rideType } = data;
 
         const mongoData = {
-            userChatId: chatId,
             userPhoneNumber: phone,
-            pickup: { lat: pickup.lat, lon: pickup.lon, address },
+            pickup: { lat: pickup.latitude, lon: pickup.longitude, address },
             dropoff: dropoff
-                ? { lat: dropoff.lat, lon: dropoff.lon, address: dropoff.address }
+                ? { lat: dropoff.latitude, lon: dropoff.longitude, address: dropoff.address }
                 : undefined,
-            type,
             rideType,
         };
 
         try {
+            console.time("mongo:create");
             const ride = await RideModel.create(mongoData);
+            console.timeEnd("mongo:create");
             this.setRideStatus(ride.id, "pending", { by: "system" });
 
             return ride;

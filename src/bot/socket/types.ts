@@ -11,8 +11,7 @@ export interface RestaurantSocketConnectionPayload {
 export interface DriverSocketConnectionPayload {
     socket: Socket;
     driverId: string;
-    fcmToken: string;
-    location: DriverLocation;
+
 }
 
 export interface SocketAuthPayload {
@@ -44,11 +43,13 @@ export interface RideStatusPayload {
 }
 
 export interface RideProgressPayload {
+    userPhoneNumber: number;
     distance: string;
     fare: string;
 }
 
 export interface RideCompletedPayload {
+    driverId: string;
     rideId: string;
     distance: string;
     fare: string;

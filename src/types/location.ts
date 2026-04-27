@@ -1,6 +1,6 @@
 export interface DriverLocation {
-    lat: number;
-    lon: number;
+    latitude: number;
+    longitude: number;
     address?: string;
     bearing?: number;
 }

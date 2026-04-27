@@ -6,18 +6,18 @@ import { emit } from "process";
 import { emitToDriver, emitToUser } from "./ride.socket";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 
-export const registerPassengerHandlersMobile = async ({ socket, phone }: {
+export const registerPassengerHandlersMobile = async ({ socket, id }: {
     socket: Socket;
-    phone: number;
+    id: string;
 }) => {
-    const passenger = await PassengerModel.findOne({ phone });
+    const passenger = await PassengerModel.findById(id);
 
     if (!passenger) {
-        console.error("🟢❌ PASSENGER => SOCKET CONNECTION - Passenger not found in DB:", phone);
+        console.error("🟢❌ PASSENGER => SOCKET CONNECTION - Passenger not found in DB:");
         socket.emit("error", { message: "Passenger not found" });
         return; // stop socket setup
     }
-
+    const phone: number = passenger.phone;
 
     userSockets.set(phone, socket.id);
     // 1️⃣ Mark as online
@@ -31,7 +31,6 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
 
     console.log("🟢 [PASSENGER-MOBILE] connected");
     emitMissedPassengerEvents(socket, phone);
-    emitToUser(phone, "feature_flags", { 'isLuggageEnabled': false });
 
     socket.on("ride_started_ack", async ({ eventId }) => {
         await PassengerModel.updateOne(
@@ -92,13 +91,6 @@ export const registerPassengerHandlersMobile = async ({ socket, phone }: {
 
     socket.on("ride_change_declined", async ({ driverId }) => {
         const sent = emitToDriver(driverId, 'ride_change_declined', {});
-    });
-
-
-    socket.on("premium_taxi", async ({ driverId }) => {
-        const isAvailable = await driverStoreRedis.hasAvailablePremiumDriver();
-        console.log("premium_taxi", isAvailable);
-        emitToUser(phone, "no_premium_drivers", { isAvailable });
     });
 
     socket.on("luggage_confirmed", async ({ driverId }) => {

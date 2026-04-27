@@ -22,8 +22,8 @@ export async function handleRideAssigned(
     if (!driver || !session || !location) return;
 
     // Send live location
-    const { lat, lon } = location;
-    const locationMsg = await bot.sendLocation(chatId, lat, lon, { live_period: 3600 });
+    const { latitude, longitude } = location;
+    const locationMsg = await bot.sendLocation(chatId, latitude, longitude, { live_period: 3600 });
     session.messageId = locationMsg.message_id;
     session.driverId = data.driver.id;
     // Send driver info

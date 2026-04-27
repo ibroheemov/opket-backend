@@ -5,11 +5,11 @@ import bodyParser from "body-parser";
 import { makeDriverAuthController } from "./controllers/driverAuthController";
 import { MongoDriverRepo } from "./infra/repos/MongoDriverRepo";
 import { connectDB } from "./utils/db";
-import userRoutes from "./routes/user";
+import userRoutes from "./routes/user.routes";
 import adminRoutes from "./routes/admin";
 import paynetRoutes from "./routes/paynet";
 import driverRoutes from "./routes/driver.routes";
-import restaurantRoutes from "./routes/restaurant.routes";
+import fareRoutes from "./routes/fare.routes";
 import foodRoutes from "./routes/food.routes";
 import cors from "cors";
 import admin from 'firebase-admin';
@@ -18,7 +18,6 @@ import { attachHandlers, userBot } from "./bot/PassengerBot";
 import { PaynetCallbackController } from "./controllers/paynet.controller";
 import { connectRedis } from "./redis/redisClient";
 import "./services/rideEvents";
-import { startDriverCleanupJob } from "./services/driverCleanup.job";
 
 const app = express();
 app.use(bodyParser.json());
@@ -37,7 +36,6 @@ async function startServer() {
     }
     await connectDB();
     await connectRedis();
-    startDriverCleanupJob();
     const server = http.createServer(app);
     initSocketServer(server);
 
@@ -47,8 +45,8 @@ async function startServer() {
     app.use("/user", userRoutes);
     app.use("/admin", adminRoutes);
     app.use("/driver", driverRoutes);
-    app.use("/restaurant", restaurantRoutes);
     app.use("/food", foodRoutes);
+    app.use("/fare", fareRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
 
     // -------------------------------

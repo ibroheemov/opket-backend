@@ -19,6 +19,9 @@ import { sendToToken } from "./notifications";
 import { PassengerModel } from "../models/PassengerModel";
 import { FcmService } from "./fcm.service";
 import { OrderModel } from "../models/OrderModel";
+import { CompleteGhostRideRequestBody } from "../types/driver.types";
+import { RidePhase } from "../utils/enums";
+import { DirectionsService } from "./direction.service";
 
 type StageMode = "single" | "all";
 
@@ -39,72 +42,133 @@ const LOOP_GAP_MS = 250;            // small pause between phases
 const MAX_OFFERS_PER_DRIVER = 2;
 
 export const RideService = {
+    async requestRide(input: RideRequestInput) {
+        const ride = await RideRepository.createRide(input);
+        const rideId = ride.id;
+
+        const lockAcquired = await this.initializeRideStateAndLock(rideId, input);
+
+        if (!lockAcquired) {
+            console.warn(`⚠️ Search already running for ride ${rideId}`);
+            return { ride_id: rideId };
+        }
+
+        this.startDriverSearch(rideId, input);
+
+        return { ride_id: rideId };
+    },
+
+    async initializeRideStateAndLock(rideId: string, input: RideRequestInput) {
+        const now = Date.now();
+        const key = RideKeys.ride(rideId);
+
+        const payload = this.buildRideRedisPayload(input, now);
+
+        const pipeline = redis.multi();
+
+        pipeline.hSet(key, payload);
+        pipeline.expire(key, RideConfig.RIDE_TTL_SECONDS);
+        pipeline.del(RideKeys.cancel(rideId));
+
+        // lock inside same pipeline
+        pipeline.set(
+            RideKeys.searchLock(rideId),
+            "1",
+            { NX: true, EX: RideConfig.SEARCH_LOCK_EX_SECONDS }
+        );
+
+        const results = await pipeline.exec();
+
+        const [, , , lockTuple] = results as any;
+        const lockResult = lockTuple?.[1];
+
+        return Boolean(lockResult);
+    },
+
+    async initializeRideState(rideId: string, input: RideRequestInput) {
+        const now = Date.now();
+
+        const payload = this.buildRideRedisPayload(input, now);
+
+        const key = RideKeys.ride(rideId);
+
+        await redis.hSet(key, payload);
+        await redis.expire(key, RideConfig.RIDE_TTL_SECONDS);
+        await redis.del(RideKeys.cancel(rideId));
+    },
+
+    buildRideRedisPayload(input: RideRequestInput, now: number) {
+        const {
+            phone,
+            pickup,
+            dropoff,
+            address,
+            rideType,
+            delivery,
+            isDelivery
+        } = input;
+
+        return {
+            phase: RidePhase.PENDING,
+            createdAt: now.toString(),
+            expiresAt: (now + RideConfig.RIDE_TTL_SECONDS * 1000).toString(),
+            userPhoneNumber: this.toStr(phone),
+
+            pickupLat: this.toStr(pickup.latitude),
+            pickupLon: this.toStr(pickup.longitude),
+            pickupAddress: address ?? "",
+
+            dropoffLat: this.toStr(dropoff?.latitude),
+            dropoffLon: this.toStr(dropoff?.longitude),
+            dropoffAddress: dropoff?.address ?? "",
+
+            rideType: rideType ?? "standard",
+
+            isDelivery: isDelivery ? "1" : "0",
+            deliveryData: delivery ? JSON.stringify(delivery) : "",
+        };
+    },
+
+    toStr(value: unknown): string {
+        return value != null ? String(value) : "";
+    },
+
+    async acquireSearchLock(rideId: string): Promise<boolean> {
+        return Boolean(
+            await redis.set(
+                RideKeys.searchLock(rideId),
+                "1",
+                { NX: true, EX: RideConfig.SEARCH_LOCK_EX_SECONDS }
+            )
+        );
+    },
+
+    startDriverSearch(rideId: string, input: RideRequestInput) {
+        const controller = new AbortController();
+        rideSearchControllers.set(rideId, controller);
+
+        this.searchForDriversSequential(
+            rideId,
+            input.rideType,
+            input.pickup,
+            input.phone,
+            controller.signal,
+            input.options
+        ).catch((err) => {
+            if (err?.message === "Aborted") return;
+            console.error("Search failed:", err);
+        });
+    },
+
     getAttempts(rideId: string) {
         if (!attemptsByRide.has(rideId)) attemptsByRide.set(rideId, new Map());
         return attemptsByRide.get(rideId)!;
     },
 
-    async requestRide(input: RideRequestInput) {
-        const { phone, chatId, pickup, dropoff, address, type, rideType, options, delivery, isDelivery } = input;
-        if (!phone && !chatId) return;
-
-        const ride = await RideRepository.createRide(input);
-        const rideId = ride._id.toString();
-
-        const now = Date.now();
-
-        await redis.hSet(RideKeys.ride(ride.id), {
-            phase: "pending",
-            createdAt: now.toString(),
-            expiresAt: (now + RideConfig.RIDE_TTL_SECONDS * 1000).toString(),
-
-            userChatId: chatId?.toString() ?? "",
-            userPhoneNumber: phone?.toString() ?? "",
-
-            pickupLat: pickup.lat.toString(),
-            pickupLon: pickup.lon.toString(),
-            pickupAddress: address ?? "",
-
-            dropoffLat: dropoff?.lat?.toString() ?? "",
-            dropoffLon: dropoff?.lon?.toString() ?? "",
-            dropoffAddress: dropoff?.address ?? "",
-
-            type: type ?? "",
-            rideType: rideType ?? "standard",
-
-            isDelivery: isDelivery ? "1" : "0",
-            deliveryData: delivery ? JSON.stringify(delivery) : "",
-        });
-
-        await redis.expire(RideKeys.ride(ride.id), RideConfig.RIDE_TTL_SECONDS);
-        await redis.del(RideKeys.cancel(ride.id));
-
-        const lockAcquired = await redis.set(
-            RideKeys.searchLock(ride.id),
-            "1",
-            { NX: true, EX: RideConfig.SEARCH_LOCK_EX_SECONDS }
-        );
-
-        if (!lockAcquired) {
-            console.log(`⚠️ Search already running for ride ${rideId}`);
-            return { ride_id: rideId };
-        }
-
-        const controller = new AbortController();
-        rideSearchControllers.set(rideId, controller);
-
-        this.searchForDriversSequential(rideId, rideType, pickup, phone, controller.signal, options).catch((err) => {
-            if (err?.message === "Aborted") return;
-            console.error("Search failed:", err);
-        });
-
-        return { ride_id: rideId };
-    },
-
     async searchForDriversSequential(
         rideId: string,
         requestedRideType: string,
-        pickup: { lat: number; lon: number },
+        pickup: { latitude: number; longitude: number },
         phone?: number,
         signal?: AbortSignal,
         options?: string[],
@@ -151,8 +215,8 @@ export const RideService = {
 
                 try {
                     const drivers = await DriverRepository.findAvailableDriversNew(
-                        pickup.lat,
-                        pickup.lon,
+                        pickup.latitude,
+                        pickup.longitude,
                         3, // or dynamic radius if you want
                         optionsNew
                     );
@@ -171,8 +235,8 @@ export const RideService = {
 
         const fetchCandidatesInRadius = async (radiusKm: number) => {
             const drivers = await DriverRepository.findAvailableDriversNew(
-                pickup.lat,
-                pickup.lon,
+                pickup.latitude,
+                pickup.longitude,
                 radiusKm,
                 optionsNew,
             );
@@ -207,6 +271,8 @@ export const RideService = {
             isSingleOfferUi: boolean
         ) => {
             const driverId = candidate.driverId;
+            console.log("DRIVER_ID", driverId);
+
 
             const reservationKey = `ride_reservation:${rideId}:${driverId}`;
             const driverOfferKey = `driver_offer:${driverId}`;
@@ -440,7 +506,7 @@ export const RideService = {
         };
     },
 
-    async restartSearching(data: { rideId: string, pickup: { lat: number; lon: number }, phone?: number, options?: string[], driverId: string, rideType: string; }) {
+    async restartSearching(data: { rideId: string, pickup: { latitude: number; longitude: number }, phone?: number, options?: string[], driverId: string, rideType: string; }) {
         const { rideId, pickup, phone, options, driverId, rideType } = data;
 
         const attempts = this.getAttempts(rideId);
@@ -592,120 +658,215 @@ export const RideService = {
         await FcmService.sendDriverMessage({ id: driverId, title: "Mijoz buyurtmani bekor qildi", body: "" });
     },
 
-
     async acceptRide(rideId: string, driverId: string) {
-        const offeredSetKey = `ride_offered:${rideId}`;
+        console.time("ACCEPT RIDE");
+
+        const now = Date.now();
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
         const reservationKey = `ride_reservation:${rideId}:${driverId}`;
         const driverOfferKey = `driver_offer:${driverId}`;
-        const now = Date.now();
         const rideActiveTtlMs = RideConfig.RIDE_ACTIVE_TTL_SECONDS * 1000;
 
-        // 1) Lua
+        // 1️⃣ CORE (critical path)
+        const result = await this.acceptRideCore({
+            rideId,
+            driverId,
+            now,
+            rideKey,
+            acceptKey,
+            reservationKey,
+            driverOfferKey,
+            rideActiveTtlMs,
+        });
+
+        if (!result.success) return result;
+
+        const { userPhone } = result;
+
+        // 2️⃣ REALTIME (fast emits, no DB)
+        this.acceptRideRealtime({ rideId, driverId, userPhone });
+
+        // 3️⃣ SIDE EFFECTS (non-blocking 🚀)
+        this.acceptRideSideEffects({ rideId, driverId, userPhone });
+
+        console.timeEnd("ACCEPT RIDE");
+
+        return { success: true, rideId, driverId };
+    },
+
+    async acceptRideCore(params: {
+        rideId: string;
+        driverId: string;
+        now: number;
+        rideKey: string;
+        acceptKey: string;
+        reservationKey: string;
+        driverOfferKey: string;
+        rideActiveTtlMs: number;
+    }) {
+        const {
+            rideId, driverId, now,
+            rideKey, acceptKey,
+            reservationKey, driverOfferKey,
+            rideActiveTtlMs
+        } = params;
+
         const result = await redis.eval(ACCEPT_RIDE_LUA, {
             keys: [rideKey, acceptKey, reservationKey],
             arguments: [driverId, now.toString(), rideActiveTtlMs.toString()],
         });
 
-        const [accepted, reasonOrWinner] = result as [number, string];
-        if (accepted === 0) return { success: false, reason: reasonOrWinner };
+        const [accepted, reason] = result as [number, string];
+        if (accepted === 0) return { success: false, reason };
 
-        // ✅ update Mongo driverId without awaiting
-        void RideModel.findByIdAndUpdate(
-            rideId,
-            { driverId, status: "accepted", acceptedAt: new Date() },
-        ).exec().catch(err => console.error("Mongo ride update failed:", err));
-
-        RideRepository.setRideStatus(rideId, "accepted", { by: "driver" });
-
-        // 2) Stop searching (non-Redis; keep as you prefer)
+        // stop search immediately (don’t await heavy stuff)
         this.stopSearching(rideId);
         attemptsByRide.delete(rideId);
 
-        await this.notifyOfferedDriversSearchStopped({
-            rideId,
-            winnerDriverId: driverId,
-            cleanupKeys: true,
-            deleteOfferedSet: true,
-        });
-
-        // 3+4+5+6) ONE round-trip for cleanup + state + publish + fetch fields
-        // (Remove redundant expire; avoid HGETALL)
-        const tx = redis
-            .multi()
+        const tx = redis.multi()
             .del(reservationKey)
             .del(driverOfferKey)
-            // NOTE: Lua already wrote acceptedAt/status/driverId — only write what Lua did NOT write.
-            // If you need "phase" specifically and Lua wrote "status", pick one schema.
-            .hSet(rideKey, { phase: "accepted" }) // or remove if unnecessary
+            .hSet(rideKey, { phase: "accepted" })
             .hSet(`driver:${driverId}`, { currentRideId: rideId, state: "busy" })
             .publish("ride.accepted", JSON.stringify({ rideId, driverId }))
             .hmGet(rideKey, "userPhoneNumber");
 
-        const execRes = await tx.exec(); // array of results in the same order
+        const res = await tx.exec() as [any, any, any, any, any, [string | null]];
+        const userPhone = Number(res?.[5]?.[0]);
 
-        const hmgetRes = execRes?.[5] as unknown; // 0-based index; hmGet is last here
-        const userPhoneNumber =
-            Array.isArray(hmgetRes) ? hmgetRes[0] : (hmgetRes as any)?.[0];
-
-        // driverStoreRedis might be another redis instance; run in parallel if so:
-        const driverSessionPromise = driverStoreRedis.get(driverId);
-
-        const userPhone = Number(userPhoneNumber);
-        emitToUser(userPhone, "ride_assigned", { rideId, driverId });
-
-        const driverSession = await driverSessionPromise;
-
-        // Start async work (no await)
-        // const driverPromise = DriverModel.findById(driverId).lean().exec();
-
-
-
-        DriverModel.findById(driverId)
-            .then(async driver => {
-                const rideData = await redis.hGetAll(`ride:${rideId}`);
-
-                let restaurantId: string | undefined;
-
-                if (rideData.isDelivery === "1" && rideData.deliveryData) {
-                    const delivery: DeliveryData = JSON.parse(rideData.deliveryData);
-                    restaurantId = delivery.restaurantId;
-                    const driverObjectId = new Types.ObjectId(driverId);
-                    console.log("ORDER ID:", delivery.orderId);
-                    const updated = await OrderModel.findByIdAndUpdate(delivery.orderId, { courierId: driverObjectId });
-                    console.log("ORDER ID:", updated?.courierId);
-                }
-
-                emitToUser(userPhone, "ride_assigned", {
-                    rideId, driverId, driver,
-                    location: driverSession?.location,
-                    message: "🚗 Your driver is on the way!",
-                });
-                emitToUser(userPhone, "ride_accepted", {
-                    rideId, driverId, driver,
-                    location: driverSession?.location,
-                    message: "🚗 Your driver is on the way!",
-                });
-
-                if (restaurantId) {
-                    const emitted = emitToRestaurant(restaurantId, 'driver_accepted_order', {});
-                    console.log(emitted);
-
-                }
-
-                const title = `${driver?.carColor}, ${driver?.carModel}, ${driver?.regionCode}${driver?.carNumber}`;
-                const body = "🚗 Haydovchi yo'lda";
-                this.sendPassengerMessage({ userPhone, title, body })
-                console.log('RESTAURANT FCM: ', restaurantId);
-
-                if (restaurantId) FcmService.sendRestaurantMessage({ id: restaurantId, title, body });
-
-            })
-            .catch(err => console.error("Failed to fetch driver info:", err));
-
-        return { success: true, rideId, driverId };
+        return { success: true, userPhone };
     },
+
+    acceptRideRealtime({
+        rideId,
+        driverId,
+        userPhone
+    }: {
+        rideId: string;
+        driverId: string;
+        userPhone?: number;
+    }) {
+        emitToUser(userPhone, "ride_assigned", { rideId, driverId });
+    },
+
+    async acceptRideSideEffects({
+        rideId,
+        driverId,
+        userPhone
+    }: {
+        rideId: string;
+        driverId: string;
+        userPhone?: number;
+    }) {
+        try {
+            const [driver, driverSession, rideData] = await Promise.all([
+                DriverModel.findById(driverId),
+                driverStoreRedis.get(driverId),
+                redis.hGetAll(`ride:${rideId}`),
+                RideModel.findByIdAndUpdate(rideId, { driverId }),
+            ]);
+
+            let restaurantId: string | undefined;
+
+            if (rideData.isDelivery === "1" && rideData.deliveryData) {
+                const delivery: DeliveryData = JSON.parse(rideData.deliveryData);
+
+                restaurantId = delivery.restaurantId;
+
+                await OrderModel.findByIdAndUpdate(
+                    delivery.orderId,
+                    { courierId: new Types.ObjectId(driverId) }
+                );
+            }
+
+            emitToUser(userPhone, "ride_accepted", {
+                rideId,
+                driverId,
+                driver,
+                location: driverSession?.location,
+            });
+
+            if (restaurantId) {
+                emitToRestaurant(restaurantId, 'driver_accepted_order', {});
+            }
+
+            // fire-and-forget FCM
+            if (userPhone) this.sendPassengerMessage({
+                userPhone,
+                title: `${driver?.carColor}, ${driver?.carModel}`,
+                body: "🚗 Haydovchi yo'lda",
+            });
+
+            void this.computeAndEmitRoute({
+                rideId,
+                driverId,
+                userPhone,
+            });
+        } catch (err) {
+            console.error("SideEffects failed:", err);
+        }
+    },
+
+    async computeAndEmitRoute({
+        rideId,
+        driverId,
+        userPhone,
+    }: {
+        rideId: string;
+        driverId: string;
+        userPhone?: number;
+    }) {
+        try {
+            const [rideData, driverSession] = await Promise.all([
+                redis.hGetAll(`ride:${rideId}`),
+                driverStoreRedis.get(driverId),
+            ]);
+
+            if (!rideData || !driverSession?.location) return;
+
+            const driverLocation = driverSession.location;
+
+            const pickup = {
+                lat: Number(rideData.pickupLat),
+                lng: Number(rideData.pickupLon),
+            };
+
+            const start = {
+                lat: Number(driverLocation.latitude),
+                lng: Number(driverLocation.longitude),
+            }
+
+            console.time("PICKUP-ROUTE");
+
+            const route = await DirectionsService.getRoute(
+                start,
+                pickup
+            );
+            console.timeEnd("PICKUP-ROUTE");
+            console.log("ROUTE:", route);
+            if (!route) return;
+
+            const payload = {
+                rideId,
+                distanceMeters: route.distanceMeters,
+                duration: route.duration,
+                polyline: route.polyline,
+                points: route.points,
+            };
+
+            // 🚀 emit to BOTH
+            await Promise.all([
+                emitToDriver(driverId, "route_update", payload),
+                emitToDriver(`${driverId}-bg`, "route_update", payload),
+                emitToUser(userPhone, "route_update", payload),
+            ]);
+
+        } catch (err) {
+            console.error("Route side-effect failed:", err);
+        }
+    },
+
 
     async sendPassengerMessage(params: { userPhone: number, title: string, body: string }) {
         const { userPhone, title, body } = params;
@@ -798,125 +959,29 @@ export const RideService = {
         this.notifyOfferedDriversSearchStopped({ rideId });
     },
 
-    async completeRideGhostRide(data: GhostRideInput) {
-        const { driverId, fare, distanceTraveled } = data;
-
-        await RideRepository.createGostRide(data);
-
-        // 5️⃣ Update driver in MongoDB (clear currentRideId)
-        const updatedDriver = await DriverModel.findOneAndUpdate(
-            { _id: driverId },
-            { currentRideId: null },
-            { new: true }
-        );
-
-        var driverCommission = 0.14;
-
-
-        if (updatedDriver?.commissionRate) {
-            driverCommission = updatedDriver?.commissionRate / 100;
-        }
-
-        const commissionResult = await handleRideCommission(driverId, Number(data.fare), driverCommission);
-        const { balance, commission } = commissionResult;
-
-        // Notify driver about commission update if FCM token exists
-        if (updatedDriver?.fcmToken) {
-            // sendFcm(updatedDriver.fcmToken, commission);
-        }
+    async completeRideGhostRide({ driverId, data }: { driverId: string, data: CompleteGhostRideRequestBody }) {
+        const commission = await handleRideCommission(driverId, Number(data.fare));
+        await RideRepository.createGostRide({ ...data, commission, driverId });
     },
 
-    async completeRide(driverId: string, data: RideCompletedPayload) {
-        const { rideId, distance, fare, pauseSeconds } = data;
-        const rideKey = `ride:${rideId}`;
-        const acceptKey = `ride_accept:${rideId}`;
-        const driverKey = `driver:${driverId}`;
+    async completeRide(data: RideCompletedPayload) {
+        const { rideId, driverId, distance, fare, pauseSeconds } = data;
 
-        // 1️⃣ Verify ride exists and driver actually accepted it
-        const rideData = await redis.hGetAll(rideKey);
-        console.log(rideData, driverId);
+        await driverStoreRedis.clearCurrentRide(driverId);
 
-        if (!rideData || !rideData.driverId || rideData.driverId !== driverId) {
-            throw new Error(`Ride ${rideId} not assigned to driver ${driverId}`);
-        }
-
-        // 2️⃣ Update ride state in Redis atomically
-        const now = Date.now();
-        await redis.hSet(rideKey, {
-            status: "completed",
-            endedAt: now.toString(),
-            distance: distance.toString(),
-            fare: fare.toString(),
-            phase: "completed",
-        });
-
-        // Optional: expire ride accept key after completion
-        await redis.del(acceptKey);
-
-        // 3️⃣ Clear driver's current ride in Redis
-        await redis.hSet(driverKey, { currentRideId: "" });
-
-        // 4️⃣ Update ride in MongoDB
-        await RideModel.findOneAndUpdate(
-            { _id: rideId },
-            {
-                endedAt: new Date(),
-                distanceTraveled: distance,
-                pauseSeconds,
-                fare,
-                status: "completed",
-            }
-        );
-
-        RideRepository.setRideStatus(rideId, "completed", { by: "driver" })
-
-        // 5️⃣ Update driver in MongoDB (clear currentRideId)
-        const updatedDriver = await DriverModel.findOneAndUpdate(
-            { _id: driverId },
-            { currentRideId: null },
-            { new: true }
-        );
-
-        var driverCommission = 0.14;
-
-
-        if (updatedDriver?.commissionRate) {
-            driverCommission = updatedDriver?.commissionRate / 100;
-        }
+        const rideData = { endedAt: new Date(), fare, distanceTraveled: distance, pauseSeconds };
+        RideRepository.setRideStatus(rideId, "completed", { by: "driver" }, rideData);
 
         // 6️⃣ Deduct commission & update driver balance
-        const commissionResult = await handleRideCommission(driverId, Number(data.fare));
-        const { balance, commission } = commissionResult;
+        handleRideCommission(driverId, Number(data.fare));
 
-        // Notify driver about commission update if FCM token exists
-        if (updatedDriver?.fcmToken) {
-            sendFcm(updatedDriver.fcmToken, commission);
-        }
-
-        // 7️⃣ Notify passenger that ride is completed
-        const userPhone = Number(rideData.userPhoneNumber);
-        if (userPhone) {
-            emitToUser(userPhone, "ride_completed", {
-                rideId,
-                distance,
-                fare,
-                driverId,
-            });
-
-            const title = 'Safar yakunlandi';
-            const body = `${fare} UZS, ${distance} KM`;
-
-            this.sendPassengerMessage({ userPhone, title, body })
-        }
-
+        console.timeEnd("COMPLETE RIDE");
         return {
             success: true,
             rideId,
             driverId,
             distance,
             fare,
-            commission,
-            balance,
         };
     },
 }

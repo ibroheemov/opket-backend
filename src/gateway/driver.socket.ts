@@ -1,20 +1,23 @@
 import { driverSockets } from "./socket.maps";
 import { DriverModel } from "../models/DriverModel";
-import { RideModel } from "../models/Ride";
 import { emitToUser, emitToDriver } from "./ride.socket";
 import { DriverSocketConnectionPayload, RideCompletedPayload, RideProgressPayload, RideStartedPayload } from "../bot/socket/types";
 import { handleSocketError } from "../utils/socketError";
 import { RideService } from "../services/ride.new.service";
 import { fareConfigs } from "../data/fare.database";
 import { PassengerModel } from "../models/PassengerModel";
-import { driverStoreRedis } from "../store/driverStoreRedis";
 import { redis } from "../redis/redisClient";
 import { payfareTransfer } from "../services/payfare.service";
-import { Socket } from "socket.io";
 import { RideRepository } from "../repositories/ride.repository";
+import { DriverSocketEvents } from "../utils/enums";
+import { DriverSocketLocationBody, DriverSocketLocationToPassengerBody } from "../types/driver.types";
+import { driverLocationStore } from "../store/driver.location.store";
+import { driverSessionStore } from "../store/driver.session.store";
+import { driverCapabilityStore } from "../store/driver.capability.store";
 
-export const registerDriverHandlers = async ({ socket, driverId, fcmToken, location }: DriverSocketConnectionPayload) => {
-    const driver = await DriverModel.findById(driverId);
+export const registerDriverHandlers = async ({ socket, driverId }: DriverSocketConnectionPayload) => {
+    const driver = await DriverModel.findById(driverId)
+        .populate("tariffs");
 
     if (!driver) {
         console.error("🟡❌ DRIVER => SOCKET CONNECTION - Driver not found in DB:", driverId);
@@ -22,156 +25,22 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         return; // stop socket setup
     }
 
-    const canReceiveOffers = driver.balance > 0;
     driverSockets.set(driverId, socket.id);
+    console.log("🟢 DRIVER CONNECTED");
 
-    // 1️⃣ Mark as online
-    driverStoreRedis.upsert(
-        driverId,
-        {
-            socketId: socket.id,
-            status: "online",
-            socketStatus: "connected",
-            fcmToken,
-            location: location,
-            canReceiveOffers,
-            name: driver.name,
-            car: `${driver.carColor}, ${driver.carModel} - ${driver.carNumber}`,
-            phone: driver.phone,
-            hasPremiumCar: driver.hasPremiumCar,
-        }
-    )
+    // ############## START OF NEW ##############
+    socket.on(DriverSocketEvents.LOCATION_TO_PASSENGER, async (data: DriverSocketLocationToPassengerBody) => {
+        const emitted = await emitToUser(data.phone, DriverSocketEvents.LOCATION, data);
 
-    driverStoreRedis.enableServicesForDrivers([driverId], driver.enabledOptions ?? []);
+        console.log(DriverSocketEvents.LOCATION_TO_PASSENGER, emitted);
 
-    if (driver.blocked) {
-        emitToDriver(driverId, "driver_blocked", { reason: "Iltimos sababini bilish uchun Opket rahbariyati bilan bog'laning", })
-    }
-
-    if (!canReceiveOffers) {
-        emitToDriver(driverId, "no_balance", { balance: driver.balance });
-        console.error("🟡❌ DRIVER => NO BALANCE", driverId);
-    }
-
-    asyncemitMissedEvents(socket, driverId);
-
-    emitToDriver(driverId, "feature_flags", { 'driverStatusToggleEnabled': true });
-
-    // 2️⃣ Handle location updates
-    socket.on("driver_location", async ({ lat, lon, bearing }) => {
-        if (!lat || !lon) return;
-        // console.error("🟡📍 DRIVER => LOCATION UPDATE", driverId);
-        driverStoreRedis.updateLocation(driverId, lon, lat, bearing);
-
-        const driverSession = await driverStoreRedis.get(driverId);
-        if (driverSession?.currentRideId) {
-            const rideKey = `ride:${driverSession?.currentRideId}`;
-            const rideData = await redis.hGetAll(rideKey);
-            if (rideData && rideData.userPhoneNumber && rideData.status == "accepted") {
-                emitToUser(Number(rideData.userPhoneNumber), "driver_location_update", {
-                    driverId,
-                    location: { lat, lon, bearing },
-                    timestamp: Date.now(),
-                })
-            }
-        }
     });
-
-    // 3️⃣ Handle driver availability
-    socket.on("driver_online", () => {
-        // 1️⃣ Mark as online
-        driverStoreRedis.upsert(
-            driverId,
-            {
-                socketId: socket.id,
-                status: "online",
-                socketStatus: "connected",
-                fcmToken,
-                location: location,
-                canReceiveOffers,
-                name: driver.name,
-                car: `${driver.carColor}, ${driver.carModel} - ${driver.carNumber}`,
-                phone: driver.phone,
-                hasPremiumCar: driver.hasPremiumCar,
-            }
-        )
-    });
-
-    socket.on("driver_offline", () => {
-        socket.disconnect();
-        // driverStoreRedis.upsert(driverId, { status: "offline" });
-        console.error("🟡🔕 DRIVER => OFFLINE", driverId);
-    });
-
-    socket.on("accept_ride", async ({ rideId }: { rideId: string }) => {
-        console.time("RideService.acceptRide")
-        try {
-            const res: { success: boolean } = await RideService.acceptRide(rideId, driverId);
-            if (res.success) {
-                emitToDriver(driverId, "accept_ride_status", { success: true })
-            }
-            if (!res.success) {
-                emitToDriver(driverId, "accept_ride_status", { success: false })
-            };
-            console.timeEnd("RideService.acceptRide")
-        } catch (err) {
-            handleSocketError(socket, (err as Error).message, err as Error);
-        }
-    });
-
-
-    socket.on("fcm_token_update", async (token) => {
-        driverStoreRedis.upsert(driverId, { fcmToken: token });
-    });
-
-    socket.on("ride_closed", async ({ chatId }: { chatId: number }) => {
-        const sSent = emitToUser(Number(chatId), 'ride_closed', {});
-    });
-
-
-    socket.on("update_car_options", async ({ optionId }: { optionId: string }) => {
-        console.log(optionId, driverId);
-        driverStoreRedis.toggleEnabledService(driverId, optionId);
-    });
-
-    socket.on("balance_deduction_request", async ({ amount, phone }: { amount: number, phone: number }) => {
-        const sSent = emitToUser(Number(phone), 'balance_deduction_request', { amount, driverId, driverName: driver.name });
-
-        const result = await payfareTransfer({ phone, driverId, amount });
-    });
+    // ############## END OF NEW ##############
 
     socket.on("ride_progress", async (data: RideProgressPayload) => {
-        const driverSession = await driverStoreRedis.get(driverId);
-        if (!driverSession?.currentRideId) {
-            return;
-        };
-        const ride = await RideModel.findById(driverSession.currentRideId);
-        if (!ride) {
-            socket.emit("error", { message: "Ride not found" });
-            return;
-        };
-        if (data) emitToUser(ride.userPhoneNumber, "ride_progress", data);
-    });
+        const { userPhoneNumber } = data;
 
-    socket.on("driver_arrived", async ({ rideId }) => {
-        const rideKey = `ride:${rideId}`;
-
-        // 1️⃣ Update Redis state (authoritative)
-        const updated = await redis.hSet(rideKey, {
-            phase: "arrived",
-            arrivedAt: Date.now().toString(),
-        });
-
-        if (!updated) return;
-
-        // 2️⃣ Read required fields from Redis
-        const { userPhoneNumber, userChatId } = await redis.hGetAll(rideKey);
-
-        // 3️⃣ Emit event
-        emitToUser(Number(userPhoneNumber), "driver_arrived", {});
-
-        // 4️⃣ Persist to Mongo asynchronously (history only)
-        // updateRideStatusInMongo(rideId, "arrived").catch(console.error);
+        emitToUser(userPhoneNumber, "ride_progress", data);
     });
 
     socket.on("ride_started", async (data: RideStartedPayload) => {
@@ -193,15 +62,9 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         };
     });
 
-    socket.on("add_luggage", async ({ phone }) => {
-        const luggageCharge = fareConfigs['default'].luggageCharge;
-        emitToDriver(driverId, "luggage_confirmed", {});
-        emitToUser(phone, "add_luggage", { luggageCharge, driverId });
-    });
-
     socket.on("ride_completed", async (data: RideCompletedPayload) => {
         try {
-            await RideService.completeRide(driverId, data);
+            await RideService.completeRide({ ...data, driverId });
         } catch (err) {
             handleSocketError(socket, (err as Error).message, err as Error);
         }
@@ -215,37 +78,32 @@ export const registerDriverHandlers = async ({ socket, driverId, fcmToken, locat
         );
     });
 
-    socket.on("luggage_confirmed_ack", async ({ eventId }) => {
-        await DriverModel.findByIdAndUpdate(
-            driverId,
-            { $pull: { events: { event: eventId } } }
-        );
-    });
-
-    socket.on("luggage_declined_ack", async ({ eventId }) => {
-        await DriverModel.findByIdAndUpdate(
-            driverId,
-            { $pull: { events: { event: eventId } } }
-        );
-    });
-
     socket.on("connect_error", (err) =>
         console.error("🟡❌ DRIVER Connection error:", err.message)
     );
 
     socket.on("disconnect", async () => {
-        // await driverStoreRedis.remove(driverId);
+        setTimeout(async () => {
+            const current = driverSockets.get(driverId);
+
+            if (current !== socket.id) {
+                return; // replaced by new connection
+            }
+            console.error("🟡❌ DRIVER DISCONNECTED");
+            // 1 remove from online
+            await driverSessionStore.setOffline(driverId);
+
+            // 2 remove from geo indexes
+            await driverLocationStore.removeDriver(driverId);
+
+            // 3 fetch services
+            const driver = await DriverModel.findById(driverId).select("enabledOptions");
+
+            const services = driver?.enabledOptions ?? [];
+
+            // 4 remove from capability sets
+            await driverCapabilityStore.removeDriver(driverId, services);
+        }, 5000);
     });
 };
 
-
-export const asyncemitMissedEvents = async (socket: Socket, driverId: string) => {
-    const driver = driverStoreRedis.get(driverId);
-    if (!driver) return;
-
-    const missedAll = await driverStoreRedis.flushPendingEvents(driverId);
-
-    for (const e of missedAll) {
-        emitToDriver(driverId, e.event, e.data)
-    }
-};

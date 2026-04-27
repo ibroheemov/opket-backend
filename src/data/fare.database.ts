@@ -1,5 +1,5 @@
 // src/data/fareDatabase.ts
-import { FareConfig, FareConfigNew } from "../models/FareConfig";
+import { FareConfigModel } from "../models/FareConfig";
 
 export const services = [
     { id: "bagaj", description: "🎒 Bagaj", charge: 3000 },
@@ -18,7 +18,7 @@ export const services = [
 ];
 export const serviceIds = services.map(service => service.id);
 
-export const fareConfigs: Record<string, FareConfig> = {
+export const fareConfigs: Record<string, any> = {
     default: {
         baseFare: 2000,
         perKm: 2200,
@@ -66,7 +66,7 @@ export const fareConfigs: Record<string, FareConfig> = {
 };
 
 
-export const fareConfigsNew: Record<string, FareConfigNew> = {
+export const fareConfigsNew: Record<string, any> = {
     standard: {
         baseFare: 0,
         perKm: 2100,

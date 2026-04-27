@@ -6,7 +6,7 @@ import { DriverModel } from "../models/DriverModel";
 import { WorkingAreaService } from "../services/working.area.service";
 import { driverStore } from "../store/driverStore";
 import { driverStoreRedis } from "../store/driverStoreRedis";
-import { emitToDriver } from "../gateway/ride.socket";
+import { emitToDriver, emitToUser } from "../gateway/ride.socket";
 import admin from 'firebase-admin';
 import { payfareTransfer } from "../services/payfare.service";
 import { RideModel } from "../models/Ride";
@@ -16,6 +16,13 @@ import { RideRepository } from "../repositories/ride.repository";
 // import { DriverService } from "../services/driver.service";
 import { DriverLoginRequestBody } from "../types/driver.types";
 import { da } from "zod/v4/locales";
+import { Types } from "mongoose";
+import { DriverRedisKeys } from "../utils/enums";
+import { redis } from "../redis/redisClient";
+import { driverSessionStore, DriverSessionStore } from "../store/driver.session.store";
+import { driverCapabilityStore } from "../store/driver.capability.store";
+import { GhostRideModel } from "../models/GhostRide";
+import { driverLocationStore } from "../store/driver.location.store";
 
 // import DriverModel from "../models/Driver"; // <- adjust path
 
@@ -81,6 +88,7 @@ export const cancelRide = async (req: Request, res: Response) => {
 export const getMyRides = async (req: AuthRequest, res: Response) => {
     try {
         const driverId = req.driverId;
+        const driverObjectId = new Types.ObjectId(driverId);
         const period = (req.query.period as Period) ?? "month";
         const date = (req.query.date as string) ?? new Date().toISOString().slice(0, 10); // YYYY-MM-DD
         const tz = (req.query.tz as string) ?? "UTC";
@@ -95,7 +103,7 @@ export const getMyRides = async (req: AuthRequest, res: Response) => {
             // Rides
             {
                 $match: {
-                    driverId,
+                    driverId: driverObjectId,
                     createdAt: { $gte: startUtc, $lte: endUtc },
                 },
             },
@@ -121,15 +129,13 @@ export const getMyRides = async (req: AuthRequest, res: Response) => {
                     pipeline: [
                         {
                             $match: {
-                                driverId,
+                                driverId: driverObjectId,
                                 createdAt: { $gte: startUtc, $lte: endUtc },
                             },
                         },
                         {
                             $addFields: {
                                 source: "ghostRide",
-                                status: null,
-                                rideType: null,
                                 userChatId: null,
                                 userPhoneNumber: null,
                             },
@@ -292,32 +298,223 @@ export const updateAppVersion = async (req: AuthRequest, res: Response) => {
     }
 };
 
-// export const registerDriverNew = async (req: Request, res: Response) => {
-//     try {
-//         const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-//         const driver_license = files?.driverLicense?.[0];
+export const setStatus = async (req: AuthRequest, res: Response) => {
+    try {
+        const { status } = req.body;
+        const driverId = req.driverId;
 
-//         const result = await DriverService.registerDriver({
-//             ...req.body,
-//             driver_license,
-//         });
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "unauthorized",
+            });
+        }
 
-//         res.status(200).json({ message: "Driver registered", ...result });
-//     } catch (err: any) {
-//         res.status(400).json({ message: err.message });
-//     }
-// };
+        if (status === "online") {
+            // 1️⃣ mark online
+            await driverSessionStore.setOnline(driverId);
+
+            // 2️⃣ fetch enabled services from Mongo
+            const driver = await DriverModel.findById(driverId).select("enabledOptions");
+
+            const services = driver?.enabledOptions ?? [];
+
+            // 3️⃣ index into Redis
+            await driverCapabilityStore.addDriver(driverId, services);
+        }
+
+        if (status === "offline") {
+            // 1 remove from online
+            await driverSessionStore.setOffline(driverId);
+
+            // 2 remove from geo indexes
+            await driverLocationStore.removeDriver(driverId);
+
+            // 3 fetch services
+            const driver = await DriverModel.findById(driverId).select("enabledOptions");
+
+            const services = driver?.enabledOptions ?? [];
+
+            // 4 remove from capability sets
+            await driverCapabilityStore.removeDriver(driverId, services);
+        }
+
+        return res.status(200).json({ success: true });
+
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message });
+    }
+};
 
 
-// export const loginDriverNew = async (req: Request, res: Response) => {
-//     try {
-//         const data: DriverLoginRequestBody = req.body;
+export const getDriverStatus = async (
+    req: AuthRequest,
+    res: Response
+) => {
 
-//         const login = await DriverService.login(data);
+    try {
 
-//         return res.json(login);
-//     } catch (err: any) {
-//         console.error("login error:", err);
-//         return res.status(500).json({ message: err?.message });
-//     }
-// };
+        const driverId = req.driverId;
+
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "unauthorized"
+            });
+        }
+
+        const online = await redis.sIsMember(
+            DriverRedisKeys.ONLINE_DRIVERS,
+            driverId
+        );
+
+        return res.json({
+            success: true,
+            status: online
+                ? "online"
+                : "offline",
+
+        });
+
+    } catch (e: any) {
+
+        return res.status(500).json({
+            message: e.message
+        });
+    }
+};
+
+export const getRideStatus = async (
+    req: AuthRequest,
+    res: Response
+) => {
+
+    try {
+
+        const rideId = req.params.id;
+
+        if (!rideId) {
+            return res.status(400).json({
+                success: false,
+                message: "rideId is required"
+            });
+        }
+
+        const result = await RideModel.findById(rideId).select("status");
+
+        return res.json({
+            success: true,
+            status: result?.status
+        });
+
+    } catch (e: any) {
+
+        return res.status(500).json({
+            message: e.message
+        });
+    }
+};
+
+export const createGhostRide = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "unauthorized",
+            });
+        }
+
+        const result = await GhostRideModel.create({
+            driverId: new Types.ObjectId(driverId),
+            status: "started",
+            statusHistory: [
+                {
+                    status: "started",
+                    driverId,
+                    by: "driver",
+                    note: "Ride created",
+                },
+            ],
+        })
+
+        await driverSessionStore.markUnavailable(driverId);
+
+        return res.status(200).json({ success: true, id: result.id });
+
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message });
+    }
+};
+
+export const completeGhostRide = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+        const data = req.body;
+        const { id } = req.params;
+
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "unauthorized",
+            });
+        }
+
+        await GhostRideModel.findOneAndUpdate(
+            { _id: id },
+            {
+                $set: { ...data, status: "completed", },
+                $push: { statusHistory: { status: "completed", by: "driver" } },
+            },
+            { new: true }
+        );
+
+
+        await driverSessionStore.markAvailable(driverId);
+
+        return res.status(200).json({ success: true });
+
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message });
+    }
+};
+
+export const startRide = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+        const { id } = req.params;
+
+        if (!driverId) {
+            return res.status(401).json({
+                success: false,
+                message: "unauthorized",
+            });
+        }
+
+        const ride = await RideModel.findOneAndUpdate(
+            { _id: id },
+            {
+                $set: { status: "started", },
+                $push: { statusHistory: { status: "started", by: "driver" } },
+            },
+            { new: true }
+        );
+
+        if (!ride) {
+            return res.status(400).json({
+                success: false,
+                message: "Ride not found",
+            });
+        }
+
+
+        await driverSessionStore.markUnavailable(driverId);
+        emitToUser(ride.userPhoneNumber, "ride_started", {});
+
+        return res.status(200).json({ success: true });
+
+    } catch (err: any) {
+        return res.status(500).json({ message: err?.message });
+    }
+};

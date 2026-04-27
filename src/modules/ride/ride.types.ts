@@ -11,12 +11,11 @@ export type DriverCandidate = {
 export interface RideRequestInput {
     phone: number;
     rideType: string;
-    pickup: { lat: number; lon: number };
+    fcmToken?: string;
+    pickup: { latitude: number; longitude: number };
     options: string[];
-    chatId?: number;
-    dropoff?: { lat: number; lon: number; address?: string };
+    dropoff?: { latitude: number; longitude: number; address?: string };
     address?: string;
-    type?: string;
     delivery?: DeliveryData;
     isDelivery: boolean;
 }

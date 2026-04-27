@@ -72,7 +72,7 @@ export async function sendOfferToDriverSequentially(rideId: string, candidate: a
     });
     const offerSent = await sendRideOffer({
         id: claimed._id,
-        pickup: claimed.pickup,
+        pickup: { latitude: 0.0, longitude: 0.0 },
         userPhoneNumber: claimed.userPhoneNumber,
         userChatId: claimed.userChatId,
         travelDistance: distKm?.toFixed?.(2) ?? String(distKm),
@@ -181,7 +181,7 @@ async function sendOfferToDriverParallel(rideId: string, candidate: any, cancelS
 
     const offerSent = await sendRideOffer({
         id: claimed._id,
-        pickup: claimed.pickup,
+        pickup: { latitude: 0.0, longitude: 0.0 },
         userPhoneNumber: claimed.userPhoneNumber,
         userChatId: claimed.userChatId,
         travelDistance: distKm?.toFixed?.(2) ?? String(distKm),

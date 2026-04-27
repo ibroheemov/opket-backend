@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 import { serviceIds, services } from "../data/fare.database";
 
 export type DriverStatus = "offline" | "available" | "on_trip";
@@ -23,6 +23,7 @@ export interface IDriverDocument extends Document {
     lastname: string;
     name: string;
     phone: string;
+    password?: string;
     appVersion?: string;
 
     carModel?: string;
@@ -61,7 +62,8 @@ export interface IDriverDocument extends Document {
         event: string;
         data: Record<string, any>;
     }[];
-    enabledOptions?: string[]
+    enabledOptions?: string[];
+    tariffs: Types.ObjectId[];
 }
 
 
@@ -87,6 +89,7 @@ const DriverSchema = new Schema<IDriverDocument>(
 
         phone: { type: String, required: true, unique: true, index: true },
 
+        password: { type: String },
         balance: { type: Number, default: 0 },
         commissionRate: { type: Number },
 
@@ -133,7 +136,16 @@ const DriverSchema = new Schema<IDriverDocument>(
             ],
             default: [],
         },
-        enabledOptions: { type: [String], default: serviceIds },
+        enabledOptions: { type: [String], default: [] },
+        tariffs: {
+            type: [
+                {
+                    type: Schema.Types.ObjectId,
+                    ref: "FareConfig"
+                }
+            ],
+            default: []
+        },
     },
     { timestamps: true }
 );

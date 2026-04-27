@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import authService from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth";
+import { DriverLoginRequestBody } from "../types/driver.types";
 
 class AuthController {
 
@@ -40,14 +41,14 @@ class AuthController {
 
     async login(req: Request, res: Response) {
         try {
-            const { phone } = req.body;
+            const data: DriverLoginRequestBody = req.body;
 
-            const login = await authService.loginFake(phone);
+            const login = await authService.login(data);
 
             return res.json(login);
-        } catch (err) {
+        } catch (err: any) {
             console.error("login error:", err);
-            return res.status(500).json({ message: "Login failed" });
+            return res.status(500).json({ message: err?.message });
         }
     }
 
