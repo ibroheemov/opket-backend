@@ -14,6 +14,7 @@ import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
 import { Types } from "mongoose";
 import { PassengerService } from "../services/passenger.service";
 import { FcmService } from "../services/fcm.service";
+import { driverSessionStore } from "../store/driver.session.store";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {

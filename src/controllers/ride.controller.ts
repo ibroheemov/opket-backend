@@ -145,8 +145,6 @@ export const completeRide = async (req: AuthRequest, res: Response) => {
 
         const emitted = emitToUser(userPhoneNumber, "ride_completed", {});
 
-        console.log("EMITTED", emitted);
-
 
         return res.status(200).json({ message: "Ride completed successfully" });
     } catch (err) {

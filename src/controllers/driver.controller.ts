@@ -298,9 +298,22 @@ export const updateAppVersion = async (req: AuthRequest, res: Response) => {
     }
 };
 
+function getHighestRatedTariffType(driver: any): string {
+    if (!driver.tariffs?.length) {
+        return "standard";
+    }
+
+    const highestTariff = driver.tariffs.reduce(
+        (best: any, current: any) =>
+            current.rating > best.rating ? current : best
+    );
+
+    return highestTariff.type || "standard";
+}
+
 export const setStatus = async (req: AuthRequest, res: Response) => {
     try {
-        const { status } = req.body;
+        const { status, location }: { status: string, location: any } = req.body;
         const driverId = req.driverId;
 
         if (!driverId) {
@@ -311,16 +324,15 @@ export const setStatus = async (req: AuthRequest, res: Response) => {
         }
 
         if (status === "online") {
-            // 1️⃣ mark online
-            await driverSessionStore.setOnline(driverId);
-
-            // 2️⃣ fetch enabled services from Mongo
-            const driver = await DriverModel.findById(driverId).select("enabledOptions");
-
+            const driver = await DriverModel.findById(driverId).select("tariffs, enabledOptions").populate("tariffs");
             const services = driver?.enabledOptions ?? [];
+            const tariff = getHighestRatedTariffType(driver);
 
-            // 3️⃣ index into Redis
+            await driverSessionStore.setOnline({ driverId, tariff });
+
             await driverCapabilityStore.addDriver(driverId, services);
+
+            await driverLocationStore.updateLocation({ driverId, ...location, geoType: tariff })
         }
 
         if (status === "offline") {

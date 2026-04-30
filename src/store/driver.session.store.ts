@@ -3,8 +3,7 @@ import { DriverRedisKeys } from "../utils/enums";
 
 type DriverSession = {
     driverId: string;
-    socketId: string;
-    currentRideId?: string;
+    tariff: string;
     lastUpdated: number;
 };
 
@@ -15,11 +14,25 @@ export class DriverSessionStore {
 
     private ttlSeconds = 60; // auto-clean dead sessions
 
-    async setOnline(driverId: string) {
+    async setOnline(data: Omit<DriverSession, "lastUpdated">) {
+        const key = this.key(data.driverId);
+        const now = Date.now();
+
         const multi = redis.multi();
 
-        multi.sAdd(DriverRedisKeys.ONLINE_DRIVERS, driverId);
-        multi.sAdd(DriverRedisKeys.AVAILABLE_DRIVERS, driverId);
+        // Presence sets
+        multi.sAdd(DriverRedisKeys.ONLINE_DRIVERS, data.driverId);
+        multi.sAdd(DriverRedisKeys.AVAILABLE_DRIVERS, data.driverId);
+
+        // Session hash
+        multi.hSet(key, {
+            driverId: data.driverId,
+            tariff: data.tariff,
+            lastUpdated: now.toString(),
+        });
+
+        // Auto-expire dead sessions
+        multi.expire(key, this.ttlSeconds);
 
         await multi.exec();
     }
@@ -35,16 +48,36 @@ export class DriverSessionStore {
 
         await multi.exec();
     }
+
     async upsertSession(data: DriverSession) {
-        const key = DriverRedisKeys.DRIVER;
+        const key = this.key(data.driverId);
         const now = Date.now();
 
-        const hash: Record<string, string> = { ...data, lastUpdated: now.toString(), };
+        const hash: Record<string, string> = {
+            driverId: data.driverId,
+            tariff: data.tariff,
+            lastUpdated: now.toString(),
+        };
 
         await redis.hSet(key, hash);
-
-        // TTL → auto cleanup if driver disappears
         await redis.expire(key, this.ttlSeconds);
+    }
+
+    async getCurrentSession(driverId: string): Promise<DriverSession | null> {
+        const key = this.key(driverId);
+
+        const session = await redis.hGetAll(key);
+
+        // No session found (expired or offline)
+        if (!session || Object.keys(session).length === 0) {
+            return null;
+        }
+
+        return {
+            driverId: session.driverId,
+            tariff: session.tariff,
+            lastUpdated: Number(session.lastUpdated),
+        };
     }
 
     /* ---------------- AVAILABILITY ---------------- */

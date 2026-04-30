@@ -70,8 +70,6 @@ export class DriverLocationStore {
             multi.geoAdd(key, geoData);
         }
 
-        multi.expire(`driver:${driverId}`, 60);
-
         await multi.exec();
     }
 }

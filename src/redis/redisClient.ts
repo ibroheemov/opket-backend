@@ -23,6 +23,7 @@ const redisSub = createClient({
 redis.on('error', (err) => console.error('Redis Client Error', err));
 redisSub.on('error', (err) => console.error('Redis Sub Error', err));
 
+
 async function connectRedis() {
     await Promise.all([
         redis.connect(),

@@ -22,6 +22,7 @@ import { OrderModel } from "../models/OrderModel";
 import { CompleteGhostRideRequestBody } from "../types/driver.types";
 import { RidePhase } from "../utils/enums";
 import { DirectionsService } from "./direction.service";
+import { driverSessionStore } from "../store/driver.session.store";
 
 type StageMode = "single" | "all";
 
@@ -623,7 +624,7 @@ export const RideService = {
             chatId: rideData.userChatId ?? '',
             pickup: JSON.stringify({
                 lat: Number(rideData.pickupLat),
-                lon: Number(rideData.pickupLon),
+                lng: Number(rideData.pickupLon),
                 address: rideData.pickupAddress ?? '',
             }),
             travelDistance: candidate.distKm.toFixed(2),
@@ -647,12 +648,10 @@ export const RideService = {
         }
 
         const driverId = rideData.driverId;
+        await driverSessionStore.markAvailable(driverId);
+
 
         emitToDriver(driverId, event, { rideId });
-        emitToDriver(`${driverId}-bg`, event, { rideId });
-
-        const driverKey = `driver:${driverId}`;
-        await redis.hSet(driverKey, { currentRideId: "" });
         await redis.del(`driver_offer:${driverId}`);
 
         await FcmService.sendDriverMessage({ id: driverId, title: "Mijoz buyurtmani bekor qildi", body: "" });
@@ -683,10 +682,6 @@ export const RideService = {
         if (!result.success) return result;
 
         const { userPhone } = result;
-
-        // 2️⃣ REALTIME (fast emits, no DB)
-        this.acceptRideRealtime({ rideId, driverId, userPhone });
-
         // 3️⃣ SIDE EFFECTS (non-blocking 🚀)
         this.acceptRideSideEffects({ rideId, driverId, userPhone });
 
@@ -728,27 +723,16 @@ export const RideService = {
             .del(reservationKey)
             .del(driverOfferKey)
             .hSet(rideKey, { phase: "accepted" })
-            .hSet(`driver:${driverId}`, { currentRideId: rideId, state: "busy" })
             .publish("ride.accepted", JSON.stringify({ rideId, driverId }))
             .hmGet(rideKey, "userPhoneNumber");
 
         const res = await tx.exec() as [any, any, any, any, any, [string | null]];
-        const userPhone = Number(res?.[5]?.[0]);
+        const userPhone = Number(res?.[4]?.[0]);
+        await driverSessionStore.markUnavailable(driverId);
 
         return { success: true, userPhone };
     },
 
-    acceptRideRealtime({
-        rideId,
-        driverId,
-        userPhone
-    }: {
-        rideId: string;
-        driverId: string;
-        userPhone?: number;
-    }) {
-        emitToUser(userPhone, "ride_assigned", { rideId, driverId });
-    },
 
     async acceptRideSideEffects({
         rideId,
@@ -968,7 +952,7 @@ export const RideService = {
         const { rideId, driverId, distance, fare, pauseSeconds } = data;
 
         await driverStoreRedis.clearCurrentRide(driverId);
-
+        await driverSessionStore.markAvailable(driverId);
         const rideData = { endedAt: new Date(), fare, distanceTraveled: distance, pauseSeconds };
         RideRepository.setRideStatus(rideId, "completed", { by: "driver" }, rideData);
 

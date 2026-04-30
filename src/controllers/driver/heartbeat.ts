@@ -1,8 +1,8 @@
 import { AuthRequest } from "../../middlewares/auth";
 import { Response } from "express";
 import { driverLocationStore } from "../../store/driver.location.store";
-import { DriverModel } from "../../models/DriverModel";
 import { DriverSocketLocationBody } from "../../types/driver.types";
+import { driverSessionStore } from "../../store/driver.session.store";
 
 export const heartbeat = async (req: AuthRequest, res: Response) => {
     const data: DriverSocketLocationBody = req.body;
@@ -14,11 +14,14 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
     if (!driverId) {
         return res.status(400).json({ error: "driverId required" });
     }
+    const session = await driverSessionStore.getCurrentSession(driverId);
 
-    const driver = await DriverModel.findById(driverId)
-        .populate("tariffs");
+    if (!session) {
+        return res.status(400).json({ error: "Driver doesnt have active session" });
 
-    const geoType = getHighestRatedTariffType(driver);
+    }
+
+    const geoType = session.tariff;
 
     driverLocationStore.updateLocation({
         ...data,
@@ -29,15 +32,3 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
     return res.json({ ok: true });
 };
 
-function getHighestRatedTariffType(driver: any): string {
-    if (!driver.tariffs?.length) {
-        return "standard";
-    }
-
-    const highestTariff = driver.tariffs.reduce(
-        (best: any, current: any) =>
-            current.rating > best.rating ? current : best
-    );
-
-    return highestTariff.type || "standard";
-}
