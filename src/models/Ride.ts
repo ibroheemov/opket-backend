@@ -1,6 +1,19 @@
 // src/models/Ride.ts
 import mongoose, { Schema, Document, ObjectId, Types } from "mongoose";
 
+type LatLng = {
+    lat: number;
+    lng: number;
+};
+
+export interface IRouteData {
+    distanceMeters: number;
+    duration: string;
+    staticDuration?: string;
+    polyline: string;
+    points: LatLng[];
+}
+
 export type RideStatus =
     | string
     | "pending"
@@ -29,7 +42,7 @@ export interface IRideOption {
 
 export interface IRide extends Document {
     _id: string;
-    userId?: string;
+    passengerId?: Types.ObjectId | null;
     userPhoneNumber?: number;
     userChatId: number;                // Telegram chat id for the user
     driverId?: Types.ObjectId | null;
@@ -57,10 +70,11 @@ export interface IRide extends Document {
         lon: Number,
     },
     options?: IRideOption[];
+    pickup_directions?: IRouteData;
 }
 
 const rideSchema = new Schema<IRide>({
-    userId: String,
+    passengerId: { type: Types.ObjectId, ref: "Passenger" },
     userChatId: Number,
     userPhoneNumber: Number,
     driverId: { type: Types.ObjectId, ref: "Driver" },
@@ -125,6 +139,18 @@ const rideSchema = new Schema<IRide>({
             },
         ],
         default: [],
+    },
+    pickup_directions: {
+        distanceMeters: Number,
+        duration: String,
+        staticDuration: String,
+        polyline: String,
+        points: [
+            {
+                lat: Number,
+                lng: Number,
+            },
+        ],
     },
 });
 

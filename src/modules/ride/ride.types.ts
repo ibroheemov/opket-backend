@@ -11,6 +11,7 @@ export type DriverCandidate = {
 export interface RideRequestInput {
     phone: number;
     rideType: string;
+    passengerId?: string;
     fcmToken?: string;
     pickup: { latitude: number; longitude: number };
     options: string[];

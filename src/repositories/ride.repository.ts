@@ -44,7 +44,7 @@ export const RideRepository = {
     },
 
     async createRide(data: RideRequestInput) {
-        const { phone, pickup, dropoff, address, rideType } = data;
+        const { phone, pickup, dropoff, address, rideType, passengerId } = data;
 
         const mongoData = {
             userPhoneNumber: phone,
@@ -53,6 +53,7 @@ export const RideRepository = {
                 ? { lat: dropoff.latitude, lon: dropoff.longitude, address: dropoff.address }
                 : undefined,
             rideType,
+            passengerId,
         };
 
         try {

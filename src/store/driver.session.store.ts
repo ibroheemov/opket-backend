@@ -5,6 +5,17 @@ type DriverSession = {
     driverId: string;
     tariff: string;
     lastUpdated: number;
+    userPhoneNumber?: number;
+    name?: string,
+    phone?: string,
+    carModel?: string,
+    carColor?: string,
+    carNumber?: string,
+    regionCode?: string,
+    location?: {
+        latitude: number;
+        longitude: number;
+    };
 };
 
 export class DriverSessionStore {
@@ -26,8 +37,8 @@ export class DriverSessionStore {
 
         // Session hash
         multi.hSet(key, {
-            driverId: data.driverId,
-            tariff: data.tariff,
+            ...data,
+            location: JSON.stringify(data.location),
             lastUpdated: now.toString(),
         });
 
@@ -48,16 +59,24 @@ export class DriverSessionStore {
 
         await multi.exec();
     }
-
-    async upsertSession(data: DriverSession) {
+    async upsertSession(data: Partial<DriverSession> & { driverId: string }) {
         const key = this.key(data.driverId);
         const now = Date.now();
 
-        const hash: Record<string, string> = {
-            driverId: data.driverId,
-            tariff: data.tariff,
-            lastUpdated: now.toString(),
-        };
+        const hash: Record<string, string> = {};
+
+        for (const [k, v] of Object.entries(data)) {
+            if (v === undefined) continue;
+
+            if (k === "location") {
+                hash[k] = JSON.stringify(v);
+            } else {
+                hash[k] = String(v);
+            }
+        }
+
+        // always update timestamp
+        hash.lastUpdated = now.toString();
 
         await redis.hSet(key, hash);
         await redis.expire(key, this.ttlSeconds);
@@ -65,18 +84,41 @@ export class DriverSessionStore {
 
     async getCurrentSession(driverId: string): Promise<DriverSession | null> {
         const key = this.key(driverId);
-
         const session = await redis.hGetAll(key);
 
-        // No session found (expired or offline)
         if (!session || Object.keys(session).length === 0) {
             return null;
+        }
+
+        let location: DriverSession["location"] | undefined;
+
+        if (session.location) {
+            try {
+                const parsed = JSON.parse(session.location);
+                if (
+                    typeof parsed.latitude === "number" &&
+                    typeof parsed.longitude === "number"
+                ) {
+                    location = parsed;
+                }
+            } catch {
+                // ignore bad data
+            }
         }
 
         return {
             driverId: session.driverId,
             tariff: session.tariff,
             lastUpdated: Number(session.lastUpdated),
+
+            ...(session.name && { name: session.name }),
+            ...(session.phone && { phone: session.phone }),
+            ...(session.carModel && { carModel: session.carModel }),
+            ...(session.carColor && { carColor: session.carColor }),
+            ...(session.carNumber && { carNumber: session.carNumber }),
+            ...(session.regionCode && { regionCode: session.regionCode }),
+            ...(session.userPhoneNumber && { userPhoneNumber: Number(session.userPhoneNumber) }),
+            ...(location && { location }),
         };
     }
 

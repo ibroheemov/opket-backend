@@ -9,6 +9,8 @@ import { fetchFareConfigUser } from "../controllers/fare.user.controller";
 import { registerPassengerFcm } from "../controllers/general.passenger.controller";
 import { verifyPassenger } from "../controllers/passenger/verifyPassenger";
 import { updateAppVersionPassenger } from "../controllers/passenger/updateAppVersionPassenger";
+import { authenticateDriver } from "../middlewares/auth";
+import { getMyRidesPassenger } from "../controllers/passenger.controller";
 
 const router = express.Router();
 
@@ -17,7 +19,7 @@ router.post("/app-version/:phone", updateAppVersionPassenger);
 router.get("/:id/get-passenger", getPassenger);
 router.get("/:id/balance", getPassengerBalance);
 router.post("/:id/pay-fare", payfare);
-router.post("/request-ride", requestRide);
+router.post("/request-ride", authenticateDriver, requestRide);
 router.get("/:id/current-ride", currentRide);
 router.post("/cancel-ride", cancelRide);
 router.post("/confirm-luggage", confirmLuggage);
@@ -27,5 +29,7 @@ router.post("/create-bot", createPassengerBot);
 router.get("/fare/config", fetchFareConfigUser);
 router.post("/delete-account", deleteAccount);
 router.post("/:phone/registerFcm", registerPassengerFcm);
+router.get("/rides", authenticateDriver, getMyRidesPassenger);
+
 
 export default router;

@@ -38,9 +38,12 @@ export const registerDriverHandlers = async ({ socket, driverId }: DriverSocketC
     // ############## END OF NEW ##############
 
     socket.on("ride_progress", async (data: RideProgressPayload) => {
-        const { userPhoneNumber } = data;
+        console.log(data);
+        const session = await driverSessionStore.getCurrentSession(driverId);
 
-        emitToUser(userPhoneNumber, "ride_progress", data);
+        if (session?.userPhoneNumber) {
+            emitToUser(session?.userPhoneNumber, "ride_progress", data);
+        }
     });
 
     socket.on("ride_started", async (data: RideStartedPayload) => {

@@ -17,11 +17,16 @@ import { GhostRideModel } from "../models/GhostRide";
 import { RideRequestInput } from "../modules/ride/ride.types";
 import { emitToUser } from "../gateway/ride.socket";
 
-export const requestRide = async (req: Request, res: Response) => {
+export const requestRide = async (req: AuthRequest, res: Response) => {
     try {
         const data: RideRequestInput = req.body;
+        const passengerId = req.id;
 
-        const result = await RideService.requestRide(data);
+        if (!passengerId) {
+            return res.status(400).json({ message: "passengerId is required" });
+        }
+
+        const result = await RideService.requestRide({ ...data, passengerId });
         return res.status(200).json(result);
     } catch (err) {
         // logger.error("requestRide error:", err);

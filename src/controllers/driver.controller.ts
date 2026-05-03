@@ -324,11 +324,26 @@ export const setStatus = async (req: AuthRequest, res: Response) => {
         }
 
         if (status === "online") {
-            const driver = await DriverModel.findById(driverId).select("tariffs, enabledOptions").populate("tariffs");
+            const driver = await DriverModel.findById(driverId).populate("tariffs");
             const services = driver?.enabledOptions ?? [];
             const tariff = getHighestRatedTariffType(driver);
 
-            await driverSessionStore.setOnline({ driverId, tariff });
+            const session_payload = {
+                driverId,
+                tariff,
+                name: driver?.name,
+                phone: driver?.phone,
+                carModel: driver?.carModel,
+                carColor: driver?.carColor,
+                carNumber: driver?.carNumber,
+                regionCode: driver?.regionCode,
+                location,
+            }
+
+            console.log(session_payload);
+
+
+            await driverSessionStore.setOnline(session_payload);
 
             await driverCapabilityStore.addDriver(driverId, services);
 

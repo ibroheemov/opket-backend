@@ -744,12 +744,15 @@ export const RideService = {
         userPhone?: number;
     }) {
         try {
-            const [driver, driverSession, rideData] = await Promise.all([
-                DriverModel.findById(driverId),
-                driverStoreRedis.get(driverId),
+            const [driverSession, rideData] = await Promise.all([
+                driverSessionStore.getCurrentSession(driverId),
                 redis.hGetAll(`ride:${rideId}`),
                 RideModel.findByIdAndUpdate(rideId, { driverId }),
+                driverSessionStore.upsertSession({ driverId, userPhoneNumber: userPhone })
             ]);
+
+            console.log("DRIVER SESSION", driverSession);
+
 
             let restaurantId: string | undefined;
 
@@ -767,8 +770,7 @@ export const RideService = {
             emitToUser(userPhone, "ride_accepted", {
                 rideId,
                 driverId,
-                driver,
-                location: driverSession?.location,
+                ...driverSession,
             });
 
             if (restaurantId) {
@@ -778,7 +780,7 @@ export const RideService = {
             // fire-and-forget FCM
             if (userPhone) this.sendPassengerMessage({
                 userPhone,
-                title: `${driver?.carColor}, ${driver?.carModel}`,
+                title: `${driverSession?.carColor}, ${driverSession?.carModel}`,
                 body: "🚗 Haydovchi yo'lda",
             });
 
@@ -840,12 +842,16 @@ export const RideService = {
             };
 
             // 🚀 emit to BOTH
-            await Promise.all([
+            const [firstEmitted] = await Promise.all([
                 emitToDriver(driverId, "route_update", payload),
                 emitToDriver(`${driverId}-bg`, "route_update", payload),
                 emitToUser(userPhone, "route_update", payload),
             ]);
 
+            await RideModel.findByIdAndUpdate(rideId, {
+                pickup_directions: route,
+            });
+            console.log(firstEmitted);
         } catch (err) {
             console.error("Route side-effect failed:", err);
         }
@@ -951,7 +957,6 @@ export const RideService = {
     async completeRide(data: RideCompletedPayload) {
         const { rideId, driverId, distance, fare, pauseSeconds } = data;
 
-        await driverStoreRedis.clearCurrentRide(driverId);
         await driverSessionStore.markAvailable(driverId);
         const rideData = { endedAt: new Date(), fare, distanceTraveled: distance, pauseSeconds };
         RideRepository.setRideStatus(rideId, "completed", { by: "driver" }, rideData);

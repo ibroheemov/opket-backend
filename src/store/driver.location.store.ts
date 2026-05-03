@@ -1,5 +1,6 @@
 import { redis } from "../redis/redisClient";
 import { UpdateLocationBody } from "../types/driver.types";
+import { driverSessionStore } from "./driver.session.store";
 
 const LOCATION_STANDARD_KEY = "drivers:geo:standard";
 const LOCATION_COMFORT_KEY = "drivers:geo:comfort";
@@ -56,10 +57,7 @@ export class DriverLocationStore {
         const multi = redis.multi();
 
         // Update last known location
-        multi.hSet(`driver:${driverId}`, {
-            location: JSON.stringify({ latitude, longitude }),
-            lastUpdated: now.toString(),
-        });
+        driverSessionStore.upsertSession({ driverId, location: { latitude, longitude } })
 
         // Remove from all indexes first
         multi.zRem(LOCATION_STANDARD_KEY, driverId);
