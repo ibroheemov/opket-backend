@@ -42,20 +42,27 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
         const driverId = req.driverId;
 
         if (!driverId) {
-            return res.status(400).json({ message: "driverId is required" });
+            return res.status(401).json({ success: false, message: "Avtorizatsiyadan o'ting" });
         }
 
-        const acceptRide: { success: boolean } = await RideService.acceptRide(id, driverId);
+        const acceptResult: { success: boolean } = await RideService.acceptRide(id, driverId);
         const ride = await RideModel.findById(id).lean();
 
         if (!ride) {
-            return res.status(404).json({ message: "Ride not found" });
+            return res.status(404).json({ success: false, message: "Buyurtma topilmadi" });
         }
 
-        return res.status(200).json({ success: acceptRide.success, message: "Driver accepted the ride" });
+        if (!acceptResult.success) {
+            return res.status(409).json({
+                success: false,
+                message: "Buyurtma boshqa haydovchi tomonidan qabul qilingan",
+            });
+        }
+
+        return res.status(200).json({ success: true, message: "Buyurtma qabul qilindi" });
     } catch (err) {
-        console.error('Error fetching current ride:', err);
-        return res.status(500).json({ error: 'Internal server error' });
+        console.error('Error accepting ride:', err);
+        return res.status(500).json({ success: false, message: "Server xatosi. Iltimos qayta urinib ko'ring" });
     }
 };
 
