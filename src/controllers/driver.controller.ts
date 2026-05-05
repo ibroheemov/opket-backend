@@ -325,6 +325,16 @@ export const setStatus = async (req: AuthRequest, res: Response) => {
 
         if (status === "online") {
             const driver = await DriverModel.findById(driverId).populate("tariffs");
+
+            if ((driver?.balance ?? 0) <= 0) {
+                return res.status(403).json({
+                    success: false,
+                    code: "NO_BALANCE",
+                    message: "Balansingiz yetarli emas. Iltimos, balansingizni to'ldiring.",
+                    balance: driver?.balance ?? 0,
+                });
+            }
+
             const services = driver?.enabledOptions ?? [];
             const tariff = getHighestRatedTariffType(driver);
 
