@@ -60,6 +60,8 @@ export class DriverSessionStore {
         await multi.exec();
     }
     async upsertSession(data: Partial<DriverSession> & { driverId: string }) {
+        console.log("SESSION", data);
+
         const key = this.key(data.driverId);
         const now = Date.now();
 
@@ -86,6 +88,7 @@ export class DriverSessionStore {
         const key = this.key(driverId);
         const session = await redis.hGetAll(key);
 
+        console.log("getCurrentSession", session, key);
         if (!session || Object.keys(session).length === 0) {
             return null;
         }
@@ -125,7 +128,16 @@ export class DriverSessionStore {
     /* ---------------- AVAILABILITY ---------------- */
 
     async markAvailable(driverId: string) {
-        await redis.sAdd(DriverRedisKeys.AVAILABLE_DRIVERS, driverId);
+        const multi = redis.multi();
+
+        multi.sAdd(DriverRedisKeys.AVAILABLE_DRIVERS, driverId);
+
+        // remove userPhoneNumber field
+        multi.hDel(this.key(driverId), "userPhoneNumber");
+
+        multi.expire(this.key(driverId), this.ttlSeconds);
+
+        await multi.exec();
     }
 
     async markUnavailable(driverId: string) {

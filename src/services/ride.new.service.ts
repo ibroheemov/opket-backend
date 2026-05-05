@@ -638,6 +638,7 @@ export const RideService = {
 
     // RideService.ts
     async clearDriverRideState(rideId: string, event: string) {
+
         const rideKey = `ride:${rideId}`;
 
         const rideData = await redis.hGetAll(rideKey);
@@ -646,8 +647,13 @@ export const RideService = {
             (err as any).statusCode = 404; // or use a proper HttpError class
             throw err;
         }
-
         const driverId = rideData.driverId;
+
+        if (!driverId) {
+            console.warn(`No driver assigned for ride ${rideId}`);
+            return;
+        }
+
         await driverSessionStore.markAvailable(driverId);
 
 
@@ -747,7 +753,7 @@ export const RideService = {
             const [driverSession, rideData] = await Promise.all([
                 driverSessionStore.getCurrentSession(driverId),
                 redis.hGetAll(`ride:${rideId}`),
-                RideModel.findByIdAndUpdate(rideId, { driverId }),
+                RideModel.findByIdAndUpdate(rideId, { driverId, status: "accepted" }),
                 driverSessionStore.upsertSession({ driverId, userPhoneNumber: userPhone })
             ]);
 
