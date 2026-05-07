@@ -76,6 +76,7 @@ export interface IRestaurant extends Document {
     // Financials / settlement
     currency: string; // "UZS", "USD", etc.
     commission_percent: number; // marketplace commission
+    balance: number; // accumulated commission owed (negative = owes platform)
     payout: {
         enabled: boolean;
         bank_name?: string;
@@ -190,6 +191,7 @@ const restaurantSchema = new Schema<IRestaurant>(
 
         currency: { type: String, default: "UZS", trim: true },
         commission_percent: { type: Number, default: 0, min: 0, max: 100 },
+        balance: { type: Number, default: 0 },
         payout: {
             enabled: { type: Boolean, default: false },
             bank_name: { type: String, default: null },

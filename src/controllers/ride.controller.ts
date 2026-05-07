@@ -16,6 +16,7 @@ import { CompleteGhostRideRequestBody } from "../types/driver.types";
 import { GhostRideModel } from "../models/GhostRide";
 import { RideRequestInput } from "../modules/ride/ride.types";
 import { emitToUser } from "../gateway/ride.socket";
+import { OrderModel } from "../models/OrderModel";
 
 export const requestRide = async (req: AuthRequest, res: Response) => {
     try {
@@ -147,6 +148,14 @@ export const completeRide = async (req: AuthRequest, res: Response) => {
         }
 
         await RideService.completeRide({ driverId, rideId, distance, fare });
+
+        const ride = await RideModel.findById(rideId).select("orderId").lean();
+        if (ride?.orderId) {
+            await OrderModel.findByIdAndUpdate(ride.orderId, {
+                $set: { status: "DELIVERED" },
+                $push: { statusHistory: { status: "DELIVERED", at: new Date() } },
+            });
+        }
 
         const emitted = emitToUser(userPhoneNumber, "ride_completed", {});
 

@@ -41,12 +41,15 @@ export type OrderStatus =
     | "CANCELLED_BY_RESTAURANT"
     | "CANCELLED_NO_COURIER";
 
+export type ServiceType = "DINE_IN" | "DELIVERY" | "TAKEAWAY";
+
 export interface OrderModelDoc extends Document {
 
     restaurantId: Types.ObjectId;
     courierId?: Types.ObjectId | null;
     consumerId: Types.ObjectId;
     consumerPhone: number;
+    serviceType: ServiceType;
 
     items: OrderItem[];
 
@@ -55,8 +58,8 @@ export interface OrderModelDoc extends Document {
     orderNumber: number;
     orderDate: string;
 
-    dropoff: { lat: number; lon: number };
-    pickup: { lat: number; lon: number };
+    dropoff: { latitude: number; longitude: number };
+    pickup: { latitude: number; longitude: number };
 
     status: OrderStatus;
 
@@ -74,8 +77,8 @@ export interface OrderModelDoc extends Document {
 
 const latLonSchema = new Schema(
     {
-        lat: { type: Number, required: true, min: -90, max: 90 },
-        lon: { type: Number, required: true, min: -180, max: 180 },
+        latitude: { type: Number, required: true, min: -90, max: 90 },
+        longitude: { type: Number, required: true, min: -180, max: 180 },
     },
     { _id: false }
 );
@@ -141,6 +144,13 @@ const orderSchema = new Schema<OrderModelDoc>(
         courierId: { type: Schema.Types.ObjectId, required: false, ref: "Driver", default: null, index: true },
         consumerId: { type: Schema.Types.ObjectId, required: true, ref: "User", index: true },
         consumerPhone: { type: Number, required: true },
+        serviceType: {
+            type: String,
+            required: true,
+            default: "DELIVERY",
+            enum: ["DINE_IN", "DELIVERY", "TAKEAWAY"],
+            index: true,
+        },
 
         items: {
             type: [orderItemSchema],

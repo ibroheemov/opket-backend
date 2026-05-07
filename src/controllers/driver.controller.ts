@@ -23,6 +23,7 @@ import { driverSessionStore, DriverSessionStore } from "../store/driver.session.
 import { driverCapabilityStore } from "../store/driver.capability.store";
 import { GhostRideModel } from "../models/GhostRide";
 import { driverLocationStore } from "../store/driver.location.store";
+import { handleRideCommission } from "../utils/fare.helper";
 
 // import DriverModel from "../models/Driver"; // <- adjust path
 
@@ -325,6 +326,16 @@ export const setStatus = async (req: AuthRequest, res: Response) => {
 
         if (status === "online") {
             const driver = await DriverModel.findById(driverId).populate("tariffs");
+
+            if ((driver?.balance ?? 0) <= 0) {
+                return res.status(403).json({
+                    success: false,
+                    code: "NO_BALANCE",
+                    message: "Balansingiz yetarli emas. Iltimos, balansingizni to'ldiring.",
+                    balance: driver?.balance ?? 0,
+                });
+            }
+
             const services = driver?.enabledOptions ?? [];
             const tariff = getHighestRatedTariffType(driver);
 
@@ -497,8 +508,8 @@ export const completeGhostRide = async (req: AuthRequest, res: Response) => {
             { new: true }
         );
 
-
         await driverSessionStore.markAvailable(driverId);
+        handleRideCommission(driverId, Number(data.fare));
 
         return res.status(200).json({ success: true });
 

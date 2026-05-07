@@ -51,24 +51,24 @@ async function startServer() {
 
     // -------------------------------
     // Telegram webhook route
-    if (config.env === "production") {
-        app.post(`/bot${config.token}`, (req, res) => {
-            userBot.processUpdate(req.body); // forward update to your TelegramBot instance
-            res.sendStatus(200);
-        });
+    // if (config.env === "production") {
+    //     app.post(`/bot${config.token}`, (req, res) => {
+    //         userBot.processUpdate(req.body); // forward update to your TelegramBot instance
+    //         res.sendStatus(200);
+    //     });
 
-        // Set webhook if not already set
-        (async () => {
-            try {
-                const webhookInfo = await userBot.getWebHookInfo();
-                if (!webhookInfo.url || webhookInfo.url === "") {
-                    await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
-                } else {
-                }
-            } catch (err) {
-            }
-        })();
-    }
+    //     // Set webhook if not already set
+    //     (async () => {
+    //         try {
+    //             const webhookInfo = await userBot.getWebHookInfo();
+    //             if (!webhookInfo.url || webhookInfo.url === "") {
+    //                 await userBot.setWebHook(`${config.webhookDomain}/bot${config.token}`);
+    //             } else {
+    //             }
+    //         } catch (err) {
+    //         }
+    //     })();
+    // }
     // -------------------------------
     // simple health check
     app.get("/health", (req, res) => res.send("ok"));
@@ -77,16 +77,16 @@ async function startServer() {
     server.listen(PORT, () => {
 
 
-        if (config.env === "development") {
-            // Clear old updates to avoid phantom triggers
-            userBot.getUpdates({ offset: -1 }).then(() => {
-                attachHandlers(userBot);
-                userBot.startPolling(); // Only in dev
-            });
-        } else {
-            // Production: webhook is set in server.ts
-            attachHandlers(userBot);
-        }
+        // if (config.env === "development") {
+        //     // Clear old updates to avoid phantom triggers
+        //     userBot.getUpdates({ offset: -1 }).then(() => {
+        //         attachHandlers(userBot);
+        //         userBot.startPolling(); // Only in dev
+        //     });
+        // } else {
+        //     // Production: webhook is set in server.ts
+        //     attachHandlers(userBot);
+        // }
         console.log(`Listening on PORT: ${config.PORT}`)
     });
 }

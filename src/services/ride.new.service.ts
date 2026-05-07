@@ -4,6 +4,7 @@ import { sleep } from "../bot/utils/helpers";
 import { emitToDriver, emitToRestaurant, emitToUser } from "../gateway/ride.socket";
 import { DriverModel } from "../models/DriverModel";
 import { RideModel } from "../models/Ride";
+import { RestaurantModel } from "../models/Restaurant";
 import { RideConfig } from "../modules/ride/ride.config";
 import { RideKeys } from "../modules/ride/ride.keys";
 import { ACCEPT_RIDE_LUA, RESERVE_RIDE_LUA } from "../modules/ride/ride.lua";
@@ -967,8 +968,13 @@ export const RideService = {
         const rideData = { endedAt: new Date(), fare, distanceTraveled: distance, pauseSeconds };
         RideRepository.setRideStatus(rideId, "completed", { by: "driver" }, rideData);
 
-        // 6️⃣ Deduct commission & update driver balance
+        // Deduct driver commission
         handleRideCommission(driverId, Number(data.fare));
+
+        // For delivery rides, also deduct restaurant commission on itemsSubtotal
+        this.handleDeliveryRestaurantCommission(rideId).catch(err =>
+            console.error("Restaurant commission failed:", err)
+        );
 
         console.timeEnd("COMPLETE RIDE");
         return {
@@ -978,5 +984,30 @@ export const RideService = {
             distance,
             fare,
         };
+    },
+
+    async handleDeliveryRestaurantCommission(rideId: string) {
+        const ride = await RideModel.findById(rideId).select("isDelivery orderId").lean();
+        if (!ride?.isDelivery || !ride.orderId) return;
+
+        const order = await OrderModel.findById(ride.orderId)
+            .select("restaurantId pricing")
+            .lean();
+        if (!order) return;
+
+        const restaurant = await RestaurantModel.findById(order.restaurantId)
+            .select("commission_percent")
+            .lean();
+        if (!restaurant) return;
+
+        const commissionRate = (restaurant.commission_percent ?? 0) / 100;
+        const commission = order.pricing.itemsSubtotal * commissionRate;
+
+        if (commission > 0) {
+            await RestaurantModel.findByIdAndUpdate(
+                order.restaurantId,
+                { $inc: { balance: -commission } }
+            );
+        }
     },
 }

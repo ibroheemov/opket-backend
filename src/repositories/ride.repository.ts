@@ -44,9 +44,9 @@ export const RideRepository = {
     },
 
     async createRide(data: RideRequestInput) {
-        const { phone, pickup, dropoff, address, rideType, passengerId } = data;
+        const { phone, pickup, dropoff, address, rideType, passengerId, isDelivery, delivery } = data;
 
-        const mongoData = {
+        const mongoData: Record<string, any> = {
             userPhoneNumber: phone,
             pickup: { lat: pickup.latitude, lon: pickup.longitude, address },
             dropoff: dropoff
@@ -55,6 +55,12 @@ export const RideRepository = {
             rideType,
             passengerId,
         };
+
+        if (isDelivery && delivery) {
+            mongoData.isDelivery = true;
+            mongoData.fare = delivery.pricing.deliveryFee;
+            mongoData.orderId = delivery.orderId;
+        }
 
         try {
             console.time("mongo:create");
