@@ -28,6 +28,21 @@ export const registerDriverHandlers = async ({ socket, driverId }: DriverSocketC
     driverSockets.set(driverId, socket.id);
     console.log("🟢 DRIVER CONNECTED");
 
+    // Re-emit any active parallel offer the driver had before reconnecting
+    const activePayload = await redis.get(`driver_offer_payload:${driverId}`);
+    if (activePayload) {
+        try {
+            const payload = JSON.parse(activePayload);
+            const rideData = await redis.hGetAll(`ride:${payload.ride_id}`);
+            const phase = rideData?.phase;
+            if (phase && !['accepted', 'cancelled', 'expired'].includes(phase)) {
+                socket.emit("ride_offer", payload);
+            }
+        } catch (err) {
+            console.error("Failed to re-emit parallel offer on reconnect:", err);
+        }
+    }
+
     // ############## START OF NEW ##############
     socket.on(DriverSocketEvents.LOCATION_TO_PASSENGER, async (data: DriverSocketLocationToPassengerBody) => {
         const emitted = await emitToUser(data.phone, DriverSocketEvents.LOCATION, data);

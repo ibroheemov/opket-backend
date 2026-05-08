@@ -60,7 +60,6 @@ export class DriverSessionStore {
         await multi.exec();
     }
     async upsertSession(data: Partial<DriverSession> & { driverId: string }) {
-        console.log("SESSION", data);
 
         const key = this.key(data.driverId);
         const now = Date.now();
@@ -88,7 +87,6 @@ export class DriverSessionStore {
         const key = this.key(driverId);
         const session = await redis.hGetAll(key);
 
-        console.log("getCurrentSession", session, key);
         if (!session || Object.keys(session).length === 0) {
             return null;
         }

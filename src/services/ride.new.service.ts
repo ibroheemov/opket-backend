@@ -25,17 +25,15 @@ import { RidePhase } from "../utils/enums";
 import { DirectionsService } from "./direction.service";
 import { driverSessionStore } from "../store/driver.session.store";
 
-type StageMode = "single" | "all";
-
 type StageSpec = {
     radiusKm: number;
     ttlMs: number;
-    mode: StageMode;
-    uiSingleOffer?: boolean; // optional: controls isSingleOfferUi
+    batchSize: number | null; // null = all eligible drivers
+    isSingleOfferUi: boolean;
 };
 
 const rideSearchControllers = new Map<string, AbortController>();
-const attemptsByRide = new Map<string, Map<string, { lastTs: number; count: number }>>();
+const attemptsByRide = new Map<string, Map<string, { lastTs: number; count: number; declined: boolean }>>();
 
 const MAX_SEARCH_TIME_MS = 3 * 60 * 1000;
 const OFFERED_SET_EX_SECONDS = 300;
@@ -246,23 +244,61 @@ export const RideService = {
             return drivers.sort((a, b) => a.distKm - b.distKm);
         };
 
-        const canAttempt = (driverId: string, now = Date.now()) => {
-            const a = attempts.get(driverId);
-            if (!a) return true; // never offered
+        const scoreAndSort = async (candidates: DriverCandidate[]): Promise<DriverCandidate[]> => {
+            if (!candidates.length) return candidates;
 
-            // hard cap
-            if (a.count >= MAX_OFFERS_PER_DRIVER) return false;
+            const AVG_SPEED_KM_PER_MIN = 0.5; // 30 km/h
+            const now = Date.now();
 
-            // cooldown before the 2nd offer
-            return (now - a.lastTs) >= REOFFER_AFTER_MS;
+            const statsArr = await Promise.all(
+                candidates.map(c => redis.hGetAll(`driver_stats:${c.driverId}`))
+            );
+
+            return [...candidates]
+                .map((c, i) => {
+                    const raw = statsArr[i] ?? {};
+                    const offerCount = Number(raw.offerCount ?? 0);
+                    const acceptCount = Number(raw.acceptCount ?? 0);
+                    const lastOfferTs = Number(raw.lastOfferTs ?? 0);
+
+                    const etaMin = c.distKm / AVG_SPEED_KM_PER_MIN;
+                    const acceptRate = offerCount > 0 ? acceptCount / offerCount : 1.0;
+                    const idleMinutes = Math.min((now - lastOfferTs) / 60_000, 10);
+                    const score = etaMin * (2 - acceptRate) - idleMinutes * 0.1;
+
+                    return { candidate: c, score };
+                })
+                .sort((a, b) => a.score - b.score)
+                .map(x => x.candidate);
         };
 
-        // ✅ Call this ONLY after we successfully reserved+emitted
+        const canAttempt = (driverId: string, now = Date.now()) => {
+            const a = attempts.get(driverId);
+            if (!a) return true;
+            if (a.count >= MAX_OFFERS_PER_DRIVER) return false;
+            const cooldown = a.declined ? REOFFER_AFTER_MS * 2 : REOFFER_AFTER_MS;
+            return (now - a.lastTs) >= cooldown;
+        };
+
         const markAttempt = (driverId: string, now = Date.now()) => {
             const prev = attempts.get(driverId);
             attempts.set(driverId, {
                 count: (prev?.count ?? 0) + 1,
                 lastTs: now,
+                declined: prev?.declined ?? false,
+            });
+            const statsKey = `driver_stats:${driverId}`;
+            redis.hIncrBy(statsKey, 'offerCount', 1).catch(() => {});
+            redis.hSet(statsKey, { lastOfferTs: now.toString() }).catch(() => {});
+            redis.expire(statsKey, 7 * 24 * 3600).catch(() => {});
+        };
+
+        const markDecline = (driverId: string, now = Date.now()) => {
+            const prev = attempts.get(driverId);
+            attempts.set(driverId, {
+                count: prev?.count ?? 0,
+                lastTs: now,
+                declined: true,
             });
         };
 
@@ -291,8 +327,17 @@ export const RideService = {
                 rideId,
                 rideData,
                 candidate,
-                isSingleOfferUi
+                isSingleOfferUi,
+                ttlMs,
             );
+
+            if (!isSingleOfferUi) {
+                await redis.set(
+                    `driver_offer_payload:${driverId}`,
+                    JSON.stringify(payload),
+                    { PX: ttlMs }
+                );
+            }
 
             await Promise.all([
                 emitToDriver(driverId, "ride_offer", payload),
@@ -319,8 +364,7 @@ export const RideService = {
             await Promise.all([
                 redis.del(reservationKey),
                 redis.del(driverOfferKey),
-                emitToDriver(driverId, "ride_already_taken", { rideId }),
-                emitToDriver(`${driverId}-bg`, "ride_already_taken", { rideId }),
+                redis.del(`driver_offer_payload:${driverId}`),
             ]);
         };
 
@@ -354,21 +398,30 @@ export const RideService = {
                         checkStop,
                         fetchCandidatesInRadius: (radiusKm: number) =>
                             fetchCandidatesInRadius(radiusKm),
+                        scoreAndSort,
                         canAttempt,
                         markAttempt,
                         reserveAndEmit,
                         cleanupOffer,
                     });
 
-                    if ((await runStage({ radiusKm: 3, ttlMs: 8000, mode: "single" })).acceptedDriverId) return;
+                    // Stage 0: batch of 3, 1 km, 9 s — full-screen offer
+                    if ((await runStage({ radiusKm: 1, ttlMs: 9000, batchSize: 3, isSingleOfferUi: true })).acceptedDriverId) return;
 
                     await sleep(LOOP_GAP_MS);
 
-                    if ((await runStage({ radiusKm: 0.7, ttlMs: 8000, mode: "all" })).acceptedDriverId) return;
+                    // Stage 1: batch of 3, 1.5 km, 9 s — full-screen offer
+                    if ((await runStage({ radiusKm: 1.5, ttlMs: 9000, batchSize: 3, isSingleOfferUi: true })).acceptedDriverId) return;
 
                     await sleep(LOOP_GAP_MS);
 
-                    if ((await runStage({ radiusKm: 3, ttlMs: 25000, mode: "all" })).acceptedDriverId) return;
+                    // Stage 2: all eligible, 2 km, 15 s — list widget
+                    if ((await runStage({ radiusKm: 2, ttlMs: 15000, batchSize: null, isSingleOfferUi: false })).acceptedDriverId) return;
+
+                    await sleep(LOOP_GAP_MS);
+
+                    // Stage 3: all eligible, 2 km, 25 s — list widget (tier fallback starts here)
+                    if ((await runStage({ radiusKm: 2, ttlMs: 25000, batchSize: null, isSingleOfferUi: false })).acceptedDriverId) return;
 
                     await sleep(LOOP_GAP_MS);
                 }
@@ -386,6 +439,8 @@ export const RideService = {
             if (rideData.userPhoneNumber) {
                 emitToUser(Number(rideData.userPhoneNumber), "ride_no_drivers", null);
             }
+
+            this.notifyOfferedDriversSearchStopped({ rideId });
 
         } catch (err: any) {
             if (err?.message === "Aborted") return;
@@ -420,6 +475,7 @@ export const RideService = {
 
         checkStop: () => Promise<boolean>;
         fetchCandidatesInRadius: (radiusKm: number) => Promise<DriverCandidate[]>;
+        scoreAndSort: (candidates: DriverCandidate[]) => Promise<DriverCandidate[]>;
         canAttempt: (driverId: string, now?: number) => boolean;
         markAttempt: (driverId: string, now?: number) => void;
 
@@ -447,48 +503,31 @@ export const RideService = {
             const candidates = await ctx.fetchCandidatesInRadius(spec.radiusKm);
             if (!candidates.length) return { acceptedDriverId: null };
 
-            const eligible =
-                spec.mode === "single"
-                    ? (() => {
-                        const nearest = candidates.find(c => ctx.canAttempt(c.driverId));
-                        return nearest ? [nearest] : [];
-                    })()
-                    : candidates.filter(c => ctx.canAttempt(c.driverId));
+            const sorted = await ctx.scoreAndSort(candidates);
+            const eligible = sorted.filter(c => ctx.canAttempt(c.driverId));
+            const batch = spec.batchSize !== null ? eligible.slice(0, spec.batchSize) : eligible;
 
-            if (!eligible.length) return { acceptedDriverId: null };
+            if (!batch.length) return { acceptedDriverId: null };
 
             const rideData = await getRideData();
-
             const reservedDriverIds: string[] = [];
 
-            if (spec.mode === "single") {
-                const cand = eligible[0];
-                const { ok, driverId } = await ctx.reserveAndEmit(
-                    cand,
-                    rideData,
-                    spec.ttlMs,
-                    spec.uiSingleOffer ?? true
-                );
-                if (!ok) return { acceptedDriverId: null };
-                ctx.markAttempt(driverId);
-                reservedDriverIds.push(driverId);
-            } else {
-                await Promise.all(
-                    eligible.map(async (cand) => {
-                        const { ok, driverId } = await ctx.reserveAndEmit(
-                            cand,
-                            rideData,
-                            spec.ttlMs,
-                            spec.uiSingleOffer ?? false
-                        );
-                        if (ok) {
-                            ctx.markAttempt(driverId);
-                            reservedDriverIds.push(driverId);
-                        }
-                    })
-                );
-                if (!reservedDriverIds.length) return { acceptedDriverId: null };
-            }
+            await Promise.all(
+                batch.map(async (cand) => {
+                    const { ok, driverId } = await ctx.reserveAndEmit(
+                        cand,
+                        rideData,
+                        spec.ttlMs,
+                        spec.isSingleOfferUi
+                    );
+                    if (ok) {
+                        ctx.markAttempt(driverId);
+                        reservedDriverIds.push(driverId);
+                    }
+                })
+            );
+
+            if (!reservedDriverIds.length) return { acceptedDriverId: null };
 
             const acceptedDriverId = await RideService.waitForAcceptanceWithFallback(
                 ctx.rideId,
@@ -501,7 +540,13 @@ export const RideService = {
 
             // cleanup if timed out
             if (!(await redis.get(ctx.acceptKey))) {
-                await Promise.all(reservedDriverIds.map(id => ctx.cleanupOffer(id)));
+                await Promise.all(reservedDriverIds.map(async (id) => {
+                    await ctx.cleanupOffer(id);
+                    await Promise.all([
+                        emitToDriver(id, "ride_search_stopped", { rideId: ctx.rideId }),
+                        emitToDriver(`${id}-bg`, "ride_search_stopped", { rideId: ctx.rideId }),
+                    ]);
+                }));
             }
 
             return { acceptedDriverId: null };
@@ -529,6 +574,7 @@ export const RideService = {
         attempts.set(driverId, {
             count: 2,
             lastTs: Date.now(),
+            declined: false,
         });
 
         this.searchForDriversSequential(rideId, rideType, pickup, phone, controller.signal, options)
@@ -607,7 +653,8 @@ export const RideService = {
         rideId: string,
         rideData: Record<string, string>,
         candidate: { distKm: number },
-        isSingleOffer: boolean
+        isSingleOffer: boolean,
+        ttlMs?: number,
     ) {
         const travelTimeMin = calculateApproxTime(candidate.distKm);
 
@@ -621,6 +668,7 @@ export const RideService = {
             channelKey: isSingleOffer ? "ride_channel_v7" : "ride_channel_parallel_v7",
             title: isSingleOffer ? "Sizga yangi buyurtma bor" : "O'rtadagi buyurtma",
             ride_id: rideId,
+            ttlMs: ttlMs ?? 9000,
             phone: rideData.userPhoneNumber ?? '',
             chatId: rideData.userChatId ?? '',
             pickup: JSON.stringify({
@@ -659,7 +707,10 @@ export const RideService = {
 
 
         emitToDriver(driverId, event, { rideId });
-        await redis.del(`driver_offer:${driverId}`);
+        await Promise.all([
+            redis.del(`driver_offer:${driverId}`),
+            redis.del(`driver_offer_payload:${driverId}`),
+        ]);
 
         await FcmService.sendDriverMessage({ id: driverId, title: "Mijoz buyurtmani bekor qildi", body: "" });
     },
@@ -725,16 +776,18 @@ export const RideService = {
         // stop search immediately (don’t await heavy stuff)
         this.stopSearching(rideId);
         attemptsByRide.delete(rideId);
+        redis.hIncrBy(`driver_stats:${driverId}`, "acceptCount", 1).catch(() => {});
 
         const tx = redis.multi()
             .del(reservationKey)
             .del(driverOfferKey)
+            .del(`driver_offer_payload:${driverId}`)
             .hSet(rideKey, { phase: "accepted" })
             .publish("ride.accepted", JSON.stringify({ rideId, driverId }))
             .hmGet(rideKey, "userPhoneNumber");
 
-        const res = await tx.exec() as [any, any, any, any, any, [string | null]];
-        const userPhone = Number(res?.[4]?.[0]);
+        const res = await tx.exec() as [any, any, any, any, any, any, [string | null]];
+        const userPhone = Number(res?.[5]?.[0]);
         await driverSessionStore.markUnavailable(driverId);
 
         return { success: true, userPhone };
@@ -921,6 +974,7 @@ export const RideService = {
                         .multi()
                         .del(`ride_reservation:${rideId}:${id}`)
                         .del(`driver_offer:${id}`)
+                        .del(`driver_offer_payload:${id}`)
                         .exec();
                 }
 
@@ -984,6 +1038,17 @@ export const RideService = {
             distance,
             fare,
         };
+    },
+
+    markDriverDecline(rideId: string, driverId: string) {
+        const attempts = attemptsByRide.get(rideId);
+        if (!attempts) return;
+        const prev = attempts.get(driverId);
+        attempts.set(driverId, {
+            count: prev?.count ?? 0,
+            lastTs: Date.now(),
+            declined: true,
+        });
     },
 
     async handleDeliveryRestaurantCommission(rideId: string) {
