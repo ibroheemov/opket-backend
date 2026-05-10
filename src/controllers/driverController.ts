@@ -12,6 +12,14 @@ import { generateAccessToken, generateRefreshToken, signJwt } from "../utils/jwt
 import { services } from "../data/fare.database";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { driverCapabilityStore } from "../store/driver.capability.store";
+import { randomBytes } from "crypto";
+import { ReferralRecordModel } from "../models/ReferralRecordModel";
+import { SettingsModel, SETTINGS_KEYS } from "../models/SettingsModel";
+import CarOption from "../models/CarOption";
+
+function generateReferralCode(): string {
+    return randomBytes(4).toString("hex").toUpperCase();
+}
 
 export const updateLocation = async (req: AuthRequest, res: Response) => {
     const { lat, lon, bearing } = req.body;
@@ -263,9 +271,9 @@ export const driverDashboard = async (req: AuthRequest, res: Response) => {
                 status: driver.status,
                 location: driver.location,
                 currentRideId: driver.currentRideId,
-                selfie: driver.selfie,
-                driver_license: driver.driver_license,
-                passport: driver.passport,
+                driver_photo: driver.driver_photo,
+                license_front: driver.license_front,
+                license_back: driver.license_back,
             },
             rides,
         });
@@ -277,73 +285,92 @@ export const driverDashboard = async (req: AuthRequest, res: Response) => {
 
 export const registerDriver = async (req: AuthRequest, res: Response) => {
     try {
-        const { firstname, lastname, phone, carNumber, carModel, carColor, regionCode, password } = req.body;
+        const { firstname, lastname, phone, carNumber, carModel, carColor, regionCode, password, referralCode: usedReferralCode } = req.body;
 
         if (!firstname || !lastname || !phone) {
             return res.status(400).json({ message: "firstname, lastname and phone are required" });
         }
 
-        // Prevent duplicate phone registrations
         const existing = await DriverModel.findOne({ phone });
         if (existing) {
             return res.status(400).json({ message: "Bu telefon raqamli haydovchi ro'yxatdan o'tgan" });
         }
 
+        let referredBy: string | undefined;
+        let referrerId: string | undefined;
+        if (usedReferralCode) {
+            const referrer = await DriverModel.findOne({ referralCode: usedReferralCode }).select("_id");
+            if (referrer) {
+                referredBy = referrer._id.toString();
+                referrerId = referrer._id.toString();
+            }
+        }
+
+        // Generate a unique referral code for this new driver
+        let referralCode: string;
+        let attempts = 0;
+        do {
+            referralCode = generateReferralCode();
+            attempts++;
+        } while (await DriverModel.exists({ referralCode }) && attempts < 10);
+
         const name = `${firstname} ${lastname}`;
         const vehicle = `${carModel || "Unknown"} - ${carNumber || "N/A"}`;
 
         const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-        const licenseFile = files?.driverLicense?.[0];
+        const frontFile = files?.licenseFront?.[0];
+        const backFile = files?.licenseBack?.[0];
+        const photoFile = files?.driverPhoto?.[0];
 
-        /**
-         * 1️⃣ Create driver immediately
-         */
         const newDriver = new DriverModel({
-            name,
-            firstname,
-            lastname,
-            phone,
-            password,
-            vehicle,
-            regionCode,
-            carColor,
-            carModel,
-            carNumber,
+            name, firstname, lastname, phone, password, vehicle,
+            regionCode, carColor, carModel, carNumber,
             status: "offline",
-
-            // driver license state
-            driver_license_status: licenseFile ? "PENDING_UPLOAD" : "NOT_PROVIDED",
+            documentsApproved: false,
+            canReceiveOffers: false,
+            referralCode,
+            referralBonus: 0,
+            ...(referredBy && { referredBy }),
+            license_front:  { status: frontFile ? "PENDING_UPLOAD" : "NOT_PROVIDED" },
+            license_back:   { status: backFile  ? "PENDING_UPLOAD" : "NOT_PROVIDED" },
+            driver_photo:   { status: photoFile ? "PENDING_UPLOAD" : "NOT_PROVIDED" },
         });
 
         await newDriver.save();
 
-        /**
-         * 2️⃣ Background upload (fire-and-forget)
-         */
-        if (licenseFile) {
-            void uploadBufferToCloudinary(licenseFile.buffer, "drivers")
-                .then(({ url, public_id }) =>
-                    DriverModel.findByIdAndUpdate(newDriver._id, {
-                        driver_license: {
-                            url,
-                            publicId: public_id,
-                            status: "UPLOADED",
-                        },
-                    })
-                )
-                .catch((err) => {
-                    console.error("Driver license upload failed:", err);
-
-                    return DriverModel.findByIdAndUpdate(newDriver._id, {
-                        "driver_license.status": "UPLOAD_FAILED",
-                    });
-                });
+        if (referrerId) {
+            ReferralRecordModel.create({
+                referrerId,
+                referredId: newDriver._id.toString(),
+                referredUserType: "driver",
+                status: "pending_location",
+            }).catch((err) => {
+                if (err.code !== 11000) console.error("Failed to create driver referral record:", err);
+            });
         }
 
-        /**
-         * 3️⃣ Tokens & response
-         */
-        const accessToken = generateAccessToken({ id: newDriver._id, role: "DRIVER" });
+        const uploadDoc = async (
+            file: Express.Multer.File,
+            field: "license_front" | "license_back" | "driver_photo"
+        ) => {
+            try {
+                const { url, public_id } = await uploadBufferToCloudinary(file.buffer, "drivers");
+                await DriverModel.findByIdAndUpdate(newDriver._id, {
+                    [field]: { url, publicId: public_id, status: "UPLOADED" },
+                });
+            } catch (err) {
+                console.error(`Upload failed for ${field}:`, err);
+                await DriverModel.findByIdAndUpdate(newDriver._id, {
+                    [`${field}.status`]: "UPLOAD_FAILED",
+                });
+            }
+        };
+
+        if (frontFile) void uploadDoc(frontFile, "license_front");
+        if (backFile)  void uploadDoc(backFile,  "license_back");
+        if (photoFile) void uploadDoc(photoFile, "driver_photo");
+
+        const accessToken  = generateAccessToken({ id: newDriver._id, role: "DRIVER" });
         const refreshToken = generateRefreshToken({ id: newDriver._id, role: "DRIVER" });
 
         return res.status(200).json({
@@ -354,9 +381,134 @@ export const registerDriver = async (req: AuthRequest, res: Response) => {
         });
     } catch (err: any) {
         console.error("register driver error:", err);
-        return res.status(500).json({
-            message: "Internal server error",
-            error: err.message,
+        return res.status(500).json({ message: "Internal server error", error: err.message });
+    }
+};
+
+export const approveDriverDocuments = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const driver = await DriverModel.findById(id);
+
+        if (!driver) return res.status(404).json({ message: "Driver not found" });
+
+        // Send FCM approval notification to the approved driver
+        if (driver.fcmToken) {
+            try {
+                await admin.messaging().send({
+                    token: driver.fcmToken,
+                    android: { priority: "high" },
+                    notification: {
+                        title: "Hujjatlaringiz tasdiqlandi ✅",
+                        body: "Siz endi linyaga chiqib buyurtma olishingiz mumkin!",
+                    },
+                });
+            } catch (_) {}
+        }
+
+        // Send FCM referral bonus notification to the referrer
+        if (driver.referredBy) {
+            try {
+                const bonusSetting = await SettingsModel.findOne({ key: SETTINGS_KEYS.DRIVER_REFERRAL_BONUS });
+                const bonusAmount = bonusSetting?.value ?? 0;
+
+                if (bonusAmount > 0) {
+                    const referrer = await DriverModel.findById(driver.referredBy).select("fcmToken");
+                    if (referrer?.fcmToken) {
+                        try {
+                            await admin.messaging().send({
+                                token: referrer.fcmToken,
+                                android: { priority: "high" },
+                                data: {
+                                    type: "referral_bonus",
+                                    amount: bonusAmount.toString(),
+                                    message: `Referalingiz tasdiqlandi! Hisobingizga ${bonusAmount} UZS bonus qo'shildi.`,
+                                },
+                                notification: {
+                                    title: "Referral bonus 🎉",
+                                    body: `Referalingiz tasdiqlandi! ${bonusAmount} UZS bonus qo'shildi.`,
+                                },
+                            });
+                        } catch (_) {}
+                    }
+                }
+            } catch (bonusErr) {
+                console.error("Failed to send referral bonus FCM:", bonusErr);
+            }
+        }
+
+        return res.status(200).json({ success: true, driver });
+    } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+    }
+};
+
+export const rejectDriverDocuments = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { comment } = req.body as { comment?: string };
+        const driver = await DriverModel.findById(id);
+
+        if (!driver) return res.status(404).json({ message: "Driver not found" });
+
+        if (driver.fcmToken) {
+            try {
+                await admin.messaging().send({
+                    token: driver.fcmToken,
+                    android: { priority: "high" },
+                    notification: {
+                        title: "Hujjatlaringiz rad etildi ❌",
+                        body: comment
+                            ? `Sabab: ${comment}`
+                            : "Hujjatlaringiz qabul qilinmadi. Iltimos, qayta yuklang.",
+                    },
+                });
+            } catch (_) {}
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+    }
+};
+
+export const resetDriverDocumentStatus = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const driver = await DriverModel.findById(id);
+
+        if (!driver) return res.status(404).json({ message: "Driver not found" });
+
+        if (driver.fcmToken) {
+            try {
+                await admin.messaging().send({
+                    token: driver.fcmToken,
+                    android: { priority: "high" },
+                    notification: {
+                        title: "Hujjatlaringiz qayta ko'rib chiqilmoqda 🔄",
+                        body: "Administrator hujjatlaringizni qayta ko'rib chiqmoqda. Tez orada xabar beramiz.",
+                    },
+                });
+            } catch (_) {}
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (err: any) {
+        return res.status(500).json({ message: err.message });
+    }
+};
+
+export const getRegistrationOptions = async (req: Request, res: Response) => {
+    try {
+        const [carModels, carColors] = await Promise.all([
+            CarOption.find({ type: "car_model" }).sort({ sort_order: 1 }).lean(),
+            CarOption.find({ type: "car_color" }).sort({ sort_order: 1 }).lean(),
+        ]);
+        res.json({
+            carModels: carModels.map((m) => m.value),
+            carColors: carColors.map((c) => c.value),
         });
+    } catch (error) {
+        res.status(500).json({ error });
     }
 };

@@ -24,6 +24,7 @@ import { CompleteGhostRideRequestBody } from "../types/driver.types";
 import { RidePhase } from "../utils/enums";
 import { DirectionsService } from "./direction.service";
 import { driverSessionStore } from "../store/driver.session.store";
+import { RideSearchConfigService } from "./ride.search.config.service";
 
 type StageSpec = {
     radiusKm: number;
@@ -35,11 +36,8 @@ type StageSpec = {
 const rideSearchControllers = new Map<string, AbortController>();
 const attemptsByRide = new Map<string, Map<string, { lastTs: number; count: number; declined: boolean }>>();
 
-const MAX_SEARCH_TIME_MS = 3 * 60 * 1000;
 const OFFERED_SET_EX_SECONDS = 300;
-const REOFFER_AFTER_MS = 10_000;  // 
 const LOOP_GAP_MS = 250;            // small pause between phases
-const MAX_OFFERS_PER_DRIVER = 2;
 
 export const RideService = {
     async requestRide(input: RideRequestInput) {
@@ -50,12 +48,14 @@ export const RideService = {
 
         if (!lockAcquired) {
             console.warn(`⚠️ Search already running for ride ${rideId}`);
-            return { ride_id: rideId };
+            const cfg = await RideSearchConfigService.get();
+            return { ride_id: rideId, searchDurationMs: cfg.searchDurationMs };
         }
 
+        const cfg = await RideSearchConfigService.get();
         this.startDriverSearch(rideId, input);
 
-        return { ride_id: rideId };
+        return { ride_id: rideId, searchDurationMs: cfg.searchDurationMs };
     },
 
     async initializeRideStateAndLock(rideId: string, input: RideRequestInput) {
@@ -173,6 +173,11 @@ export const RideService = {
         signal?: AbortSignal,
         options?: string[],
     ) {
+        const cfg = await RideSearchConfigService.get();
+        const MAX_SEARCH_TIME_MS = cfg.searchDurationMs;
+        const REOFFER_AFTER_MS = cfg.reofferAfterMs;
+        const MAX_OFFERS_PER_DRIVER = cfg.maxOffersPerDriver;
+
         const rideKey = `ride:${rideId}`;
         const cancelKey = `ride_cancel:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;
@@ -405,23 +410,23 @@ export const RideService = {
                         cleanupOffer,
                     });
 
-                    // Stage 0: batch of 3, 1 km, 9 s — full-screen offer
-                    if ((await runStage({ radiusKm: 1, ttlMs: 9000, batchSize: 3, isSingleOfferUi: true })).acceptedDriverId) return;
+                    // Stage 0: batch, small radius, full-screen offer
+                    if ((await runStage({ radiusKm: cfg.stage1RadiusKm, ttlMs: cfg.stage1TtlMs, batchSize: cfg.stage1BatchSize, isSingleOfferUi: true })).acceptedDriverId) return;
 
                     await sleep(LOOP_GAP_MS);
 
-                    // Stage 1: batch of 3, 1.5 km, 9 s — full-screen offer
-                    if ((await runStage({ radiusKm: 1.5, ttlMs: 9000, batchSize: 3, isSingleOfferUi: true })).acceptedDriverId) return;
+                    // Stage 1: batch, wider radius, full-screen offer
+                    if ((await runStage({ radiusKm: cfg.stage2RadiusKm, ttlMs: cfg.stage2TtlMs, batchSize: cfg.stage2BatchSize, isSingleOfferUi: true })).acceptedDriverId) return;
 
                     await sleep(LOOP_GAP_MS);
 
-                    // Stage 2: all eligible, 2 km, 15 s — list widget
-                    if ((await runStage({ radiusKm: 2, ttlMs: 15000, batchSize: null, isSingleOfferUi: false })).acceptedDriverId) return;
+                    // Stage 2: all eligible, list widget
+                    if ((await runStage({ radiusKm: cfg.stage3RadiusKm, ttlMs: cfg.stage3TtlMs, batchSize: null, isSingleOfferUi: false })).acceptedDriverId) return;
 
                     await sleep(LOOP_GAP_MS);
 
-                    // Stage 3: all eligible, 2 km, 25 s — list widget (tier fallback starts here)
-                    if ((await runStage({ radiusKm: 2, ttlMs: 25000, batchSize: null, isSingleOfferUi: false })).acceptedDriverId) return;
+                    // Stage 3: all eligible, list widget (tier fallback starts here)
+                    if ((await runStage({ radiusKm: cfg.stage4RadiusKm, ttlMs: cfg.stage4TtlMs, batchSize: null, isSingleOfferUi: false })).acceptedDriverId) return;
 
                     await sleep(LOOP_GAP_MS);
                 }

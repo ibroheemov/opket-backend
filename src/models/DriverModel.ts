@@ -45,12 +45,18 @@ export interface IDriverDocument extends Document {
     fcmToken?: string;
     chatId?: number;
     referrals?: number;
+    referralCode?: string;
+    referralBonus: number;
+    referredBy?: string;
     currentRideId?: string;
 
-    // Uploads (refactored)
-    selfie?: IUploadMeta;
-    driver_license?: IUploadMeta;
-    passport?: IUploadMeta;
+    // Uploads
+    license_front?: IUploadMeta;
+    license_back?: IUploadMeta;
+    driver_photo?: IUploadMeta;
+    documentsApproved: boolean;
+    documentsRejected?: boolean;
+    rejectionComment?: string;
 
     balance: number;
     commissionRate?: number;
@@ -116,14 +122,20 @@ const DriverSchema = new Schema<IDriverDocument>(
         otpExpiresAt: Date,
         chatId: Number,
         referrals: Number,
+        referralCode: { type: String, unique: true, sparse: true },
+        referralBonus: { type: Number, default: 0 },
+        referredBy: { type: String },
         currentRideId: String,
 
         // Uploads
-        selfie: { type: UploadSchema, default: () => ({}) },
-        driver_license: { type: UploadSchema, default: () => ({}) },
-        passport: { type: UploadSchema, default: () => ({}) },
+        license_front: { type: UploadSchema, default: () => ({ status: "NOT_PROVIDED" }) },
+        license_back: { type: UploadSchema, default: () => ({ status: "NOT_PROVIDED" }) },
+        driver_photo: { type: UploadSchema, default: () => ({ status: "NOT_PROVIDED" }) },
+        documentsApproved: { type: Boolean, default: false },
+        documentsRejected: { type: Boolean, default: false },
+        rejectionComment: { type: String },
 
-        canReceiveOffers: { type: Boolean, default: true },
+        canReceiveOffers: { type: Boolean, default: false },
         blocked: { type: Boolean, default: false },
         hasPremiumCar: { type: Boolean, default: false },
 

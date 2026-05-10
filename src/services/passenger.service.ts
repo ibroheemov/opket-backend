@@ -1,7 +1,9 @@
 import { PassengerModel } from "../models/PassengerModel";
-
+import { DriverModel } from "../models/DriverModel";
+import { SettingsModel, SETTINGS_KEYS } from "../models/SettingsModel";
+import { ReferralRecordModel } from "../models/ReferralRecordModel";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
-import { updateDriverBalance } from "../controllers/driver.controller";
+import mongoose from "mongoose";
 
 export class PassengerService {
     static async createOrUpdatePassenger({
@@ -55,10 +57,36 @@ export class PassengerService {
         const passenger = await PassengerModel.create({ phone });
 
         if (referralCode) {
-            updateDriverBalance(referralCode, 0);
+            await this.createPassengerReferralRecord(passenger._id.toString(), referralCode);
         }
 
         return this.buildAuthResponse(passenger, "New user created");
+    }
+
+    private static async createPassengerReferralRecord(passengerId: string, referralCode: string) {
+        try {
+            const isObjectId = mongoose.Types.ObjectId.isValid(referralCode) && referralCode.length === 24;
+            const driver = isObjectId
+                ? await DriverModel.findById(referralCode).select("_id")
+                : await DriverModel.findOne({ referralCode }).select("_id");
+
+            if (!driver) {
+                console.warn(`Passenger referral: no driver found for code "${referralCode}"`);
+                return;
+            }
+
+            await ReferralRecordModel.create({
+                referrerId: driver._id,
+                referredId: passengerId,
+                referredUserType: "passenger",
+                status: "pending_location",
+            });
+        } catch (err: any) {
+            // Ignore duplicate key (passenger already has a record)
+            if (err.code !== 11000) {
+                console.error("Failed to create passenger referral record:", err);
+            }
+        }
     }
 
     private static buildAuthResponse(user: any, message: string) {

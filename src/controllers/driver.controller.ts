@@ -1,8 +1,13 @@
 // src/controllers/fareController.ts
 import { Request, Response } from "express";
+import { randomBytes } from "crypto";
 import { getFareByCity } from "../services/fare.service";
 import { AuthRequest } from "../middlewares/auth";
 import { DriverModel } from "../models/DriverModel";
+
+function generateReferralCode(): string {
+    return randomBytes(4).toString("hex").toUpperCase();
+}
 import { WorkingAreaService } from "../services/working.area.service";
 import { driverStore } from "../store/driverStore";
 import { driverStoreRedis } from "../store/driverStoreRedis";
@@ -368,13 +373,27 @@ export const setStatus = async (req: AuthRequest, res: Response) => {
             // 2 remove from geo indexes
             await driverLocationStore.removeDriver(driverId);
 
-            // 3 fetch services
-            const driver = await DriverModel.findById(driverId).select("enabledOptions");
+            // 3 fetch services + fcmToken
+            const driver = await DriverModel.findById(driverId).select("enabledOptions fcmToken");
 
             const services = driver?.enabledOptions ?? [];
 
             // 4 remove from capability sets
             await driverCapabilityStore.removeDriver(driverId, services);
+
+            // 5 notify driver via FCM
+            if (driver?.fcmToken) {
+                try {
+                    await admin.messaging().send({
+                        token: driver.fcmToken,
+                        android: { priority: "high" },
+                        notification: {
+                            title: "Siz linyadan chiqdingiz",
+                            body: "Linyaga chiqish uchun ilovada GO ni bosing",
+                        },
+                    });
+                } catch (_) {}
+            }
         }
 
         return res.status(200).json({ success: true });
@@ -554,5 +573,39 @@ export const startRide = async (req: AuthRequest, res: Response) => {
 
     } catch (err: any) {
         return res.status(500).json({ message: err?.message });
+    }
+};
+
+export const getDriverReferralInfo = async (req: AuthRequest, res: Response) => {
+    try {
+        const driverId = req.driverId;
+        if (!driverId) return res.status(401).json({ error: "Unauthorized" });
+
+        let driver = await DriverModel.findById(driverId).select("referralCode referralBonus referrals");
+        if (!driver) return res.status(404).json({ error: "Driver not found" });
+
+        // Auto-generate a referral code for drivers who registered before the referral system
+        if (!driver.referralCode) {
+            let referralCode: string;
+            let attempts = 0;
+            do {
+                referralCode = generateReferralCode();
+                attempts++;
+            } while (await DriverModel.exists({ referralCode }) && attempts < 10);
+
+            driver = await DriverModel.findByIdAndUpdate(
+                driverId,
+                { referralCode },
+                { new: true }
+            ).select("referralCode referralBonus referrals");
+        }
+
+        return res.json({
+            referralCode: driver!.referralCode,
+            referralBonus: driver!.referralBonus ?? 0,
+            referralCount: driver!.referrals ?? 0,
+        });
+    } catch (err: any) {
+        return res.status(500).json({ error: err.message });
     }
 };

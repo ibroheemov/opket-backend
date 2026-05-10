@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateDriver } from "../middlewares/auth";
-import { driverDashboard, getCarOptions, getDriver, getDriverBalance, getDriverBalanceNew, registerDriver, toggleCarOption, updateLocation, updateStatus } from "../controllers/driverController";
+import { driverDashboard, getCarOptions, getDriver, getDriverBalance, getDriverBalanceNew, registerDriver, toggleCarOption, updateLocation, updateStatus, approveDriverDocuments, rejectDriverDocuments, resetDriverDocumentStatus } from "../controllers/driverController";
 import { upload } from "../middlewares/upload";
 import { registerFcm } from "../controllers/driver/registerFcm";
 import { getWeeklyStats, getWeeklyStatsNew } from "../controllers/driver/getWeeklyStats";
@@ -12,11 +12,14 @@ import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchFareConfigNew, fetchWorkingAreas } from "../controllers/fare.controller";
 import { acceptRide, completeRide, toggleRideOption } from "../controllers/ride.controller";
 import { getDirections } from "../controllers/driver/getDirections";
-import { cancelRide, completeGhostRide, createGhostRide, deductFromUser, generateQrLink, getDriverStatus, getMyRides, getRideStatus, setStatus, startRide, updateAppVersion } from "../controllers/driver.controller";
+import { cancelRide, completeGhostRide, createGhostRide, deductFromUser, generateQrLink, getDriverReferralInfo, getDriverStatus, getMyRides, getRideStatus, setStatus, startRide, updateAppVersion } from "../controllers/driver.controller";
+import { getRegistrationOptions } from "../controllers/driverController";
 import { skipRide } from "../controllers/userController";
+import { verifyDriverReferralLocation, getDriverReferralRecords } from "../controllers/referral.controller";
 
 const router = express.Router();
 
+router.get("/registration-options", getRegistrationOptions);
 router.post("/send-otpr", authController.sendOtp);
 router.post("/check-driver", authController.checkDriver);
 router.post("/login", authController.login);
@@ -41,15 +44,21 @@ router.get("/working-areas", fetchWorkingAreas);
 router.post(
     "/register",
     upload.fields([
-        { name: "selfie", maxCount: 1 },
-        { name: "driverLicense", maxCount: 1 },
-        { name: "passport", maxCount: 1 },
+        { name: "licenseFront", maxCount: 1 },
+        { name: "licenseBack",  maxCount: 1 },
+        { name: "driverPhoto",  maxCount: 1 },
     ]),
     registerDriver
 );
+router.post("/:id/approve-documents", approveDriverDocuments);
+router.post("/:id/reject-documents", rejectDriverDocuments);
+router.post("/:id/reset-document-status", resetDriverDocumentStatus);
 router.post("/accept-ride/:id", authenticateDriver, acceptRide);
 // router.post("/skip-ride/:id", authenticateDriver, skipRide);
 router.get("/generate-qr-link", authenticateDriver, generateQrLink);
+router.get("/referral", authenticateDriver, getDriverReferralInfo);
+router.get("/referral-records", authenticateDriver, getDriverReferralRecords);
+router.post("/referral/verify-location", authenticateDriver, verifyDriverReferralLocation);
 router.post("/complete-ride", authenticateDriver, completeRide);
 router.post("/skip-ride", authenticateDriver, skipRide);
 router.post("/cancel-ride", authenticateDriver, cancelRide);
