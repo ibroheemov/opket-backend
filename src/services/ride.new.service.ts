@@ -723,6 +723,13 @@ export const RideService = {
     async acceptRide(rideId: string, driverId: string) {
         console.time("ACCEPT RIDE");
 
+        // Guard: session may have expired while driver was still in presence sets
+        const session = await driverSessionStore.getCurrentSession(driverId);
+        if (!session) {
+            await driverSessionStore.setOffline(driverId);
+            return { success: false, reason: "DRIVER_SESSION_EXPIRED" };
+        }
+
         const now = Date.now();
         const rideKey = `ride:${rideId}`;
         const acceptKey = `ride_accept:${rideId}`;

@@ -3,6 +3,7 @@ import { createClient } from 'redis';
 import { config } from '../bot/config/env';
 import { driverSessionStore } from '../store/driver.session.store';
 import { driverLocationStore } from '../store/driver.location.store';
+import { emitToDriver } from '../gateway/ride.socket';
 
 const reconnectStrategy = (retries: number) => Math.min(retries * 200, 5000);
 
@@ -38,6 +39,7 @@ subscriber.subscribe("__keyevent@0__:expired", async (key: string) => {
 
         await driverLocationStore.removeDriver(driverId);
         await driverSessionStore.setOffline(driverId);
+        emitToDriver(driverId, "forced_offline", { reason: "session_expired" });
     }
 });
 redis.on('error', (err) => console.error('Redis Client Error', err));
@@ -50,6 +52,8 @@ async function connectRedis() {
         redis.connect(),
         redisSub.connect(),
     ]);
+    // Required for __keyevent@0__:expired subscription to fire
+    await redis.configSet('notify-keyspace-events', 'KEx');
     console.log('Connected to Redis (cmd + sub)');
 }
 
