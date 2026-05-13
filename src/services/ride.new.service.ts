@@ -34,7 +34,7 @@ type StageSpec = {
 };
 
 const rideSearchControllers = new Map<string, AbortController>();
-const attemptsByRide = new Map<string, Map<string, { lastTs: number; count: number; declined: boolean }>>();
+const attemptsByRide = new Map<string, Map<string, { lastTs: number; count: number; declined: boolean; hadSingleOffer: boolean }>>();
 
 const OFFERED_SET_EX_SECONDS = 300;
 const LOOP_GAP_MS = 250;            // small pause between phases
@@ -277,34 +277,27 @@ export const RideService = {
                 .map(x => x.candidate);
         };
 
-        const canAttempt = (driverId: string, now = Date.now()) => {
+        const canAttempt = (driverId: string, isSingleOfferUi: boolean, now = Date.now()) => {
             const a = attempts.get(driverId);
             if (!a) return true;
             if (a.count >= MAX_OFFERS_PER_DRIVER) return false;
+            if (!isSingleOfferUi && a.hadSingleOffer) return false;
             const cooldown = a.declined ? REOFFER_AFTER_MS * 2 : REOFFER_AFTER_MS;
             return (now - a.lastTs) >= cooldown;
         };
 
-        const markAttempt = (driverId: string, now = Date.now()) => {
+        const markAttempt = (driverId: string, isSingleOfferUi: boolean, now = Date.now()) => {
             const prev = attempts.get(driverId);
             attempts.set(driverId, {
                 count: (prev?.count ?? 0) + 1,
                 lastTs: now,
                 declined: prev?.declined ?? false,
+                hadSingleOffer: prev?.hadSingleOffer || isSingleOfferUi,
             });
             const statsKey = `driver_stats:${driverId}`;
-            redis.hIncrBy(statsKey, 'offerCount', 1).catch(() => {});
-            redis.hSet(statsKey, { lastOfferTs: now.toString() }).catch(() => {});
-            redis.expire(statsKey, 7 * 24 * 3600).catch(() => {});
-        };
-
-        const markDecline = (driverId: string, now = Date.now()) => {
-            const prev = attempts.get(driverId);
-            attempts.set(driverId, {
-                count: prev?.count ?? 0,
-                lastTs: now,
-                declined: true,
-            });
+            redis.hIncrBy(statsKey, 'offerCount', 1).catch(() => { });
+            redis.hSet(statsKey, { lastOfferTs: now.toString() }).catch(() => { });
+            redis.expire(statsKey, 7 * 24 * 3600).catch(() => { });
         };
 
         const reserveAndEmit = async (
@@ -481,8 +474,8 @@ export const RideService = {
         checkStop: () => Promise<boolean>;
         fetchCandidatesInRadius: (radiusKm: number) => Promise<DriverCandidate[]>;
         scoreAndSort: (candidates: DriverCandidate[]) => Promise<DriverCandidate[]>;
-        canAttempt: (driverId: string, now?: number) => boolean;
-        markAttempt: (driverId: string, now?: number) => void;
+        canAttempt: (driverId: string, isSingleOfferUi: boolean, now?: number) => boolean;
+        markAttempt: (driverId: string, isSingleOfferUi: boolean, now?: number) => void;
 
         reserveAndEmit: (
             candidate: DriverCandidate,
@@ -509,7 +502,7 @@ export const RideService = {
             if (!candidates.length) return { acceptedDriverId: null };
 
             const sorted = await ctx.scoreAndSort(candidates);
-            const eligible = sorted.filter(c => ctx.canAttempt(c.driverId));
+            const eligible = sorted.filter(c => ctx.canAttempt(c.driverId, spec.isSingleOfferUi));
             const batch = spec.batchSize !== null ? eligible.slice(0, spec.batchSize) : eligible;
 
             if (!batch.length) return { acceptedDriverId: null };
@@ -526,7 +519,7 @@ export const RideService = {
                         spec.isSingleOfferUi
                     );
                     if (ok) {
-                        ctx.markAttempt(driverId);
+                        ctx.markAttempt(driverId, spec.isSingleOfferUi);
                         reservedDriverIds.push(driverId);
                     }
                 })
@@ -580,6 +573,7 @@ export const RideService = {
             count: 2,
             lastTs: Date.now(),
             declined: false,
+            hadSingleOffer: false,
         });
 
         this.searchForDriversSequential(rideId, rideType, pickup, phone, controller.signal, options)
@@ -788,7 +782,7 @@ export const RideService = {
         // stop search immediately (don’t await heavy stuff)
         this.stopSearching(rideId);
         attemptsByRide.delete(rideId);
-        redis.hIncrBy(`driver_stats:${driverId}`, "acceptCount", 1).catch(() => {});
+        redis.hIncrBy(`driver_stats:${driverId}`, "acceptCount", 1).catch(() => { });
 
         const tx = redis.multi()
             .del(reservationKey)
@@ -1060,6 +1054,7 @@ export const RideService = {
             count: prev?.count ?? 0,
             lastTs: Date.now(),
             declined: true,
+            hadSingleOffer: prev?.hadSingleOffer ?? false,
         });
     },
 

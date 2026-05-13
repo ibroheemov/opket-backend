@@ -237,7 +237,7 @@ async function sendOfferToDriverParallel(rideId: string, candidate: any, cancelS
 /**
  * Main function: top 3 sequential, remaining parallel with cancellation and DB cleanup
  */
-export async function sendOfferToDrivers(rideId: string) {
+export async function sendOfferToDrivers(rideId: string, signal?: AbortSignal) {
     if (processingRides.has(rideId)) {
         console.log(`⚠️ Ride ${rideId} is already being processed`);
         return;
@@ -246,6 +246,8 @@ export async function sendOfferToDrivers(rideId: string) {
     console.log(`🚦 Starting to send offers for ride ${rideId}`);
 
     try {
+        if (signal?.aborted) return;
+
         const ride = await RideModel.findById(rideId).lean();
         if (!ride) return;
 
@@ -260,13 +262,16 @@ export async function sendOfferToDrivers(rideId: string) {
         // --- Top 3 sequential ---
         const top3 = ride.candidateDrivers.slice(0, 3);
         for (const candidate of top3) {
+            if (signal?.aborted) return;
             const accepted = await sendOfferToDriverSequentially(rideId, candidate);
             if (accepted) return;
         }
 
         // --- Remaining candidates in parallel ---
+        if (signal?.aborted) return;
         const remaining = ride.candidateDrivers.slice(3);
         const cancelSignal = { cancelled: false };
+        signal?.addEventListener('abort', () => { cancelSignal.cancelled = true; });
         await Promise.all(remaining.map((c) => sendOfferToDriverParallel(rideId, c, cancelSignal)));
     } catch (err) {
         console.error("🔥 sendOfferToDrivers error:", err);

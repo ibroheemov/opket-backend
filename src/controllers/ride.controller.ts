@@ -46,7 +46,8 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
             return res.status(401).json({ success: false, message: "Avtorizatsiyadan o'ting" });
         }
 
-        const acceptResult: { success: boolean } = await RideService.acceptRide(id, driverId);
+        const acceptResult: { success: boolean; reason?: string; winnerDriverId?: string } =
+            await RideService.acceptRide(id, driverId);
         const ride = await RideModel.findById(id).lean();
 
         if (!ride) {
@@ -54,10 +55,14 @@ export const acceptRide = async (req: AuthRequest, res: Response) => {
         }
 
         if (!acceptResult.success) {
-            return res.status(409).json({
-                success: false,
-                message: "Buyurtma boshqa haydovchi tomonidan qabul qilingan",
-            });
+            const failureMessages: Record<string, string> = {
+                accepted: "Buyurtma boshqa haydovchi tomonidan qabul qilindi",
+                cancelled: "Buyurtma yo'lovchi tomonidan bekor qilindi",
+            };
+            const message =
+                failureMessages[acceptResult.reason ?? ""] ??
+                `Buyurtmani qabul qilib bo'lmadi (sabab: ${acceptResult.reason ?? "noma'lum"})`;
+            return res.status(409).json({ success: false, message });
         }
 
         return res.status(200).json({ success: true, message: "Buyurtma qabul qilindi" });

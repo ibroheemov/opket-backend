@@ -1,6 +1,7 @@
 import { RideRepository } from "../repositories/ride.repository";
 import { DriverRepository } from "../repositories/driver.repository";
 import { DriverModel } from "../models/DriverModel";
+import { DriverRedisKeys } from "../utils/enums";
 import { DriverLocation } from "../types/location";
 import { sendOfferToDrivers } from "../utils/sendOfferToNextDriver";
 import { safeAsync } from "../utils/asyncHelper";
@@ -26,10 +27,15 @@ const ACCEPT_MULTI_LUA = `
 
 local status = redis.call("HGET", KEYS[1], "status")
 
--- Already accepted
+-- Already accepted by another driver
 if status == "accepted" then
   local winner = redis.call("HGET", KEYS[1], "driverId")
-  return {0, winner}  -- 0 = fail, winner driverId
+  return {0, "accepted", winner}
+end
+
+-- Cancelled by user or system
+if status == "cancelled" then
+  return {0, "cancelled", ""}
 end
 
 -- If pending/offered, accept
@@ -48,7 +54,7 @@ end
 -- Delete ride_offers set
 redis.call("DEL", KEYS[2])
 
-return {1, ARGV[1]}  -- 1 = success, driverId
+return {1, "accepted", ARGV[1]}  -- 1 = success
 `;
 
 const rideSearchControllers = new Map<string, AbortController>();
@@ -142,7 +148,7 @@ export const RideService = {
                     driverId: nearest.driverId,
                 });
 
-                sendOfferToDrivers(rideId);
+                sendOfferToDrivers(rideId, signal);
             };
 
             await checkDrivers();
@@ -210,17 +216,17 @@ export const RideService = {
 
         if (err) throw new Error(`Redis error: ${err.message}`);
 
-        const [accepted, winner] = result as [number, string];
+        const [accepted, reason, winner] = result as [number, string, string];
 
         if (accepted === 0) {
-            // Ride already accepted by another driver
-            return { success: false, winnerDriverId: winner };
+            return { success: false, reason, winnerDriverId: winner };
         }
 
         // Ride successfully accepted by this driver
-        // 1️⃣ Update driver current ride
+        // 1️⃣ Update driver state and remove from candidate pool so no further offers are sent
         await redis.hSet(`driver:${driverId}`, { currentRideId: rideId });
         await redis.del(`driver:${driverId}:offers`);
+        await redis.sRem(DriverRedisKeys.AVAILABLE_DRIVERS, driverId);
 
         RideService.stopSearching(rideId);
         driverStoreRedis.clearOffer(driverId);
@@ -275,8 +281,9 @@ export const RideService = {
         if (rideErr) throw new Error(`Failed to update ride status: ${rideErr.message}`);
         if (!ride) throw new Error(`Ride ${rideId} not found`);
 
-        // Sync driver store
+        // Sync driver store and restore availability
         driverStoreRedis.upsert(driverId, { currentRideId: null });
+        await redis.sAdd(DriverRedisKeys.AVAILABLE_DRIVERS, driverId);
 
         // 2. Update ride fields (endedAt, fare, distance)
         const [updateRideErr] = await safeAsync(() =>
