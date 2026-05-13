@@ -10,6 +10,8 @@ import adminRoutes from "./routes/admin";
 import paynetRoutes from "./routes/paynet";
 import driverRoutes from "./routes/driver.routes";
 import fareRoutes from "./routes/fare.routes";
+import discountRoutes from "./routes/discount.routes";
+import ridePublicRoutes from "./routes/ride.public.routes";
 import foodRoutes from "./routes/food.routes";
 import cors from "cors";
 import admin from 'firebase-admin';
@@ -47,6 +49,8 @@ async function startServer() {
     app.use("/driver", driverRoutes);
     app.use("/food", foodRoutes);
     app.use("/fare", fareRoutes);
+    app.use("/discount", discountRoutes);
+    app.use("/ride", ridePublicRoutes);
     app.use("/driver", makeDriverAuthController(driverRepo));
 
     // -------------------------------

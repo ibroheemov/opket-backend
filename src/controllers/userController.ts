@@ -15,6 +15,7 @@ import { Types } from "mongoose";
 import { PassengerService } from "../services/passenger.service";
 import { FcmService } from "../services/fcm.service";
 import { driverSessionStore } from "../store/driver.session.store";
+import { incrementCancelReason } from "./cancellationReason.controller";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {
@@ -90,7 +91,7 @@ export const deleteAccount = async (req: Request, res: Response) => {
 
 export const cancelRide = async (req: Request, res: Response) => {
     try {
-        const { rideId } = req.body;
+        const { rideId, reasonKey } = req.body;
         if (!rideId) return res.status(400).json({ error: "rideId required" });
         const ride = await RideModel.findById(rideId);
 
@@ -101,6 +102,11 @@ export const cancelRide = async (req: Request, res: Response) => {
         RideService.stopSearching(rideId);
         RideService.clearDriverRideState(rideId, "ride_cancelled");
         RideRepository.setRideStatus(rideId, "cancelled", { by: "user" });
+
+        // Fire-and-forget stat increment so cancel latency stays the same.
+        if (typeof reasonKey === "string" && reasonKey.length > 0) {
+            void incrementCancelReason(reasonKey);
+        }
 
         return res.json({ rideId, message: "Buyurtma bekor qilindi" });
     } catch (err: any) {
