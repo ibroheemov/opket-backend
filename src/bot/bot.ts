@@ -1,37 +1,36 @@
 import TelegramBot from 'node-telegram-bot-api';
+import dotenv from 'dotenv';
 
-const token = process.env.BOT_TOKEN!;
+const env = process.env.NODE_ENV || 'development';
+dotenv.config({ path: env === 'production' ? '.env.production' : '.env.development' });
+
+const token = process.env.OPKET_BOT_TOKEN;
+if (!token) {
+    throw new Error('OPKET_BOT_TOKEN is not set. Add it to your .env file.');
+}
 const bot = new TelegramBot(token, { polling: true });
 
-// /start command
+const APP_STORE_URL = 'https://apps.apple.com/us/app/opket-taxi/id6759873649';
+const GOOGLE_PLAY_URL = 'https://play.google.com/store/apps/details?id=com.saabiqoon.tasbeeh';
+
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
 
-    await bot.sendPhoto(
+    await bot.sendMessage(
         chatId,
-        'https://picsum.photos/400/300', // image URL
+        '🚖 *Opket Taxi’ga xush kelibsiz!*\n\n' +
+        'Tez, qulay va arzon taksi xizmati endi sizning telefoningizda.\n\n' +
+        '📲 Ilovani hoziroq yuklab oling va birinchi safaringizni boshlang:',
         {
-            caption: '👋 Welcome!\nThis is a demo bot with image and button.',
+            parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [
-                        {
-                            text: 'Click me 🚀',
-                            callback_data: 'btn_click',
-                        },
-                    ],
+                    [{ text: '🍎 App Store’dan yuklash', url: APP_STORE_URL }],
+                    [{ text: '🤖 Google Play’dan yuklash', url: GOOGLE_PLAY_URL }],
                 ],
             },
         }
     );
-});
-
-// Handle button click
-bot.on('callback_query', async (query) => {
-    if (query.data === 'btn_click') {
-        await bot.answerCallbackQuery(query.id);
-        await bot.sendMessage(query.message!.chat.id, 'You clicked the button!');
-    }
 });
 
 console.log('Bot is running...');
