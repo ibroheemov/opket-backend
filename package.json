@@ -4,10 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "bot-dev": "NODE_ENV=development node dist/bot/PassengerBot.js",
-    "bot": "NODE_ENV=production node dist/bot/PassengerBot.js",
-    "dev": "NODE_ENV=development node dist/server.js",
-    "paynet": "NODE_ENV=development node dist/server.js",
+    "bot-dev": "cross-env NODE_ENV=development node dist/bot/PassengerBot.js",
+    "bot": "cross-env NODE_ENV=production node dist/bot/PassengerBot.js",
+    "opket-bot-dev": "cross-env NODE_ENV=development node dist/bot/bot.js",
+    "opket-bot": "cross-env NODE_ENV=production node dist/bot/bot.js",
+    "dev": "cross-env NODE_ENV=development node dist/server.js",
+    "paynet": "cross-env NODE_ENV=development node dist/server.js",
     "build": "tsc",
     "start": "node dist/server.js"
   },
@@ -59,6 +61,7 @@
     "@types/streamifier": "^0.1.2",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.4",
+    "cross-env": "^7.0.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }

@@ -125,11 +125,13 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
         const translatedStatus = statusTranslation[status] ?? status;
 
-        FcmService.sendPassengerMessage({
-            id: order.consumerId.toString(),
-            title: `Buyurtma #${order.orderNumber}: ${translatedStatus}`,
-            body: ""
-        });
+        if (order.consumerId) {
+            FcmService.sendPassengerMessage({
+                id: order.consumerId.toString(),
+                title: `Buyurtma #${order.orderNumber}: ${translatedStatus}`,
+                body: "",
+            });
+        }
         await order.save();
         return ok(res, order);
     } catch (err: any) {
