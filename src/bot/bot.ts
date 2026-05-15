@@ -18,15 +18,14 @@ bot.onText(/\/start/, async (msg) => {
 
     await bot.sendMessage(
         chatId,
-        '🚖 *Opket Taxi’ga xush kelibsiz!*\n\n' +
-        'Tez, qulay va arzon taksi xizmati endi sizning telefoningizda.\n\n' +
-        '📲 Ilovani hoziroq yuklab oling va birinchi safaringizni boshlang:',
+        '🚖 *OPKET TAXI ga xush kelibsiz!*\n' +
+        '⬇️ Ilovani yuklab oling ⬇️',
         {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: '🍎 App Store’dan yuklash', url: APP_STORE_URL }],
-                    [{ text: '🤖 Google Play’dan yuklash', url: GOOGLE_PLAY_URL }],
+                    [{ text: '🍎 Android uchun', url: GOOGLE_PLAY_URL }],
+                    [{ text: '🤖 iPhone uchun', url: APP_STORE_URL }],
                 ],
             },
         }
