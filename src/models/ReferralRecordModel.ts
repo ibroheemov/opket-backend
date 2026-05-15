@@ -1,6 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 
-export type ReferralStatus = "pending_location" | "approved" | "out_of_range";
+export type ReferralStatus = "pending_location" | "approved" | "rejected";
 export type ReferredUserType = "passenger" | "driver";
 
 const ReferralRecordSchema = new Schema(
@@ -10,10 +10,14 @@ const ReferralRecordSchema = new Schema(
         referredUserType: { type: String, enum: ["passenger", "driver"], required: true },
         status: {
             type: String,
-            enum: ["pending_location", "approved", "out_of_range"],
+            enum: ["pending_location", "approved", "rejected"],
             default: "pending_location",
         },
         bonusAmount: { type: Number, default: 0 },
+        referredLocation: {
+            lat: { type: Number },
+            lng: { type: Number },
+        },
         verifiedAt: { type: Date },
     },
     { timestamps: true }

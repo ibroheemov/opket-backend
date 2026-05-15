@@ -19,6 +19,7 @@ export interface RideRequestInput {
     address?: string;
     delivery?: DeliveryData;
     isDelivery: boolean;
+    useBalance?: boolean;
 }
 
 export interface DeliveryData {

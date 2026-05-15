@@ -44,7 +44,7 @@ export const RideRepository = {
     },
 
     async createRide(data: RideRequestInput) {
-        const { phone, pickup, dropoff, address, rideType, passengerId, isDelivery, delivery } = data;
+        const { phone, pickup, dropoff, address, rideType, passengerId, isDelivery, delivery, useBalance } = data;
 
         const mongoData: Record<string, any> = {
             userPhoneNumber: phone,
@@ -54,6 +54,7 @@ export const RideRepository = {
                 : undefined,
             rideType,
             passengerId,
+            useBalance: useBalance ?? false,
         };
 
         if (isDelivery && delivery) {

@@ -73,6 +73,7 @@ export interface IRide extends Document {
     pickup_directions?: IRouteData;
     isDelivery?: boolean;
     orderId?: Types.ObjectId | null;
+    useBalance?: boolean;
 }
 
 const rideSchema = new Schema<IRide>({
@@ -156,6 +157,7 @@ const rideSchema = new Schema<IRide>({
     },
     isDelivery: { type: Boolean, default: false },
     orderId: { type: Types.ObjectId, ref: "Order", default: null },
+    useBalance: { type: Boolean, default: false },
 });
 
 export const RideModel = mongoose.model<IRide>("Ride", rideSchema);

@@ -15,8 +15,9 @@ import { driverStoreRedis } from "../store/driverStoreRedis";
 import { CompleteGhostRideRequestBody } from "../types/driver.types";
 import { GhostRideModel } from "../models/GhostRide";
 import { RideRequestInput } from "../modules/ride/ride.types";
-import { emitToUser } from "../gateway/ride.socket";
+import { emitToDriver, emitToUser } from "../gateway/ride.socket";
 import { OrderModel } from "../models/OrderModel";
+import { PassengerModel } from "../models/PassengerModel";
 
 export const requestRide = async (req: AuthRequest, res: Response) => {
     try {
@@ -226,6 +227,44 @@ export const declineRide = async (req: AuthRequest, res: Response) => {
     }
 };
 
+
+export const toggleUseBalance = async (req: AuthRequest, res: Response) => {
+    try {
+        const { rideId } = req.params;
+        const { useBalance } = req.body;
+
+        if (typeof useBalance !== "boolean") {
+            return res.status(400).json({ error: "useBalance must be a boolean" });
+        }
+
+        const ride = await RideModel.findOneAndUpdate(
+            { _id: rideId, status: { $in: ["pending", "offered", "accepted", "arrived", "started"] } },
+            { useBalance },
+            { new: true }
+        );
+
+        if (!ride) {
+            return res.status(404).json({ error: "Ride not found or already completed" });
+        }
+
+        if (ride.driverId) {
+            const driverId = ride.driverId.toString();
+            let passengerBalance = 0;
+            if (useBalance && ride.userPhoneNumber) {
+                const passenger = await PassengerModel.findOne({ phone: ride.userPhoneNumber }).select("balance").lean();
+                passengerBalance = passenger?.balance ?? 0;
+            }
+            const payload = { rideId, useBalance, passengerBalance };
+            emitToDriver(driverId, "use_balance_updated", payload);
+            emitToDriver(`${driverId}-bg`, "use_balance_updated", payload);
+        }
+
+        return res.json({ ok: true, useBalance: ride.useBalance });
+    } catch (err) {
+        console.error("toggleUseBalance error:", err);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+};
 
 export const currentRide = async (req: Request, res: Response) => {
     try {

@@ -15,7 +15,7 @@ import { getDirections } from "../controllers/driver/getDirections";
 import { cancelRide, completeGhostRide, createGhostRide, deductFromUser, generateQrLink, getDriverReferralInfo, getDriverStatus, getMyRides, getRideStatus, setStatus, startRide, updateAppVersion } from "../controllers/driver.controller";
 import { getRegistrationOptions } from "../controllers/driverController";
 import { skipRide } from "../controllers/userController";
-import { verifyDriverReferralLocation, getDriverReferralRecords } from "../controllers/referral.controller";
+import { getDriverReferralRecords, submitDriverReferralLocation } from "../controllers/referral.controller";
 
 const router = express.Router();
 
@@ -58,7 +58,7 @@ router.post("/accept-ride/:id", authenticateDriver, acceptRide);
 router.get("/generate-qr-link", authenticateDriver, generateQrLink);
 router.get("/referral", authenticateDriver, getDriverReferralInfo);
 router.get("/referral-records", authenticateDriver, getDriverReferralRecords);
-router.post("/referral/verify-location", authenticateDriver, verifyDriverReferralLocation);
+router.post("/referral/submit-location", authenticateDriver, submitDriverReferralLocation);
 router.post("/complete-ride", authenticateDriver, completeRide);
 router.post("/skip-ride", authenticateDriver, skipRide);
 router.post("/cancel-ride", authenticateDriver, cancelRide);

@@ -59,6 +59,8 @@ export interface IDriverDocument extends Document {
     rejectionComment?: string;
 
     balance: number;
+    cashbackBalance: number;
+    wallet: number;
     commissionRate?: number;
     canReceiveOffers: boolean;
     blocked?: boolean;
@@ -97,6 +99,8 @@ const DriverSchema = new Schema<IDriverDocument>(
 
         password: { type: String },
         balance: { type: Number, default: 0 },
+        cashbackBalance: { type: Number, default: 0 },
+        wallet: { type: Number, default: 0 },
         commissionRate: { type: Number },
 
         carModel: String,

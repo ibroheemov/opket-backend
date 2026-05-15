@@ -15,6 +15,7 @@ import { RideRepository } from "../repositories/ride.repository";
 import { driverStoreRedis } from "../store/driverStoreRedis";
 import { calculateApproxTime } from "../utils/calculateApproxTime";
 import { handleRideCommission } from "../utils/fare.helper";
+import { handlePassengerCashback } from "../utils/cashback.helper";
 import { sendFcm } from "../utils/sendFcm";
 import { sendToToken } from "./notifications";
 import { PassengerModel } from "../models/PassengerModel";
@@ -44,6 +45,11 @@ export const RideService = {
         const ride = await RideRepository.createRide(input);
         const rideId = ride.id;
 
+        if (input.useBalance && input.phone) {
+            const passenger = await PassengerModel.findOne({ phone: input.phone }).select("balance").lean();
+            (input as any)._passengerBalance = passenger?.balance ?? 0;
+        }
+
         const lockAcquired = await this.initializeRideStateAndLock(rideId, input);
 
         if (!lockAcquired) {
@@ -62,7 +68,7 @@ export const RideService = {
         const now = Date.now();
         const key = RideKeys.ride(rideId);
 
-        const payload = this.buildRideRedisPayload(input, now);
+        const payload = this.buildRideRedisPayload(input, now, (input as any)._passengerBalance ?? 0);
 
         const pipeline = redis.multi();
 
@@ -88,7 +94,7 @@ export const RideService = {
     async initializeRideState(rideId: string, input: RideRequestInput) {
         const now = Date.now();
 
-        const payload = this.buildRideRedisPayload(input, now);
+        const payload = this.buildRideRedisPayload(input, now, (input as any)._passengerBalance ?? 0);
 
         const key = RideKeys.ride(rideId);
 
@@ -97,7 +103,7 @@ export const RideService = {
         await redis.del(RideKeys.cancel(rideId));
     },
 
-    buildRideRedisPayload(input: RideRequestInput, now: number) {
+    buildRideRedisPayload(input: RideRequestInput, now: number, passengerBalance = 0) {
         const {
             phone,
             pickup,
@@ -105,7 +111,8 @@ export const RideService = {
             address,
             rideType,
             delivery,
-            isDelivery
+            isDelivery,
+            useBalance,
         } = input;
 
         return {
@@ -126,6 +133,9 @@ export const RideService = {
 
             isDelivery: isDelivery ? "1" : "0",
             deliveryData: delivery ? JSON.stringify(delivery) : "",
+
+            useBalance: useBalance ? "1" : "0",
+            passengerBalance: passengerBalance.toString(),
         };
     },
 
@@ -681,6 +691,9 @@ export const RideService = {
 
             isDelivery,
             delivery,
+
+            useBalance: rideData.useBalance === "1",
+            passengerBalance: Number(rideData.passengerBalance ?? 0),
         };
     },
 
@@ -1030,6 +1043,22 @@ export const RideService = {
 
         // Deduct driver commission
         handleRideCommission(driverId, Number(data.fare));
+
+        // Transfer passenger balance to driver cashbackBalance (if passenger opted in)
+        const ride = await RideModel.findById(rideId).select("useBalance userPhoneNumber").lean();
+        if (ride?.useBalance && ride.userPhoneNumber) {
+            const passenger = await PassengerModel.findOne({ phone: ride.userPhoneNumber });
+            if (passenger && passenger.balance > 0) {
+                const transfer = Math.min(passenger.balance, Number(fare));
+                await PassengerModel.findByIdAndUpdate(passenger._id, { $inc: { balance: -transfer } });
+                await DriverModel.findByIdAndUpdate(driverId, { $inc: { wallet: transfer } });
+            }
+        }
+
+        // Credit cashback reward to passenger balance
+        handlePassengerCashback(ride?.userPhoneNumber).catch(err =>
+            console.error("Passenger cashback failed:", err)
+        );
 
         // For delivery rides, also deduct restaurant commission on itemsSubtotal
         this.handleDeliveryRestaurantCommission(rideId).catch(err =>

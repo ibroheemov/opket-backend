@@ -11,6 +11,7 @@ import { socketIo, userSockets } from "../gateway/socket.maps";
 import { RideCompletedPayload } from "../bot/socket/types";
 import { emitToDriver, emitToUser, updateRideStatus } from "../gateway/ride.socket";
 import { handleRideCommission } from "../utils/fare.helper";
+import { handlePassengerCashback } from "../utils/cashback.helper";
 import { PassengerModel } from "../models/PassengerModel";
 import { getSession } from "../bot/services/sessionManager";
 import { sendFcm } from "../utils/sendFcm";
@@ -324,7 +325,20 @@ export const RideService = {
         // const { balance, commission } = commissionResult!;
         if (updatedDriver?.fcmToken) sendFcm(updatedDriver?.fcmToken, commission!);
 
-        // 6. Notify user (if online)
+        // 5. Transfer passenger balance to driver cashbackBalance (if passenger opted in)
+        if (rideUpdte?.useBalance && ride.userPhoneNumber) {
+            const passenger = await PassengerModel.findOne({ phone: ride.userPhoneNumber });
+            if (passenger && passenger.balance > 0) {
+                const transfer = Math.min(passenger.balance, Number(fare));
+                await PassengerModel.findByIdAndUpdate(passenger._id, { $inc: { balance: -transfer } });
+                await DriverModel.findByIdAndUpdate(driverId, { $inc: { wallet: transfer } });
+            }
+        }
+
+        // 6. Credit cashback to passenger balance
+        await handlePassengerCashback(ride.userPhoneNumber);
+
+        // 7. Notify user (if online)
         emitToUser(ride.userPhoneNumber, "ride_completed", data);
     }
 };

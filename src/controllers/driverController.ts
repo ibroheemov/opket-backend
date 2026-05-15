@@ -229,12 +229,12 @@ export const getDriverBalanceNew = async (req: AuthRequest, res: Response) => {
     try {
         const driverId = req.driverId;
 
-        const driver = await DriverModel.findById(driverId).select("balance");
+        const driver = await DriverModel.findById(driverId).select("balance wallet");
         if (!driver) {
             return res.status(404).json({ message: "Driver not found" });
         }
 
-        return res.json({ balance: driver.balance || 0 });
+        return res.json({ balance: driver.balance || 0, wallet: (driver as any).wallet || 0 });
     } catch (error) {
         console.error("Error fetching driver balance:", error);
         res.status(500).json({ message: "Server error" });

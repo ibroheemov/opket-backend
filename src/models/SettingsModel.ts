@@ -2,6 +2,7 @@ import mongoose, { Schema } from "mongoose";
 
 export const SETTINGS_KEYS = {
     COMMISSION: "commission",
+    CASHBACK: "cashback",
     DRIVER_REFERRAL_BONUS: "driver_referral_bonus",
     PASSENGER_REFERRAL_BONUS: "passenger_referral_bonus",
     REFERRAL_ZONE_LAT: "referral_zone_lat",
