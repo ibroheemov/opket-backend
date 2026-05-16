@@ -27,7 +27,7 @@ export const updateAppVersionPassenger = async (req: Request, res: Response) => 
             updateData.appVersion = version;
         }
 
-        if (notificationEnabled) {
+        if (notificationEnabled !== undefined && notificationEnabled !== null) {
             if (typeof notificationEnabled !== "boolean") {
                 return res.status(400).json({
                     success: false,

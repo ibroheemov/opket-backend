@@ -9,15 +9,18 @@ import { fetchFareConfigUser } from "../controllers/fare.user.controller";
 import { registerPassengerFcm } from "../controllers/general.passenger.controller";
 import { verifyPassenger } from "../controllers/passenger/verifyPassenger";
 import { updateAppVersionPassenger } from "../controllers/passenger/updateAppVersionPassenger";
+import { reportPassengerInfo } from "../controllers/passenger/reportPassengerInfo";
 import { authenticateDriver } from "../middlewares/auth";
 import { getMyRidesPassenger } from "../controllers/passenger.controller";
 import { submitPassengerReferralLocation } from "../controllers/referral.controller";
+import { getMyReferralCode } from "../controllers/passenger/getMyReferralCode";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = express.Router();
 
 router.get("/verify-passenger/:phone", verifyPassenger);
 router.post("/app-version/:phone", updateAppVersionPassenger);
+router.post("/report", authenticateDriver, reportPassengerInfo);
 router.get("/:id/get-passenger", getPassenger);
 router.get("/:id/balance", getPassengerBalance);
 router.post("/:id/pay-fare", payfare);
@@ -34,5 +37,6 @@ router.post("/delete-account", deleteAccount);
 router.post("/:phone/registerFcm", registerPassengerFcm);
 router.get("/rides", authenticateDriver, getMyRidesPassenger);
 router.post("/referral/submit-location", requireAuth, submitPassengerReferralLocation);
+router.get("/my-referral-code", requireAuth, getMyReferralCode);
 
 export default router;

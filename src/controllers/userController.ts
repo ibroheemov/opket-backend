@@ -15,7 +15,7 @@ import { Types } from "mongoose";
 import { PassengerService } from "../services/passenger.service";
 import { FcmService } from "../services/fcm.service";
 import { driverSessionStore } from "../store/driver.session.store";
-import { incrementCancelReason } from "./cancellationReason.controller";
+import { getCancelReasonLabel, incrementCancelReason } from "./cancellationReason.controller";
 
 export const createPassengerBot = async (req: Request, res: Response) => {
     try {
@@ -100,7 +100,13 @@ export const cancelRide = async (req: Request, res: Response) => {
         }
         // If stopSearching is async, await it too
         RideService.stopSearching(rideId);
-        RideService.clearDriverRideState(rideId, "ride_cancelled");
+
+        const cancelReasonLabel =
+            typeof reasonKey === "string" && reasonKey.length > 0
+                ? await getCancelReasonLabel(reasonKey)
+                : null;
+
+        RideService.clearDriverRideState(rideId, "ride_cancelled", cancelReasonLabel);
         RideRepository.setRideStatus(rideId, "cancelled", { by: "user" });
 
         // Fire-and-forget stat increment so cancel latency stays the same.

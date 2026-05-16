@@ -7,6 +7,7 @@ import { getWeeklyStats, getWeeklyStatsNew } from "../controllers/driver/getWeek
 import { getProfile, getProfileNew } from "../controllers/driver/getProfile";
 import authController from "../controllers/ auth.controller";
 import { payChange } from "../controllers/driver/payChange";
+import { walletToBalance } from "../controllers/driver/walletToBalance";
 import { heartbeat } from "../controllers/driver/heartbeat";
 import { refreshToken } from "../controllers/driver/refreshToken";
 import { fetchFareConfig, fetchFareConfigNew, fetchWorkingAreas } from "../controllers/fare.controller";
@@ -39,6 +40,7 @@ router.post("/status", authenticateDriver, updateStatus);
 router.get("/:id/balance", authenticateDriver, getDriverBalance);
 router.get("/balance", authenticateDriver, getDriverBalanceNew);
 router.post("/pay-change", authenticateDriver, payChange);
+router.post("/wallet-to-balance", authenticateDriver, walletToBalance);
 router.post("/dashboard", driverDashboard);
 router.get("/working-areas", fetchWorkingAreas);
 router.post(

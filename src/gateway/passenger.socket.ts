@@ -10,6 +10,8 @@ export const registerPassengerHandlersMobile = async ({ socket, id }: {
     socket: Socket;
     id: string;
 }) => {
+    console.log("PASSENGER ID: ", id);
+
     const passenger = await PassengerModel.findById(id);
 
     if (!passenger) {

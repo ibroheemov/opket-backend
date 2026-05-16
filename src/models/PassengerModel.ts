@@ -5,6 +5,7 @@ export interface IPassengerDocument extends Document {
     chatId: number;
     phone: number;
     balance: number;
+    referralCode?: string;
     currentRideId?: string;
     fcmToken?: string;
     verified?: boolean;
@@ -22,6 +23,7 @@ const PassengerSchema = new Schema<IPassengerDocument>(
         phone: { type: Number },
         fcmToken: { type: String, required: false },
         balance: { type: Number, default: 0 },
+        referralCode: { type: String, unique: true, sparse: true },
         currentRideId: { type: String },
         verified: { type: Boolean, default: true },
         notificationEnabled: { type: Boolean, default: false },

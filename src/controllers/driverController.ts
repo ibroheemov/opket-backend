@@ -18,7 +18,7 @@ import { SettingsModel, SETTINGS_KEYS } from "../models/SettingsModel";
 import CarOption from "../models/CarOption";
 
 function generateReferralCode(): string {
-    return randomBytes(4).toString("hex").toUpperCase();
+    return randomBytes(3).toString("hex").slice(0, 5).toUpperCase();
 }
 
 export const updateLocation = async (req: AuthRequest, res: Response) => {
@@ -392,15 +392,29 @@ export const approveDriverDocuments = async (req: AuthRequest, res: Response) =>
 
         if (!driver) return res.status(404).json({ message: "Driver not found" });
 
+        // Give registration bonus to the approved driver
+        const regBonusSetting = await SettingsModel.findOne({ key: SETTINGS_KEYS.DRIVER_REGISTRATION_BONUS });
+        const regBonusAmount = regBonusSetting?.value ?? 0;
+        if (regBonusAmount > 0) {
+            await DriverModel.findByIdAndUpdate(id, { $inc: { balance: regBonusAmount } });
+        }
+
         // Send FCM approval notification to the approved driver
         if (driver.fcmToken) {
             try {
+                const bonusBody = regBonusAmount > 0
+                    ? `Siz endi linyaga chiqib buyurtma olishingiz mumkin! Hisobingizga ${regBonusAmount.toLocaleString()} UZS bonus qo'shildi.`
+                    : "Siz endi linyaga chiqib buyurtma olishingiz mumkin!";
                 await admin.messaging().send({
                     token: driver.fcmToken,
                     android: { priority: "high" },
+                    data: regBonusAmount > 0 ? {
+                        type: "registration_bonus",
+                        amount: regBonusAmount.toString(),
+                    } : {},
                     notification: {
                         title: "Hujjatlaringiz tasdiqlandi ✅",
-                        body: "Siz endi linyaga chiqib buyurtma olishingiz mumkin!",
+                        body: bonusBody,
                     },
                 });
             } catch (_) {}

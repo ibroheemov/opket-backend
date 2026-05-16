@@ -698,7 +698,7 @@ export const RideService = {
     },
 
     // RideService.ts
-    async clearDriverRideState(rideId: string, event: string) {
+    async clearDriverRideState(rideId: string, event: string, cancelReasonLabel?: string | null) {
 
         const rideKey = `ride:${rideId}`;
 
@@ -717,8 +717,10 @@ export const RideService = {
 
         await driverSessionStore.markAvailable(driverId);
 
+        const payload: Record<string, unknown> = { rideId };
+        if (cancelReasonLabel) payload.cancelReasonLabel = cancelReasonLabel;
 
-        emitToDriver(driverId, event, { rideId });
+        emitToDriver(driverId, event, payload);
         await Promise.all([
             redis.del(`driver_offer:${driverId}`),
             redis.del(`driver_offer_payload:${driverId}`),

@@ -39,3 +39,13 @@ export async function incrementCancelReason(reasonKey: string | undefined) {
         console.error("incrementCancelReason error:", err);
     }
 }
+
+/** Returns the Uzbek label for a reason key, or null if not found. */
+export async function getCancelReasonLabel(reasonKey: string): Promise<string | null> {
+    try {
+        const doc = await CancellationReasonModel.findOne({ key: reasonKey }).select("labelUz").lean();
+        return doc?.labelUz ?? null;
+    } catch {
+        return null;
+    }
+}
