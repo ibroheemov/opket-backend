@@ -14,6 +14,13 @@ const ReferralRecordSchema = new Schema(
             default: "pending_location",
         },
         bonusAmount: { type: Number, default: 0 },
+        // true once the referrer's referralBonus has actually been incremented
+        // for this record. Used to make approve/reject idempotent and to know
+        // whether a bonus must be reversed when an approval is overturned.
+        bonusCredited: { type: Boolean, default: false },
+        // true when the status was decided automatically by the zone-radius
+        // check (vs. a manual admin override in the approvals page).
+        autoVerified: { type: Boolean, default: false },
         referredLocation: {
             lat: { type: Number },
             lng: { type: Number },
