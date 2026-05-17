@@ -4,6 +4,7 @@ import { config } from '../bot/config/env';
 import { driverSessionStore } from '../store/driver.session.store';
 import { driverLocationStore } from '../store/driver.location.store';
 import { emitToDriver } from '../gateway/ride.socket';
+import { NotificationService } from '../fcm/notification.service';
 
 const reconnectStrategy = (retries: number) => Math.min(retries * 200, 5000);
 
@@ -34,12 +35,17 @@ subscriber.connect();
 subscriber.on('error', (err) => console.error('Redis Subscriber Error', err));
 
 subscriber.subscribe("__keyevent@0__:expired", async (key: string) => {
-    if (key.startsWith("driver:")) {
-        const driverId = key.split(":")[1];
+    // Only match session keys: "driver:{id}" — not cache keys like "driver:fcm:{id}"
+    const parts = key.split(":");
+    if (parts.length === 2 && parts[0] === "driver") {
+        const driverId = parts[1];
 
         await driverLocationStore.removeDriver(driverId);
         await driverSessionStore.setOffline(driverId);
         emitToDriver(driverId, "forced_offline", { reason: "session_expired" });
+        NotificationService.driver.forcedOffline(driverId).catch((err) =>
+            console.error("[FCM] forced_offline send failed:", err)
+        );
     }
 });
 redis.on('error', (err) => console.error('Redis Client Error', err));

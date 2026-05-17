@@ -83,5 +83,13 @@ export const NotificationTemplates = {
                     "Yangi safar taklifi bor",
             };
         },
+
+        forcedOffline(): PushPayload {
+            return {
+                title: "Siz oflayn qilindingiz",
+                body: "Sessiya muddati tugadi. Qayta ulanish uchun ilovani oching.",
+                data: { type: "forced_offline" },
+            };
+        },
     },
 };

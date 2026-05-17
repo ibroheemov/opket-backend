@@ -4,6 +4,7 @@ import { driverLocationStore } from "../../store/driver.location.store";
 import { DriverSocketLocationBody } from "../../types/driver.types";
 import { driverSessionStore } from "../../store/driver.session.store";
 import { emitToUser } from "../../gateway/ride.socket";
+import { driverSockets } from "../../gateway/socket.maps";
 
 export const heartbeat = async (req: AuthRequest, res: Response) => {
     const data: DriverSocketLocationBody = req.body;
@@ -30,6 +31,6 @@ export const heartbeat = async (req: AuthRequest, res: Response) => {
         geoType
     });
 
-    return res.json({ ok: true });
+    return res.json({ ok: true, socketConnected: driverSockets.has(driverId) });
 };
 

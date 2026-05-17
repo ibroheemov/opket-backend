@@ -107,6 +107,18 @@ export const registerDriverHandlers = async ({ socket, driverId }: DriverSocketC
             if (current !== socket.id) {
                 return; // replaced by new connection
             }
+
+            // If the driver's session hash is still alive it means the background
+            // service is still sending HTTP heartbeats (app was killed but the
+            // Android foreground service survived). Keep the driver online so the
+            // status screen shows correctly when they re-open the app; just clear
+            // the stale socket entry so the next connection registers cleanly.
+            const session = await driverSessionStore.getCurrentSession(driverId);
+            if (session) {
+                driverSockets.delete(driverId);
+                return;
+            }
+
             console.error("🟡❌ DRIVER DISCONNECTED");
             // 1 remove from online
             await driverSessionStore.setOffline(driverId);

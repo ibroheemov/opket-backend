@@ -218,5 +218,27 @@ export const NotificationService = {
                     .newRideOffer()
             );
         },
+
+        async forcedOffline(
+            driverId: string
+        ) {
+
+            const token =
+                await NotificationService
+                    .resolveDriverToken(
+                        driverId
+                    );
+
+            if (!token)
+                return;
+
+            return NotificationService.send(
+                token,
+
+                NotificationTemplates
+                    .driver
+                    .forcedOffline()
+            );
+        },
     },
 };
