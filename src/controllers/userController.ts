@@ -107,7 +107,14 @@ export const cancelRide = async (req: Request, res: Response) => {
                 : null;
 
         RideService.clearDriverRideState(rideId, "ride_cancelled", cancelReasonLabel);
-        RideRepository.setRideStatus(rideId, "cancelled", { by: "user" });
+        RideRepository.setRideStatus(
+            rideId,
+            "cancelled",
+            { by: "user", note: cancelReasonLabel ?? undefined },
+            cancelReasonLabel
+                ? { cancellationReason: cancelReasonLabel, cancellationReasonKey: reasonKey }
+                : undefined
+        );
 
         // Fire-and-forget stat increment so cancel latency stays the same.
         if (typeof reasonKey === "string" && reasonKey.length > 0) {
