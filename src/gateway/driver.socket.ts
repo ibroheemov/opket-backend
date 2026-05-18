@@ -59,6 +59,15 @@ export const registerDriverHandlers = async ({ socket, driverId }: DriverSocketC
         if (session?.userPhoneNumber) {
             emitToUser(session?.userPhoneNumber, "ride_progress", data);
         }
+
+        const rideId = await redis.hGet(`driver:${driverId}`, "currentRideId");
+        if (rideId) {
+            await redis.set(
+                `ride_progress:${rideId}`,
+                JSON.stringify({ fare: data.fare, distance: data.distance }),
+                { EX: 4 * 60 * 60 },
+            );
+        }
     });
 
     socket.on("ride_started", async (data: RideStartedPayload) => {

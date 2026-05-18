@@ -18,6 +18,7 @@ import { RideRequestInput } from "../modules/ride/ride.types";
 import { emitToDriver, emitToUser } from "../gateway/ride.socket";
 import { OrderModel } from "../models/OrderModel";
 import { PassengerModel } from "../models/PassengerModel";
+import { redis } from "../redis/redisClient";
 
 export const requestRide = async (req: AuthRequest, res: Response) => {
     try {
@@ -294,11 +295,16 @@ export const currentRide = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Driver not attached' });
         }
 
-        if (!driver_location) {
-            return res.status(404).json({ error: 'No Driver location found' });
-        }
+        // if (!driver_location) {
+        //     return res.status(404).json({ error: 'No Driver location found' });
+        // }
 
-        return res.status(200).json({ ...ride, driver_location });
+        const progressRaw = await redis.get(`ride_progress:${id}`);
+        const progress: { fare?: string; distance?: string } = progressRaw
+            ? JSON.parse(progressRaw)
+            : {};
+
+        return res.status(200).json({ ...ride, driver_location, ...progress });
     } catch (err) {
         console.error('Error fetching current ride:', err);
         return res.status(500).json({ error: 'Internal server error' });

@@ -131,6 +131,56 @@ export const FcmService = {
 
         // Returns messageId
         return admin.messaging().send(message);
-    }
+    },
+
+    // Data-only push that wakes the driver app even when it is killed.
+    // No 'notification' key — the app builds and shows the notification itself
+    // so the driver sees the same full-screen ride offer UI regardless of app state.
+    async sendRideOffer({
+        fcmToken,
+        payload,
+        ttlMs,
+    }: {
+        fcmToken: string;
+        payload: object;
+        ttlMs: number;
+    }): Promise<void> {
+        try {
+            await admin.messaging().send({
+                token: fcmToken,
+                data: {
+                    type: 'ride_offer',
+                    // Entire offer payload as a single JSON string — FCM data
+                    // values must be string:string, so we encode the object here
+                    // and decode it on the Flutter side.
+                    payload: JSON.stringify(payload),
+                },
+                android: {
+                    // 'high' wakes the device even in Doze mode.
+                    priority: 'high',
+                    // Drop the message once the offer window has closed so the
+                    // driver never receives a stale notification.
+                    ttl: ttlMs,
+                },
+                apns: {
+                    headers: {
+                        // Priority 10 = immediate delivery (same as normal push).
+                        'apns-priority': '10',
+                        // 'background' push type triggers application:didReceiveRemoteNotification
+                        // in a killed iOS app without showing a banner.
+                        'apns-push-type': 'background',
+                    },
+                    payload: {
+                        aps: {
+                            // content-available: 1 wakes the killed iOS app.
+                            'content-available': 1,
+                        },
+                    },
+                },
+            });
+        } catch (err) {
+            console.error(`FCM ride_offer failed for token ${fcmToken?.slice(0, 20)}…:`, err);
+        }
+    },
 
 }

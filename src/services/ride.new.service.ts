@@ -347,10 +347,22 @@ export const RideService = {
                 );
             }
 
-            await Promise.all([
+            const [socketReached] = await Promise.all([
                 emitToDriver(driverId, "ride_offer", payload),
                 emitToDriver(`${driverId}-bg`, "ride_offer", payload),
             ]);
+
+            // FCM wakeup: fires in parallel and is non-blocking.
+            // Delivers the offer even when the driver's app is killed.
+            // We always send it alongside the socket emit — if the socket
+            // is alive the app deduplicates by notification ID (rideId.hashCode).
+            DriverModel.findById(driverId).select("fcmToken").lean()
+                .then(doc => {
+                    if (doc?.fcmToken) {
+                        return FcmService.sendRideOffer({ fcmToken: doc.fcmToken, payload, ttlMs });
+                    }
+                })
+                .catch(err => console.error(`FCM ride_offer to driver ${driverId} failed:`, err));
 
             await redis
                 .multi()
