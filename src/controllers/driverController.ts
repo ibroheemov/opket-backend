@@ -420,30 +420,36 @@ export const approveDriverDocuments = async (req: AuthRequest, res: Response) =>
             } catch (_) {}
         }
 
-        // Send FCM referral bonus notification to the referrer
+        // Send FCM referral bonus notification to the referrer only if the
+        // referral was actually approved (location was verified inside the zone).
         if (driver.referredBy) {
             try {
-                const bonusSetting = await SettingsModel.findOne({ key: SETTINGS_KEYS.DRIVER_REFERRAL_BONUS });
-                const bonusAmount = bonusSetting?.value ?? 0;
+                const referralRecord = await ReferralRecordModel.findOne({
+                    referredId: driver._id,
+                    referredUserType: "driver",
+                }).select("status bonusAmount bonusCredited").lean();
 
-                if (bonusAmount > 0) {
-                    const referrer = await DriverModel.findById(driver.referredBy).select("fcmToken");
-                    if (referrer?.fcmToken) {
-                        try {
-                            await admin.messaging().send({
-                                token: referrer.fcmToken,
-                                android: { priority: "high" },
-                                data: {
-                                    type: "referral_bonus",
-                                    amount: bonusAmount.toString(),
-                                    message: `Referalingiz tasdiqlandi! Hisobingizga ${bonusAmount} UZS bonus qo'shildi.`,
-                                },
-                                notification: {
-                                    title: "Referral bonus 🎉",
-                                    body: `Referalingiz tasdiqlandi! ${bonusAmount} UZS bonus qo'shildi.`,
-                                },
-                            });
-                        } catch (_) {}
+                if (referralRecord?.status === "approved" && referralRecord.bonusCredited) {
+                    const creditedAmount = referralRecord.bonusAmount ?? 0;
+                    if (creditedAmount > 0) {
+                        const referrer = await DriverModel.findById(driver.referredBy).select("fcmToken");
+                        if (referrer?.fcmToken) {
+                            try {
+                                await admin.messaging().send({
+                                    token: referrer.fcmToken,
+                                    android: { priority: "high" },
+                                    data: {
+                                        type: "referral_bonus",
+                                        amount: creditedAmount.toString(),
+                                        message: `Referalingiz tasdiqlandi! Hisobingizga ${creditedAmount} UZS bonus qo'shildi.`,
+                                    },
+                                    notification: {
+                                        title: "Referral bonus 🎉",
+                                        body: `Referalingiz tasdiqlandi! ${creditedAmount} UZS bonus qo'shildi.`,
+                                    },
+                                });
+                            } catch (_) {}
+                        }
                     }
                 }
             } catch (bonusErr) {

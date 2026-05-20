@@ -335,8 +335,10 @@ export const RideService = {
             }
         }
 
-        // 6. Credit cashback to passenger balance
-        await handlePassengerCashback(ride.userPhoneNumber);
+        // 6. Credit cashback to passenger balance (skip if passenger used their balance)
+        if (!rideUpdte?.useBalance) {
+            await handlePassengerCashback(ride.userPhoneNumber);
+        }
 
         // 7. Notify user (if online)
         emitToUser(ride.userPhoneNumber, "ride_completed", data);

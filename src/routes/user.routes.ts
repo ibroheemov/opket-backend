@@ -14,6 +14,7 @@ import { authenticateDriver } from "../middlewares/auth";
 import { getMyRidesPassenger } from "../controllers/passenger.controller";
 import { submitPassengerReferralLocation } from "../controllers/referral.controller";
 import { getMyReferralCode } from "../controllers/passenger/getMyReferralCode";
+import { getMyReferralRecords } from "../controllers/passenger/getMyReferralRecords";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = express.Router();
@@ -38,5 +39,6 @@ router.post("/:phone/registerFcm", registerPassengerFcm);
 router.get("/rides", authenticateDriver, getMyRidesPassenger);
 router.post("/referral/submit-location", requireAuth, submitPassengerReferralLocation);
 router.get("/my-referral-code", requireAuth, getMyReferralCode);
+router.get("/referral-records", requireAuth, getMyReferralRecords);
 
 export default router;

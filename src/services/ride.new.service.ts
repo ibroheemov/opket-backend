@@ -1058,21 +1058,26 @@ export const RideService = {
         // Deduct driver commission
         handleRideCommission(driverId, Number(data.fare));
 
-        // Transfer passenger balance to driver cashbackBalance (if passenger opted in)
+        // Transfer passenger balance to driver wallet (if passenger opted in)
         const ride = await RideModel.findById(rideId).select("useBalance userPhoneNumber").lean();
+        let balanceAmount = 0;
         if (ride?.useBalance && ride.userPhoneNumber) {
             const passenger = await PassengerModel.findOne({ phone: ride.userPhoneNumber });
             if (passenger && passenger.balance > 0) {
-                const transfer = Math.min(passenger.balance, Number(fare));
-                await PassengerModel.findByIdAndUpdate(passenger._id, { $inc: { balance: -transfer } });
-                await DriverModel.findByIdAndUpdate(driverId, { $inc: { wallet: transfer } });
+                balanceAmount = Math.min(passenger.balance, Number(fare));
+                await PassengerModel.findByIdAndUpdate(passenger._id, { $inc: { balance: -balanceAmount } });
+                await DriverModel.findByIdAndUpdate(driverId, { $inc: { wallet: balanceAmount } });
             }
         }
+        const cashAmount = Number(fare) - balanceAmount;
+        await RideModel.findByIdAndUpdate(rideId, { balanceAmount, cashAmount });
 
-        // Credit cashback reward to passenger balance
-        handlePassengerCashback(ride?.userPhoneNumber).catch(err =>
-            console.error("Passenger cashback failed:", err)
-        );
+        // Credit cashback reward to passenger balance (skip if passenger used their balance)
+        if (!ride?.useBalance) {
+            handlePassengerCashback(ride?.userPhoneNumber).catch(err =>
+                console.error("Passenger cashback failed:", err)
+            );
+        }
 
         // For delivery rides, also deduct restaurant commission on itemsSubtotal
         this.handleDeliveryRestaurantCommission(rideId).catch(err =>

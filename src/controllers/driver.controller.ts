@@ -125,6 +125,8 @@ export const getMyRides = async (req: AuthRequest, res: Response) => {
                     userChatId: 1,
                     userPhoneNumber: 1,
                     source: 1,
+                    balanceAmount: 1,
+                    cashAmount: 1,
                 },
             },
 
@@ -157,6 +159,8 @@ export const getMyRides = async (req: AuthRequest, res: Response) => {
                                 userChatId: 1,
                                 userPhoneNumber: 1,
                                 source: 1,
+                                balanceAmount: 1,
+                                cashAmount: 1,
                             },
                         },
                     ],

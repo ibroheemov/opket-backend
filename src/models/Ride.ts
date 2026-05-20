@@ -76,6 +76,8 @@ export interface IRide extends Document {
     isDelivery?: boolean;
     orderId?: Types.ObjectId | null;
     useBalance?: boolean;
+    balanceAmount?: number;  // portion of fare paid from passenger balance
+    cashAmount?: number;     // portion of fare paid in cash
 }
 
 const rideSchema = new Schema<IRide>({
@@ -162,6 +164,8 @@ const rideSchema = new Schema<IRide>({
     isDelivery: { type: Boolean, default: false },
     orderId: { type: Types.ObjectId, ref: "Order", default: null },
     useBalance: { type: Boolean, default: false },
+    balanceAmount: { type: Number, default: 0 },
+    cashAmount: { type: Number, default: 0 },
 });
 
 export const RideModel = mongoose.model<IRide>("Ride", rideSchema);

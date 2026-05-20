@@ -2,6 +2,7 @@ import { PassengerModel } from "../models/PassengerModel";
 import { DriverModel } from "../models/DriverModel";
 import { SettingsModel, SETTINGS_KEYS } from "../models/SettingsModel";
 import { ReferralRecordModel } from "../models/ReferralRecordModel";
+import { PassengerReferralRecord } from "../models/PassengerReferralRecord";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
 import mongoose from "mongoose";
 import crypto from "crypto";
@@ -73,6 +74,7 @@ export class PassengerService {
             // Try passenger-to-passenger referral first
             const awarded = await this.handlePassengerToPassengerReferral(
                 passenger._id.toString(),
+                phone,
                 referralCode,
             );
             // Fall back to driver-referral flow if no passenger matched
@@ -86,6 +88,7 @@ export class PassengerService {
 
     private static async handlePassengerToPassengerReferral(
         newPassengerId: string,
+        newPassengerPhone: number,
         referralCode: string,
     ): Promise<boolean> {
         try {
@@ -100,14 +103,17 @@ export class PassengerService {
             });
             const bonus = bonusSetting?.value ?? 0;
 
-            if (bonus > 0) {
-                await PassengerModel.findByIdAndUpdate(referrer._id, {
-                    $inc: { balance: bonus },
-                });
-                console.log(
-                    `Passenger referral bonus: +${bonus} credited to passenger ${referrer._id}`,
-                );
-            }
+            // Create a pending record — bonus will be credited after location check.
+            await PassengerReferralRecord.create({
+                referrerId: referrer._id,
+                referredId: newPassengerId,
+                referredPhone: newPassengerPhone,
+                bonusAmount: bonus,
+                status: "pending_location",
+            }).catch((err: any) => {
+                if (err.code !== 11000) console.error("PassengerReferralRecord create error:", err);
+            });
+
             return true;
         } catch (err) {
             console.error("handlePassengerToPassengerReferral error:", err);
