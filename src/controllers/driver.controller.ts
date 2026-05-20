@@ -28,6 +28,7 @@ import { driverSessionStore, DriverSessionStore } from "../store/driver.session.
 import { driverCapabilityStore } from "../store/driver.capability.store";
 import { GhostRideModel } from "../models/GhostRide";
 import { driverLocationStore } from "../store/driver.location.store";
+import { PassengerModel } from "../models/PassengerModel";
 import { handleRideCommission } from "../utils/fare.helper";
 
 // import DriverModel from "../models/Driver"; // <- adjust path
@@ -461,11 +462,19 @@ export const getRideStatus = async (
             });
         }
 
-        const result = await RideModel.findById(rideId).select("status");
+        const result = await RideModel.findById(rideId).select("status useBalance userPhoneNumber").lean();
+
+        let passengerBalance = 0;
+        if (result?.useBalance && result.userPhoneNumber) {
+            const passenger = await PassengerModel.findOne({ phone: result.userPhoneNumber }).select("balance").lean();
+            passengerBalance = passenger?.balance ?? 0;
+        }
 
         return res.json({
             success: true,
-            status: result?.status
+            status: result?.status,
+            useBalance: result?.useBalance ?? false,
+            passengerBalance,
         });
 
     } catch (e: any) {

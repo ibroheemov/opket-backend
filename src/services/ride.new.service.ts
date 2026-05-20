@@ -20,6 +20,7 @@ import { sendFcm } from "../utils/sendFcm";
 import { sendToToken } from "./notifications";
 import { PassengerModel } from "../models/PassengerModel";
 import { FcmService } from "./fcm.service";
+import { EskizService } from "./eskiz.service";
 import { OrderModel } from "../models/OrderModel";
 import { CompleteGhostRideRequestBody } from "../types/driver.types";
 import { RidePhase } from "../utils/enums";
@@ -870,11 +871,12 @@ export const RideService = {
                 emitToRestaurant(restaurantId, 'driver_accepted_order', {});
             }
 
-            // fire-and-forget FCM
+            // fire-and-forget FCM / SMS
             if (userPhone) this.sendPassengerMessage({
                 userPhone,
-                title: `${driverSession?.carColor}, ${driverSession?.carModel}`,
-                body: "🚗 Haydovchi yo'lda",
+                carColor: driverSession?.carColor,
+                carModel: driverSession?.carModel,
+                carNumber: driverSession?.carNumber,
             });
 
             void this.computeAndEmitRoute({
@@ -951,30 +953,70 @@ export const RideService = {
     },
 
 
-    async sendPassengerMessage(params: { userPhone: number, title: string, body: string }) {
-        const { userPhone, title, body } = params;
+    async sendPassengerMessage(params: {
+        userPhone: number;
+        carColor?: string;
+        carModel?: string;
+        carNumber?: string;
+    }) {
+        const { userPhone, carColor, carModel, carNumber } = params;
 
-        const passengerPromise = PassengerModel.findOne({ phone: userPhone })
-            .select("fcmToken")
+        const smsText = `OPKET TAXI Haydovchi yo'lda: ${carColor ?? ""} ${carModel ?? ""} - ${carNumber ?? ""}`.trim();
+
+        void PassengerModel.findOne({ phone: userPhone })
+            .select("fcmToken notificationEnabled phone")
             .lean()
-            .exec();
-
-        void passengerPromise
+            .exec()
             .then((p) => {
-                const token = p?.fcmToken;
-                if (!token) return;
-
-                return sendToToken({
-                    token,
-                    title,
-                    body,
-                    data: {},
-                    sound: "taxi_ringtone_parallel",
-                    channelId: "default_channel",
-                });
+                if (p?.notificationEnabled && p.fcmToken) {
+                    return sendToToken({
+                        token: p.fcmToken,
+                        title: `${carColor ?? ""} ${carModel ?? ""}`.trim(),
+                        body: "Haydovchi yo'lda",
+                        data: {},
+                        sound: "taxi_ringtone_parallel",
+                        channelId: "default_channel",
+                    });
+                } else if (p?.phone) {
+                    return EskizService.sendSms(p.phone, smsText);
+                }
             })
             .catch((err) => {
-                console.error("Passenger lookup / FCM send failed:", err);
+                console.error("Passenger notification failed:", err);
+            });
+    },
+
+    async sendPassengerRideCompleteMessage(params: {
+        userPhone: number;
+        fare: number;
+        cashback: number;
+    }) {
+        const { userPhone, fare, cashback } = params;
+
+        const fmt = (n: number) => n.toLocaleString("ru-RU"); // e.g. 12 000
+        let smsText = `OPKET TAXI Yo'l haqqi: ${fmt(fare)} so'm`;
+        if (cashback > 0) smsText += ` Bonus berildi: ${fmt(cashback)} so'm`;
+
+        void PassengerModel.findOne({ phone: userPhone })
+            .select("fcmToken notificationEnabled phone")
+            .lean()
+            .exec()
+            .then((p) => {
+                if (p?.notificationEnabled && p.fcmToken) {
+                    return sendToToken({
+                        token: p.fcmToken,
+                        title: "OPKET TAXI",
+                        body: smsText,
+                        data: {},
+                        sound: "default",
+                        channelId: "default_channel",
+                    });
+                } else if (p?.phone) {
+                    return EskizService.sendSms(p.phone, smsText);
+                }
+            })
+            .catch((err) => {
+                console.error("Passenger ride-complete notification failed:", err);
             });
     },
 
@@ -1073,10 +1115,21 @@ export const RideService = {
         await RideModel.findByIdAndUpdate(rideId, { balanceAmount, cashAmount });
 
         // Credit cashback reward to passenger balance (skip if passenger used their balance)
+        let cashback = 0;
         if (!ride?.useBalance) {
-            handlePassengerCashback(ride?.userPhoneNumber).catch(err =>
-                console.error("Passenger cashback failed:", err)
-            );
+            cashback = await handlePassengerCashback(ride?.userPhoneNumber).catch(err => {
+                console.error("Passenger cashback failed:", err);
+                return 0;
+            });
+        }
+
+        // Notify passenger about ride completion
+        if (ride?.userPhoneNumber) {
+            this.sendPassengerRideCompleteMessage({
+                userPhone: ride.userPhoneNumber,
+                fare: Number(fare),
+                cashback,
+            });
         }
 
         // For delivery rides, also deduct restaurant commission on itemsSubtotal
