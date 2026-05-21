@@ -958,8 +958,10 @@ export const RideService = {
         carColor?: string;
         carModel?: string;
         carNumber?: string;
+        title?: string;
+        body?: string;
     }) {
-        const { userPhone, carColor, carModel, carNumber } = params;
+        const { userPhone, carColor, carModel, carNumber, title, body } = params;
 
         const smsText = `OPKET TAXI Haydovchi yo'lda: ${carColor ?? ""} ${carModel ?? ""} - ${carNumber ?? ""}`.trim();
 
@@ -971,8 +973,8 @@ export const RideService = {
                 if (p?.notificationEnabled && p.fcmToken) {
                     return sendToToken({
                         token: p.fcmToken,
-                        title: `${carColor ?? ""} ${carModel ?? ""}`.trim(),
-                        body: "Haydovchi yo'lda",
+                        title: title ?? `${carColor ?? ""} ${carModel ?? ""}`.trim(),
+                        body: body ?? "Haydovchi yo'lda",
                         data: {},
                         sound: "taxi_ringtone_parallel",
                         channelId: "default_channel",
