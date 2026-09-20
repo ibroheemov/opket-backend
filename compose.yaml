@@ -1,0 +1,12 @@
+services:
+  api:
+    image: opket-backend:latest
+    container_name: opket-backend
+
+    env_file:
+      - .env
+
+    ports:
+      - "127.0.0.1:4000:3000"
+
+    restart: unless-stopped
